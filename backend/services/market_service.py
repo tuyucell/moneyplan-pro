@@ -156,7 +156,7 @@ class MarketDataProvider:
     def get_calendar(self):
         # Gerçekçi ve Dinamik Takvim Verisi (Ocak 2026)
         return [
-            {"date": "12 Ocak", "time": "10:00", "title": "Türkiye İşsizlik Oranı", "impact": "High"},
+            {"date": "13 Ocak", "time": "10:00", "title": "Türkiye İşsizlik Oranı", "impact": "High"},
             {"date": "15 Ocak", "time": "14:00", "title": "TCMB Politika Faizi Kararı", "impact": "High"},
             {"date": "16 Ocak", "time": "16:30", "title": "ABD Çekirdek TÜFE (Enflasyon)", "impact": "High"},
             {"date": "20 Ocak", "time": "10:00", "title": "BİST 100 Teknik Analiz Günü", "impact": "Medium"}

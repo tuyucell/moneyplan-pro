@@ -1013,7 +1013,7 @@ class AppStrings {
       pageNotFound: 'Sayfa bulunamadı',
       categoryLabel: 'Kategori',
       exchangeLabel: 'Borsa',
-      investmentGuideLabel: 'Yatırım Rehberi',
+      investmentGuideLabel: 'MoneyPlan Pro',
       searchTitle: 'Arama',
       searchResultsLabel: 'Arama Sonuçları',
       financeNewsTitle: 'FİNANS HABERLERİ',

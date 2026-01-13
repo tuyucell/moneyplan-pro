@@ -1,6 +1,6 @@
 class AppConstants {
   // App Info
-  static const String appName = 'Yatırım Rehberi';
+  static const String appName = 'MoneyPlan Pro';
   static const String appVersion = '1.0.0';
 
   // API Base URLs
