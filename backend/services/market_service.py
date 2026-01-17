@@ -4,6 +4,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from utils.cache import cache
 from utils.network import SafeRequest
+from services.twelve_data_service import twelve_data_service
 
 # --- PRO GÜNCELLEME SIKLIĞI (SANİYE) ---
 TTL_MARKET = 60
@@ -732,15 +733,47 @@ class MarketDataProvider:
 
     def get_tcmb_currencies(self):
         """
-        Döviz Listesi (TradingView)
+        Döviz Listesi: TradingView (Anlık) + ExchangeRate-API (Hata Payı Filler)
         """
+        symbols = ["USD", "EUR", "GBP", "CHF", "JPY", "CAD", "AUD", "DKK", "SEK", "NOK", "SAR"]
+        
+        # 1. TradingView'dan anlık çekmeyi dene
         from services.ta_service import ta_service
-        # Genişletilmiş Döviz Listesi (TRY Karşılıkları)
-        symbols = [
-            "USD", "EUR", "GBP", "CHF", "JPY", "CAD", 
-            "AUD", "DKK", "SEK", "NOK", "SAR"
-        ]
-        return ta_service.get_multiple_analysis(symbols)
+        ta_results = ta_service.get_multiple_analysis(symbols)
+        
+        # 0 gelen veya eksik olan var mı kontrol et
+        has_zeros = any(item.get("price", 0) <= 0 for item in ta_results) if ta_results else True
+        
+        if not has_zeros and len(ta_results) == len(symbols):
+            return ta_results
+
+        # 2. Eğer eksik varsa veya bazıları 0 ise ExchangeRate-API ile doldur
+        try:
+            from services.exchange_api_service import exchange_api_service
+            api_rates = exchange_api_service.get_try_rates()
+            
+            if not ta_results: return api_rates or []
+            
+            api_map = {item["symbol"]: item for item in api_rates}
+            final_results = []
+            
+            processed_symbols = set()
+            for item in ta_results:
+                sym = item["symbol"]
+                if item.get("price", 0) <= 0 and sym in api_map:
+                    final_results.append(api_map[sym])
+                else:
+                    final_results.append(item)
+                processed_symbols.add(sym)
+            
+            for sym in symbols:
+                if sym not in processed_symbols and sym in api_map:
+                    final_results.append(api_map[sym])
+                    
+            return final_results
+        except Exception as e:
+            print(f"Currency fallback error: {e}")
+            return ta_results or []
 
     def get_stock_markets(self):
         """Popüler Hisse Senetlerini Getir (TradingView Source)"""
@@ -758,6 +791,25 @@ class MarketDataProvider:
         # TA servisinden çek
         ta_data = ta_service.get_multiple_analysis(all_symbols)
         
+        # 2. Twelve Data ile US Hisselerini Güncelle (Anlık Veri)
+        try:
+            from services.twelve_data_service import twelve_data_service
+            # Limit 8 credit/min olduğu için en önemli 8 US hissesini çekelim
+            top_us = ["AAPL", "TSLA", "MSFT", "AMZN", "GOOGL", "NVDA", "META", "NFLX"]
+            td_data = twelve_data_service.get_quotes(top_us)
+            
+            if td_data:
+                for item in ta_data:
+                    sym = item.get("symbol")
+                    if sym in td_data:
+                        # TA verisini Twelve Data anlık verisiyle güncelle
+                        td_item = td_data[sym]
+                        item["price"] = td_item["price"]
+                        item["change_percent"] = td_item["change_percent"]
+                        item["source"] = "TwelveData (Real-time)"
+        except Exception as e:
+            print(f"Twelve Data integration error: {e}")
+
         # Ülke Bilgisi Ekle
         if ta_data:
             # Clean symbols map for robust matching
@@ -793,11 +845,35 @@ class MarketDataProvider:
         """Emtia Piyasalarını Getir (TradingView Source)"""
         from services.ta_service import ta_service
         symbols = [
-            "GOLD", "SILVER", "BRENT", "CRUDE_OIL", "PLATINUM", "PALLADIUM", 
+            "XAU/USD", "XAG/USD", "LCO/USD", "WTI/USD", "PLATINUM", "PALLADIUM", 
             "COPPER", "NATURAL_GAS", "CORN", "WHEAT", "SOYBEAN", 
             "COFFEE", "SUGAR", "COTTON"
         ] 
-        return ta_service.get_multiple_analysis(symbols)
+        # 1. TradingView Source (Primary)
+        ta_data = ta_service.get_multiple_analysis(symbols)
+        
+        # 2. Twelve Data Fallback (For 0 or missing prices)
+        has_zeros = any(item.get("price", 0) <= 0 for item in ta_data) if ta_data else True
+        if has_zeros:
+            missing = [s for s in symbols if not any(item["symbol"] == s and item.get("price", 0) > 0 for item in ta_data)]
+            if missing:
+                # Twelve Data free tier limit is 8 credits per minute.
+                to_fetch = missing[:7] # Leave some buffer
+                td_data = twelve_data_service.get_quotes(to_fetch)
+                if td_data:
+                    # Update results
+                    for i, item in enumerate(ta_data):
+                        sym = item["symbol"]
+                        if sym in td_data and item.get("price", 0) <= 0:
+                            ta_data[i] = td_data[sym]
+                    
+                    # Add completely missing ones
+                    processed = [item["symbol"] for item in ta_data]
+                    for sym, data in td_data.items():
+                        if sym not in processed:
+                            ta_data.append(data)
+
+        return ta_data
 
     def get_etf_markets(self):
         """Popüler ETF'leri Getir (TradingView Source)"""
@@ -829,8 +905,6 @@ class MarketDataProvider:
     def _fetch_batch_details(self, symbols):
         """Yardımcı: Çoklu sembol verilerini paralel/seri çek"""
         results = []
-        # OOM (Out Of Memory) riskini sıfıra indirmek için worker=1 (Sequential) yapıyoruz.
-        # Hız biraz düşecek ama sunucu kapanmayacak.
         with ThreadPoolExecutor(max_workers=1) as executor:
             future_to_sym = {executor.submit(self.get_asset_detail, sym): sym for sym in symbols}
             for future in future_to_sym:
