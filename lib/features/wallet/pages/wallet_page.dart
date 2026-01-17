@@ -21,7 +21,7 @@ import 'package:invest_guide/core/providers/balance_visibility_provider.dart';
 import 'package:invest_guide/core/services/currency_service.dart';
 
 import '../widgets/wallet_summary_cards.dart';
-import '../widgets/wallet_balance_card.dart';
+import '../widgets/available_balance_card.dart';
 import '../widgets/wallet_savings_status_card.dart';
 import '../widgets/wallet_category_pie_chart.dart';
 import '../widgets/wallet_chart.dart';
@@ -52,8 +52,8 @@ class _WalletPageState extends ConsumerState<WalletPage>
   DateTime _focusedDay = DateTime.now();
   bool _showCalendar = false;
   bool _isYearlyView = false;
-  bool _showSavings = true;
-  bool _showAiAnalyst = true;
+  bool _showSavings = false;
+  bool _showAiAnalyst = false;
 
   @override
   void initState() {
@@ -366,32 +366,27 @@ class _WalletPageState extends ConsumerState<WalletPage>
       children: [
         _isYearlyView
             ? WalletSummaryCards(
-                totalIncome: currencyService.convertFromTRY(
-                    yearlySummary.totalIncome, displayCurrency),
-                totalExpense: currencyService.convertFromTRY(
-                    yearlySummary.totalOutflow, displayCurrency),
+                incomeByCurrency: yearlySummary.incomeByCurrency,
+                expenseByCurrency: yearlySummary.expenseByCurrency,
                 currencyFormat: displayFormat,
               )
             : WalletSummaryCards(
-                totalIncome: currencyService.convertFromTRY(
-                    summary.totalIncome, displayCurrency),
-                totalExpense: currencyService.convertFromTRY(
-                    summary.totalExpense, displayCurrency),
+                incomeByCurrency: summary.incomeByCurrency,
+                expenseByCurrency: summary.expenseByCurrency,
                 currencyFormat: displayFormat,
               ),
         const SizedBox(height: 24),
         _isYearlyView
             ? _buildYearlyBalanceCard(yearlySummary, lc, currencyService,
                 displayFormat, displayCurrency)
-            : WalletBalanceCard(
-                remainingBalance: currencyService.convertFromTRY(
+            : AvailableBalanceCard(
+                totalBalance: currencyService.convertFromTRY(
                     summary.remainingBalance, displayCurrency),
-                totalIncome: currencyService.convertFromTRY(
-                    summary.totalIncome, displayCurrency),
-                totalOutflow: currencyService.convertFromTRY(
-                    summary.totalOutflow, displayCurrency),
-                totalPendingExpense: currencyService.convertFromTRY(
-                    summary.totalPendingExpense, displayCurrency),
+                pendingPayments: currencyService.convertFromTRY(
+                    summary.pendingPayments, displayCurrency),
+                availableBalance: currencyService.convertFromTRY(
+                    summary.availableBalance, displayCurrency),
+                pendingPaymentTransactions: summary.pendingPaymentTransactions,
                 isPositive: summary.isPositive,
                 currencyFormat: displayFormat,
               ),
@@ -721,6 +716,40 @@ class _WalletPageState extends ConsumerState<WalletPage>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (transactionDates.isEmpty && dueDates.isEmpty) ...[
+                  // Empty state
+                  Center(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 32),
+                      child: Column(
+                        children: [
+                          Icon(
+                            Icons.event_available,
+                            size: 48,
+                            color: AppColors.textTertiary(context),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Bu güne ait işlem yok',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textSecondary(context),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Aşağıdaki butondan harcama ekleyebilirsiniz',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: AppColors.textTertiary(context),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
                 if (transactionDates.isNotEmpty) ...[
                   _buildCalendarSectionHeader(
                       AppStrings.tr(AppStrings.transactionDate, lc),
@@ -747,6 +776,23 @@ class _WalletPageState extends ConsumerState<WalletPage>
         ),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         actions: [
+          TextButton.icon(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => AddTransactionPage(initialDate: day),
+                ),
+              );
+            },
+            icon: const Icon(Icons.add_circle_outline, size: 18),
+            label: Text(AppStrings.tr(AppStrings.addTransaction, lc)),
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.primary,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            ),
+          ),
           TextButton(
               onPressed: () => Navigator.pop(context),
               child: Text(AppStrings.tr(AppStrings.close, lc))),

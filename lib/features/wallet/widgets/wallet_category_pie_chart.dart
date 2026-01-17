@@ -26,15 +26,19 @@ class WalletCategoryPieChart extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<WalletCategoryPieChart> createState() => _WalletCategoryPieChartState();
+  ConsumerState<WalletCategoryPieChart> createState() =>
+      _WalletCategoryPieChartState();
 }
 
-class _WalletCategoryPieChartState extends ConsumerState<WalletCategoryPieChart> {
+class _WalletCategoryPieChartState
+    extends ConsumerState<WalletCategoryPieChart> {
   int _touchedIndex = -1;
 
   @override
   Widget build(BuildContext context) {
-    if (widget.total == 0 || widget.categoryAmounts.isEmpty) return const SizedBox.shrink();
+    if (widget.total == 0 || widget.categoryAmounts.isEmpty) {
+      return const SizedBox.shrink();
+    }
 
     final sortedEntries = widget.categoryAmounts.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
@@ -43,7 +47,8 @@ class _WalletCategoryPieChartState extends ConsumerState<WalletCategoryPieChart>
     final chartEntries = sortedEntries.take(5).toList();
     final otherEntries = sortedEntries.skip(5).toList();
     if (otherEntries.isNotEmpty) {
-      final otherTotal = otherEntries.fold(0.0, (sum, entry) => sum + entry.value);
+      final otherTotal =
+          otherEntries.fold(0.0, (sum, entry) => sum + entry.value);
       chartEntries.add(MapEntry('other', otherTotal));
     }
 
@@ -62,7 +67,8 @@ class _WalletCategoryPieChartState extends ConsumerState<WalletCategoryPieChart>
                       _touchedIndex = -1;
                       return;
                     }
-                    _touchedIndex = pieTouchResponse.touchedSection!.touchedSectionIndex;
+                    _touchedIndex =
+                        pieTouchResponse.touchedSection!.touchedSectionIndex;
                   });
                 },
               ),
@@ -90,7 +96,8 @@ class _WalletCategoryPieChartState extends ConsumerState<WalletCategoryPieChart>
                 )))
               : null;
 
-          final isOverBudget = budgetLimit != null && categoryEntry.value > budgetLimit.limit;
+          final isOverBudget =
+              budgetLimit != null && categoryEntry.value > budgetLimit.limit;
 
           return InkWell(
             onTap: () => widget.onCategoryTap(
@@ -121,11 +128,14 @@ class _WalletCategoryPieChartState extends ConsumerState<WalletCategoryPieChart>
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      category?.name ?? (categoryEntry.key == 'other' ? 'Diğer' : 'Bilinmeyen'),
+                      category?.name ??
+                          (categoryEntry.key == 'other'
+                              ? 'Diğer'
+                              : 'Bilinmeyen'),
                       style: TextStyle(
                         fontSize: context.adaptiveSp(15),
                         fontWeight: FontWeight.w600,
-                        color: AppColors.grey900,
+                        color: AppColors.textPrimary(context),
                       ),
                     ),
                   ),
@@ -137,22 +147,25 @@ class _WalletCategoryPieChartState extends ConsumerState<WalletCategoryPieChart>
                         style: TextStyle(
                           fontSize: context.adaptiveSp(15),
                           fontWeight: FontWeight.bold,
-                          color: isOverBudget 
-                              ? AppColors.error 
-                              : (widget.type == TransactionType.income ? AppColors.success : AppColors.grey900),
+                          color: isOverBudget
+                              ? AppColors.error
+                              : (widget.type == TransactionType.income
+                                  ? AppColors.success
+                                  : AppColors.textPrimary(context)),
                         ),
                       ),
                       Text(
                         '${percentage.toStringAsFixed(1)}%',
                         style: TextStyle(
                           fontSize: context.adaptiveSp(12),
-                          color: AppColors.grey600,
+                          color: AppColors.textSecondary(context),
                         ),
                       ),
                     ],
                   ),
                   const SizedBox(width: 8),
-                  const Icon(Icons.chevron_right, color: AppColors.grey400, size: 18),
+                  const Icon(Icons.chevron_right,
+                      color: AppColors.grey400, size: 18),
                 ],
               ),
             ),
@@ -162,7 +175,8 @@ class _WalletCategoryPieChartState extends ConsumerState<WalletCategoryPieChart>
     );
   }
 
-  List<PieChartSectionData> _showingSections(List<MapEntry<String, double>> entries) {
+  List<PieChartSectionData> _showingSections(
+      List<MapEntry<String, double>> entries) {
     return List.generate(entries.length, (i) {
       final isTouched = i == _touchedIndex;
       final fontSize = isTouched ? 16.0 : 12.0;
@@ -206,23 +220,36 @@ class _WalletCategoryPieChartState extends ConsumerState<WalletCategoryPieChart>
 
   IconData _getCategoryIcon(String? categoryId) {
     switch (categoryId) {
-      case 'salary': return Icons.attach_money;
-      case 'freelance': return Icons.work;
-      case 'investment': return Icons.trending_up;
-      case 'rental': return Icons.home_work;
+      case 'salary':
+        return Icons.attach_money;
+      case 'freelance':
+        return Icons.work;
+      case 'investment':
+        return Icons.trending_up;
+      case 'rental':
+        return Icons.home_work;
       case 'food_market':
       case 'food_grocery':
-      case 'food_restaurant': return Icons.restaurant;
+      case 'food_restaurant':
+        return Icons.restaurant;
       case 'transportation':
-      case 'transportation_fuel': return Icons.directions_car;
+      case 'transportation_fuel':
+        return Icons.directions_car;
       case 'bills':
-      case 'bills_electric': return Icons.receipt_long;
-      case 'shopping': return Icons.shopping_bag;
-      case 'entertainment': return Icons.movie;
-      case 'health': return Icons.medical_services;
-      case 'education': return Icons.school;
-      case 'rent': return Icons.home;
-      default: return Icons.category;
+      case 'bills_electric':
+        return Icons.receipt_long;
+      case 'shopping':
+        return Icons.shopping_bag;
+      case 'entertainment':
+        return Icons.movie;
+      case 'health':
+        return Icons.medical_services;
+      case 'education':
+        return Icons.school;
+      case 'rent':
+        return Icons.home;
+      default:
+        return Icons.category;
     }
   }
 }
@@ -268,7 +295,7 @@ class _Badge extends StatelessWidget {
 }
 
 extension ColorExtension on Color {
-    Color withOrdinal(double opacity) {
-        return withValues(alpha: opacity);
-    }
+  Color withOrdinal(double opacity) {
+    return withValues(alpha: opacity);
+  }
 }

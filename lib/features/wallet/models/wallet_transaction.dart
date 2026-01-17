@@ -17,6 +17,13 @@ class WalletTransaction {
 
   final String currencyCode; // Para birimi (TRY, USD, EUR vb.)
 
+  // Duplicate önleme için
+  final PaymentMethod paymentMethod; // Nakit, Kart, Banka Transferi
+  final bool
+      excludeFromBalance; // Bakiye hesaplamalarından hariç tut (fatura/abonelik hatırlatıcıları için)
+  final String?
+      linkedTransactionId; // Banka ekstresinden gelen işlem ile eşleşme
+
   WalletTransaction({
     required this.id,
     required this.categoryId,
@@ -32,6 +39,9 @@ class WalletTransaction {
     this.recurrenceEndDate,
     this.isSubscription = false,
     this.currencyCode = 'TRY',
+    this.paymentMethod = PaymentMethod.cash,
+    this.excludeFromBalance = false,
+    this.linkedTransactionId,
   });
 
   TransactionCategory? get category => TransactionCategory.findById(categoryId);
@@ -62,6 +72,9 @@ class WalletTransaction {
       'recurrenceEndDate': recurrenceEndDate?.toIso8601String(),
       'isSubscription': isSubscription,
       'currencyCode': currencyCode,
+      'paymentMethod': paymentMethod.name,
+      'excludeFromBalance': excludeFromBalance,
+      'linkedTransactionId': linkedTransactionId,
     };
   }
 
@@ -92,6 +105,14 @@ class WalletTransaction {
           : null,
       isSubscription: json['isSubscription'] as bool? ?? false,
       currencyCode: json['currencyCode'] as String? ?? 'TRY',
+      paymentMethod: json['paymentMethod'] != null
+          ? PaymentMethod.values.firstWhere(
+              (e) => e.name == json['paymentMethod'],
+              orElse: () => PaymentMethod.cash,
+            )
+          : PaymentMethod.cash,
+      excludeFromBalance: json['excludeFromBalance'] as bool? ?? false,
+      linkedTransactionId: json['linkedTransactionId'] as String?,
     );
   }
 
@@ -110,6 +131,9 @@ class WalletTransaction {
     DateTime? recurrenceEndDate,
     bool? isSubscription,
     String? currencyCode,
+    PaymentMethod? paymentMethod,
+    bool? excludeFromBalance,
+    String? linkedTransactionId,
   }) {
     return WalletTransaction(
       id: id ?? this.id,
@@ -126,6 +150,17 @@ class WalletTransaction {
       recurrenceEndDate: recurrenceEndDate ?? this.recurrenceEndDate,
       isSubscription: isSubscription ?? this.isSubscription,
       currencyCode: currencyCode ?? this.currencyCode,
+      paymentMethod: paymentMethod ?? this.paymentMethod,
+      excludeFromBalance: excludeFromBalance ?? this.excludeFromBalance,
+      linkedTransactionId: linkedTransactionId ?? this.linkedTransactionId,
     );
   }
+}
+
+enum PaymentMethod {
+  cash, // Nakit - Manuel eklenir, hesaba dahil
+  creditCard, // Kredi Kartı - Ekstreden gelir, hesaba dahil
+  debitCard, // Banka Kartı - Ekstreden gelir, hesaba dahil
+  bankTransfer, // Banka Transferi - Ekstreden gelir, hesaba dahil
+  autoPayment, // Otomatik Ödeme (Fatura/Abonelik) - Hatırlatıcı, hesaba dahil DEĞİL
 }

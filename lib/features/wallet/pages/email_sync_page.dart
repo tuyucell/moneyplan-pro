@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -9,9 +10,11 @@ import '../../../../core/constants/colors.dart';
 import '../models/transaction_category.dart';
 import '../models/wallet_transaction.dart';
 import '../providers/wallet_provider.dart';
+import '../providers/email_integration_provider.dart';
 import '../services/gmail_sync_service.dart';
 import '../services/ai_processing_service.dart';
 import '../providers/bank_account_provider.dart';
+import '../models/bank_account.dart';
 
 class EmailSyncPage extends ConsumerStatefulWidget {
   const EmailSyncPage({super.key});
@@ -37,14 +40,17 @@ class _EmailSyncPageState extends ConsumerState<EmailSyncPage>
     'dekont',
     'fatura',
     'sigorta',
-    'hesap özeti'
+    'hesap özeti',
+    'Ekpara',
+    'KMH'
   ];
 
   final List<String> _excludeKeywords = [
     'teslim edildi',
     'kargoya verildi',
     'siparişiniz alındı',
-    'iade talebi'
+    'iade talebi',
+    'mobil şube'
   ];
 
   final TextEditingController _keywordController = TextEditingController();
@@ -58,6 +64,7 @@ class _EmailSyncPageState extends ConsumerState<EmailSyncPage>
     _tabController = TabController(length: 2, vsync: this);
     _initConnection();
     _loadHistory();
+    _loadKeywords();
   }
 
   @override
@@ -74,6 +81,8 @@ class _EmailSyncPageState extends ConsumerState<EmailSyncPage>
       setState(() {
         _currentUser = user;
       });
+      // Sync with integration provider
+      await ref.read(emailIntegrationProvider.notifier).setGmailConnected(true);
     }
   }
 
@@ -102,6 +111,78 @@ class _EmailSyncPageState extends ConsumerState<EmailSyncPage>
     }
   }
 
+  Future<void> _loadKeywords() async {
+    try {
+      final box = await Hive.openBox('email_sync_settings');
+      final savedKeywords = box.get('keywords');
+      final savedExclude = box.get('excludeKeywords');
+
+      if (mounted) {
+        setState(() {
+          if (savedKeywords != null) {
+            _keywords.clear();
+            _keywords.addAll(List<String>.from(savedKeywords));
+          }
+          if (savedExclude != null) {
+            _excludeKeywords.clear();
+            _excludeKeywords.addAll(List<String>.from(savedExclude));
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('Keywords Load Error: $e');
+    }
+  }
+
+  Future<void> _saveKeywords() async {
+    try {
+      final box = await Hive.openBox('email_sync_settings');
+      await box.put('keywords', _keywords);
+      await box.put('excludeKeywords', _excludeKeywords);
+    } catch (e) {
+      debugPrint('Keywords Save Error: $e');
+    }
+  }
+
+  Future<void> _clearHistory() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Geçmişi Temizle'),
+        content: const Text(
+            'Tüm tarama geçmişi silinecektir. Bu işlemden sonra daha önce işlediğiniz mailler tekrar tarama listesinde görünebilir. Emin misiniz?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('VAZGEÇ'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('TEMİZLE'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        final box = await Hive.openBox('email_sync_history');
+        await box.clear();
+        setState(() {
+          _processedHistory = [];
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Tarama geçmişi temizlendi.')),
+          );
+        }
+      } catch (e) {
+        debugPrint('Clear History Error: $e');
+      }
+    }
+  }
+
   Future<void> _handleGmailSignIn() async {
     final user = await GmailSyncService.signIn();
     if (!mounted) return;
@@ -109,6 +190,10 @@ class _EmailSyncPageState extends ConsumerState<EmailSyncPage>
       _currentUser = user;
     });
     if (user != null) {
+      // Sync with integration provider
+      await ref.read(emailIntegrationProvider.notifier).setGmailConnected(true);
+
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
             content: Text(
@@ -123,6 +208,8 @@ class _EmailSyncPageState extends ConsumerState<EmailSyncPage>
       _currentUser = null;
       _foundEmails = [];
     });
+    // Sync with integration provider
+    await ref.read(emailIntegrationProvider.notifier).setGmailConnected(false);
   }
 
   Future<void> _startScan() async {
@@ -206,12 +293,33 @@ class _EmailSyncPageState extends ConsumerState<EmailSyncPage>
         }
 
         final bodyText = GmailSyncService.getPlainText(fullMsg);
+
+        // Attachment text extraction
+        String? attachmentText;
+        final pdfParts = GmailSyncService.getPdfAttachments(fullMsg);
+        if (pdfParts.isNotEmpty) {
+          debugPrint('Found ${pdfParts.length} PDF attachments. Processing...');
+          for (var part in pdfParts) {
+            final attachmentId = part.body!.attachmentId!;
+            final attachment =
+                await GmailSyncService.getAttachment(messageId, attachmentId);
+            if (attachment?.data != null) {
+              final bytes = base64.decode(
+                  attachment!.data!.replaceAll('-', '+').replaceAll('_', '/'));
+              attachmentText = (attachmentText ?? '') +
+                  GmailSyncService.extractTextFromPdf(bytes);
+            }
+          }
+        }
+
         debugPrint(
-            'Processing: ${mail['subject']} | Body length: ${bodyText.length}');
+            'Processing: ${mail['subject']} | Body length: ${bodyText.length} | Attachment text: ${attachmentText?.length ?? 0}');
 
         final processed = await AIProcessingService.processEmailContent(
           subject: mail['subject'],
           body: bodyText,
+          attachmentText: attachmentText,
+          messageId: messageId,
         );
         if (processed == null) {
           debugPrint('AI failed to extract info from: ${mail['subject']}');
@@ -237,27 +345,39 @@ class _EmailSyncPageState extends ConsumerState<EmailSyncPage>
         final now = DateTime.now();
 
         for (var confirmed in finalResults) {
-          final transaction = WalletTransaction(
-            id: const Uuid().v4(),
-            categoryId: confirmed.categoryId,
-            amount: confirmed.amount,
-            date: confirmed.date,
-            note: '${confirmed.description} (E-posta)',
-            type: TransactionType.expense,
-            isPaid: true,
-            bankAccountId: confirmed.bankId,
-          );
+          if (confirmed.hasData) {
+            final isCreditCard = confirmed.categoryId == 'bank_credit_card' ||
+                (confirmed.bankId?.endsWith('_cc') ?? false);
 
-          await ref.read(walletProvider.notifier).addTransaction(transaction);
-          successCount++;
+            final transaction = WalletTransaction(
+              id: const Uuid().v4(),
+              categoryId: confirmed.categoryId,
+              amount: confirmed.amount,
+              currencyCode: confirmed.currencyCode,
+              date: confirmed.date,
+              dueDate: confirmed.dueDate,
+              note: '${confirmed.description} (E-posta)',
+              type: TransactionType.expense,
+              isPaid:
+                  !isCreditCard, // Kredi kartı ekstreleri ödendi işaretlenmez
+              bankAccountId: confirmed.bankId,
+              paymentMethod: isCreditCard
+                  ? PaymentMethod.creditCard
+                  : PaymentMethod.bankTransfer,
+              recurrence: RecurrenceType.none,
+              applyMonthly: false,
+            );
+
+            await ref.read(walletProvider.notifier).addTransaction(transaction);
+            successCount++;
+          }
 
           // Add to history
           _processedHistory.insert(0, {
-            'id': approvedList.firstWhere((m) =>
-                m['subject'] == confirmed.description ||
-                confirmed.description.contains(m['subject']))['id'],
+            'id': confirmed.originalMessageId ?? const Uuid().v4(),
             'subject': confirmed.description,
             'amount': confirmed.amount,
+            'currency': confirmed.currencyCode,
             'date': confirmed.date.toIso8601String(),
             'processedAt': now.toIso8601String(),
           });
@@ -350,11 +470,19 @@ class _EmailSyncPageState extends ConsumerState<EmailSyncPage>
                                 fontWeight: FontWeight.bold, fontSize: 13)),
                         subtitle:
                             Text(DateFormat('dd.MM.yyyy').format(item.date)),
-                        trailing: Text('${item.amount.toStringAsFixed(2)} TL',
-                            style: const TextStyle(
-                                color: Colors.indigo,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13)),
+                        trailing: !item.hasData
+                            ? const Tooltip(
+                                message:
+                                    'Veri bulunamadı (Bilgilendirme maili)',
+                                child: Icon(Icons.warning_amber,
+                                    color: Colors.orange, size: 20),
+                              )
+                            : Text(
+                                '${item.amount.toStringAsFixed(2)} ${item.currencyCode}',
+                                style: const TextStyle(
+                                    color: Colors.indigo,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13)),
                         onTap: () async {
                           final edited = await _showReviewDialog(item);
                           if (edited != null) {
@@ -365,11 +493,18 @@ class _EmailSyncPageState extends ConsumerState<EmailSyncPage>
                         },
                         leading: CircleAvatar(
                           radius: 16,
-                          backgroundColor: Colors.indigo.withValues(alpha: 0.1),
+                          backgroundColor: item.hasData
+                              ? Colors.indigo.withValues(alpha: 0.1)
+                              : Colors.orange.withValues(alpha: 0.1),
                           child: Icon(
-                              item.isBes ? Icons.savings : Icons.receipt_long,
+                              !item.hasData
+                                  ? Icons.notifications_paused
+                                  : (item.isBes
+                                      ? Icons.savings
+                                      : Icons.receipt_long),
                               size: 16,
-                              color: Colors.indigo),
+                              color:
+                                  item.hasData ? Colors.indigo : Colors.orange),
                         ),
                       );
                     },
@@ -384,11 +519,15 @@ class _EmailSyncPageState extends ConsumerState<EmailSyncPage>
               child: const Text('İPTAL'),
             ),
             ElevatedButton(
-              onPressed: () => Navigator.pop(ctx, editableResults),
+              onPressed: () {
+                // Filter out notification only items from being added to wallet,
+                // but they will be marked as "processed" in history
+                Navigator.pop(ctx, editableResults);
+              },
               style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.indigo,
                   foregroundColor: Colors.white),
-              child: const Text('HEPSİNİ CÜZDANA EKLE'),
+              child: const Text('ONAYLA VE EKLE'),
             ),
           ],
         ),
@@ -425,8 +564,8 @@ class _EmailSyncPageState extends ConsumerState<EmailSyncPage>
                 const SizedBox(height: 16),
                 TextField(
                   controller: amountController,
-                  decoration: const InputDecoration(
-                      labelText: 'Tutar', suffixText: 'TL'),
+                  decoration: InputDecoration(
+                      labelText: 'Tutar', suffixText: data.currencyCode),
                   keyboardType: TextInputType.number,
                 ),
                 TextField(
@@ -434,26 +573,53 @@ class _EmailSyncPageState extends ConsumerState<EmailSyncPage>
                   decoration: const InputDecoration(labelText: 'Açıklama'),
                 ),
                 const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  initialValue: ref
-                          .read(bankAccountProvider)
-                          .any((a) => a.id == selectedBankId)
-                      ? selectedBankId
-                      : null,
-                  decoration: const InputDecoration(
-                    labelText: 'Banka Hesabı (Opsiyonel)',
-                    prefixIcon: Icon(Icons.account_balance, size: 20),
-                  ),
-                  items: [
-                    const DropdownMenuItem(
-                        value: null, child: Text('Seçilmedi')),
-                    ...ref.read(bankAccountProvider).map((bank) =>
-                        DropdownMenuItem(
-                            value: bank.id, child: Text(bank.name))),
+                Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        initialValue: ref
+                                .watch(bankAccountProvider)
+                                .any((a) => a.id == selectedBankId)
+                            ? selectedBankId
+                            : (ref
+                                    .watch(bankAccountProvider)
+                                    .any((a) => a.id == data.bankId)
+                                ? data.bankId
+                                : null),
+                        decoration: const InputDecoration(
+                          labelText: 'Banka Hesabı (Opsiyonel)',
+                          prefixIcon: Icon(Icons.account_balance, size: 20),
+                        ),
+                        items: [
+                          const DropdownMenuItem(
+                              value: null, child: Text('Seçilmedi')),
+                          ...ref.watch(bankAccountProvider).map((bank) =>
+                              DropdownMenuItem(
+                                  value: bank.id, child: Text(bank.name))),
+                        ],
+                        onChanged: (val) =>
+                            setDialogState(() => selectedBankId = val),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () =>
+                          _showAddAccountDialog(ctx, selectedBankId),
+                      icon: const Icon(Icons.add_circle, color: Colors.indigo),
+                      tooltip: 'Yeni Hesap Ekle',
+                    ),
                   ],
-                  onChanged: (val) =>
-                      setDialogState(() => selectedBankId = val),
                 ),
+                if (selectedBankId != null &&
+                    !ref
+                        .read(bankAccountProvider)
+                        .any((a) => a.id == selectedBankId))
+                  const Padding(
+                    padding: EdgeInsets.only(top: 8),
+                    child: Text(
+                      '⚠️ Bu banka hesabı henüz tanımlanmamış!',
+                      style: TextStyle(color: Colors.orange, fontSize: 10),
+                    ),
+                  ),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
                   initialValue: selectedCatId,
@@ -485,6 +651,30 @@ class _EmailSyncPageState extends ConsumerState<EmailSyncPage>
                     }
                   },
                 ),
+                if (data.dueDate != null || selectedCatId == 'bank_credit_card')
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Son Ödeme Tarihi',
+                        style: TextStyle(fontSize: 13, color: Colors.red)),
+                    subtitle: Text(data.dueDate != null
+                        ? DateFormat('dd.MM.yyyy').format(data.dueDate!)
+                        : 'Seçilmedi'),
+                    trailing: const Icon(Icons.event_busy,
+                        size: 18, color: Colors.red),
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: data.dueDate ?? DateTime.now(),
+                        firstDate: DateTime(2020),
+                        lastDate: DateTime(2030),
+                      );
+                      if (picked != null) {
+                        setDialogState(() {
+                          data = data.copyWith(dueDate: picked);
+                        });
+                      }
+                    },
+                  ),
               ],
             ),
           ),
@@ -499,14 +689,128 @@ class _EmailSyncPageState extends ConsumerState<EmailSyncPage>
                     ctx,
                     ProcessedDocument(
                       amount: amount,
+                      currencyCode: data.currencyCode,
                       date: selectedDate,
                       description: descController.text,
                       categoryId: selectedCatId,
                       isBes: data.isBes,
                       bankId: selectedBankId,
+                      hasData: data.hasData,
+                      dueDate: data.dueDate,
                     ));
               },
               child: const Text('ONAYLA'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showAddAccountDialog(BuildContext context, String? suggestedId,
+      {String currencyCode = 'TRY'}) async {
+    final nameController = TextEditingController(
+        text: suggestedId
+            ?.replaceAll('_cc', '')
+            .replaceAll('_', ' ')
+            .toUpperCase());
+    final limitController = TextEditingController(text: '0');
+    final dayController = TextEditingController(text: '15');
+    final dueDayController = TextEditingController(text: '25');
+    final initialBalanceController = TextEditingController(text: '0');
+
+    var typeValue =
+        suggestedId?.endsWith('_cc') == true ? 'Kredi Kartı' : 'Vadesiz Hesap';
+
+    return showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Yeni Hesap Ekle'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<String>(
+                  initialValue: typeValue,
+                  decoration: const InputDecoration(labelText: 'Hesap Türü'),
+                  items: const [
+                    DropdownMenuItem(
+                        value: 'Vadesiz Hesap', child: Text('Vadesiz Hesap')),
+                    DropdownMenuItem(
+                        value: 'Kredi Kartı', child: Text('Kredi Kartı')),
+                  ],
+                  onChanged: (val) {
+                    if (val != null) setState(() => typeValue = val);
+                  },
+                ),
+                TextField(
+                  controller: nameController,
+                  decoration:
+                      const InputDecoration(labelText: 'Banka / Kart Adı'),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: initialBalanceController,
+                  decoration: InputDecoration(
+                    labelText: typeValue == 'Kredi Kartı'
+                        ? 'Mevcut Borç (Ekstreden)'
+                        : 'Mevcut Bakiye',
+                    hintText: typeValue == 'Kredi Kartı' ? '35000' : '10000',
+                  ),
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: limitController,
+                  decoration: InputDecoration(
+                      labelText:
+                          typeValue == 'Kredi Kartı' ? 'Limit' : 'KMH Limiti'),
+                  keyboardType: TextInputType.number,
+                ),
+                TextField(
+                  controller: dayController,
+                  decoration: InputDecoration(
+                      labelText: typeValue == 'Kredi Kartı'
+                          ? 'Hesap Kesim Günü'
+                          : 'Vade Günü'),
+                  keyboardType: TextInputType.number,
+                ),
+                if (typeValue == 'Kredi Kartı')
+                  TextField(
+                    controller: dueDayController,
+                    decoration:
+                        const InputDecoration(labelText: 'Son Ödeme Günü'),
+                    keyboardType: TextInputType.number,
+                  ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('İPTAL')),
+            ElevatedButton(
+              onPressed: () {
+                if (nameController.text.isEmpty) return;
+
+                final newAccount = BankAccount(
+                  id: suggestedId ?? const Uuid().v4(),
+                  name: nameController.text.trim(),
+                  accountType: typeValue,
+                  currencyCode: currencyCode,
+                  overdraftLimit: double.tryParse(limitController.text) ?? 0,
+                  paymentDay: int.tryParse(dayController.text) ?? 15,
+                  dueDay: int.tryParse(dueDayController.text) ?? 25,
+                  initialBalance:
+                      double.tryParse(initialBalanceController.text) ?? 0,
+                );
+
+                ref.read(bankAccountProvider.notifier).addAccount(newAccount);
+                Navigator.pop(ctx);
+              },
+              child: const Text('KAYDET'),
             ),
           ],
         ),
@@ -554,7 +858,10 @@ class _EmailSyncPageState extends ConsumerState<EmailSyncPage>
                       keywords: _keywords,
                       controller: _keywordController,
                       color: AppColors.primary,
-                      onUpdate: () => setSheetState(() {}),
+                      onUpdate: () {
+                        setSheetState(() {});
+                        _saveKeywords();
+                      },
                     ),
                     const SizedBox(height: 24),
                     _buildKeywordManager(
@@ -564,7 +871,10 @@ class _EmailSyncPageState extends ConsumerState<EmailSyncPage>
                       keywords: _excludeKeywords,
                       controller: _excludeController,
                       color: Colors.red,
-                      onUpdate: () => setSheetState(() {}),
+                      onUpdate: () {
+                        setSheetState(() {});
+                        _saveKeywords();
+                      },
                     ),
                   ],
                 ),
@@ -665,36 +975,60 @@ class _EmailSyncPageState extends ConsumerState<EmailSyncPage>
                   ))
               .toList(),
         ),
+        const SizedBox(height: 16),
+        const Text(
+          'TASLAK',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 11,
+            color: Colors.grey,
+            letterSpacing: 0.5,
+          ),
+        ),
         const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: controller,
-                decoration: const InputDecoration(
-                  hintText: 'Yeni ekle...',
-                  isDense: true,
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          decoration: BoxDecoration(
+            border: Border.all(color: color.withValues(alpha: 0.3)),
+            borderRadius: BorderRadius.circular(12),
+            color: color.withValues(alpha: 0.05),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: controller,
+                  decoration: InputDecoration(
+                    hintText: 'Yeni kelime yazın ve + ile ekleyin...',
+                    hintStyle: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey.shade400,
+                    ),
+                    border: InputBorder.none,
+                    isDense: true,
+                  ),
+                  onSubmitted: (val) {
+                    if (val.isNotEmpty) {
+                      keywords.add(val);
+                      controller.clear();
+                      onUpdate();
+                    }
+                  },
                 ),
-                onSubmitted: (val) {
-                  if (val.isNotEmpty) {
-                    keywords.add(val);
+              ),
+              IconButton(
+                icon: Icon(Icons.add_circle, color: color, size: 28),
+                onPressed: () {
+                  if (controller.text.isNotEmpty) {
+                    keywords.add(controller.text);
                     controller.clear();
                     onUpdate();
                   }
                 },
+                tooltip: 'Ekle',
               ),
-            ),
-            IconButton(
-              icon: Icon(Icons.add_circle, color: color),
-              onPressed: () {
-                if (controller.text.isNotEmpty) {
-                  keywords.add(controller.text);
-                  controller.clear();
-                  onUpdate();
-                }
-              },
-            ),
-          ],
+            ],
+          ),
         ),
       ],
     );
@@ -704,7 +1038,13 @@ class _EmailSyncPageState extends ConsumerState<EmailSyncPage>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('E-POSTA OTOMASYONU'),
+        title: const Text(
+          'E-posta Otomasyonu',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
         bottom: TabBar(
           controller: _tabController,
           tabs: const [
@@ -850,44 +1190,84 @@ class _EmailSyncPageState extends ConsumerState<EmailSyncPage>
       );
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(20),
-      itemCount: _processedHistory.length,
-      itemBuilder: (context, index) {
-        final item = _processedHistory[index];
-        final processedAt = DateTime.parse(item['processedAt']);
-
-        return Card(
-          margin: const EdgeInsets.only(bottom: 12),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          child: ListTile(
-            leading: CircleAvatar(
-              backgroundColor: Colors.green.withValues(alpha: 0.1),
-              child: const Icon(Icons.check, color: Colors.green, size: 20),
-            ),
-            title: Text(item['subject'],
-                style:
-                    const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 4),
-                Text('Tutar: ${item['amount']} TL',
-                    style: const TextStyle(
-                        color: Colors.indigo, fontWeight: FontWeight.w600)),
-                Text(
-                    'İşlem Tarihi: ${DateFormat('dd.MM.yyyy').format(DateTime.parse(item['date']))}',
-                    style: const TextStyle(fontSize: 11)),
-                Text(
-                    'Aktarılma: ${DateFormat('dd.MM.yyyy HH:mm').format(processedAt)}',
-                    style: const TextStyle(fontSize: 10, color: Colors.grey)),
-              ],
-            ),
-            isThreeLine: true,
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '${_processedHistory.length} İşlem Kaydedildi',
+                style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey),
+              ),
+              TextButton.icon(
+                onPressed: _clearHistory,
+                icon: const Icon(Icons.delete_sweep, size: 18),
+                label: const Text('Tümünü Temizle',
+                    style: TextStyle(fontSize: 12)),
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.red.shade400,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                ),
+              ),
+            ],
           ),
-        );
-      },
+        ),
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.all(20),
+            itemCount: _processedHistory.length,
+            itemBuilder: (context, index) {
+              final item = _processedHistory[index];
+              final processedAt = DateTime.parse(item['processedAt']);
+
+              return Card(
+                margin: const EdgeInsets.only(bottom: 12),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+                child: ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: Colors.green.withValues(alpha: 0.1),
+                    child:
+                        const Icon(Icons.check, color: Colors.green, size: 20),
+                  ),
+                  title: Text(item['subject'],
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 13)),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 4),
+                      Text(
+                          'Tutar: ${item['amount']} ${item['currency'] ?? 'TL'}',
+                          style: const TextStyle(
+                              color: Colors.indigo,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12)),
+                      Text(
+                          'İşlem: ${DateFormat('dd.MM.yyyy').format(DateTime.parse(item['date']))}',
+                          style: const TextStyle(fontSize: 10)),
+                      Text(
+                          'Aktarılma: ${DateFormat('dd.MM.yyyy HH:mm').format(processedAt)}',
+                          style:
+                              const TextStyle(fontSize: 9, color: Colors.grey)),
+                    ],
+                  ),
+                  trailing: const Icon(Icons.chevron_right, size: 16),
+                  isThreeLine: true,
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 

@@ -13,6 +13,7 @@ import 'package:home_widget/home_widget.dart';
 import 'package:invest_guide/core/providers/navigation_provider.dart';
 import 'package:invest_guide/core/providers/balance_visibility_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:invest_guide/features/alerts/services/price_alert_monitor.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -80,6 +81,17 @@ class _MyAppState extends ConsumerState<MyApp> {
     super.initState();
     // Widget launch check
     _setupWidgetLaunch();
+    // Start price alert monitoring
+    _startPriceAlertMonitoring();
+  }
+
+  void _startPriceAlertMonitoring() {
+    // Start monitoring after a short delay to ensure providers are ready
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted) {
+        ref.read(priceAlertMonitorProvider).start();
+      }
+    });
   }
 
   void _setupWidgetLaunch() {

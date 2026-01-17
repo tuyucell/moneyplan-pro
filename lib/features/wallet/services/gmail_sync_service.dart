@@ -4,6 +4,7 @@ import 'package:extension_google_sign_in_as_googleapis_auth/extension_google_sig
 import 'package:googleapis/gmail/v1.dart';
 import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
+import 'package:syncfusion_flutter_pdf/pdf.dart';
 
 class GmailSyncService {
   static final GoogleSignIn _googleSignIn = GoogleSignIn(
@@ -136,5 +137,41 @@ class GmailSyncService {
       debugPrint('Gmail Get Attachment Error: $e');
       return null;
     }
+  }
+
+  static String extractTextFromPdf(Uint8List bytes) {
+    try {
+      final document = PdfDocument(inputBytes: bytes);
+      final text = PdfTextExtractor(document).extractText();
+      document.dispose();
+      return text;
+    } catch (e) {
+      debugPrint('PDF Text Extraction Error: $e');
+      return '';
+    }
+  }
+
+  static List<MessagePart> getPdfAttachments(Message message) {
+    final attachments = <MessagePart>[];
+    if (message.payload?.parts == null) return attachments;
+
+    void findAttachments(List<MessagePart> parts) {
+      for (var part in parts) {
+        if (part.filename != null &&
+            part.filename!.isNotEmpty &&
+            part.body?.attachmentId != null) {
+          if (part.filename!.toLowerCase().endsWith('.pdf') ||
+              part.mimeType == 'application/pdf') {
+            attachments.add(part);
+          }
+        }
+        if (part.parts != null) {
+          findAttachments(part.parts!);
+        }
+      }
+    }
+
+    findAttachments(message.payload!.parts!);
+    return attachments;
   }
 }

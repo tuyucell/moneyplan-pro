@@ -1610,7 +1610,7 @@ class AppStrings {
       pageNotFound: 'Page not found',
       categoryLabel: 'Category',
       exchangeLabel: 'Exchange',
-      investmentGuideLabel: 'Investment Guide',
+      investmentGuideLabel: 'MoneyPlan Pro',
       searchTitle: 'Search',
       searchResultsLabel: 'Search Results',
       financeNewsTitle: 'FINANCE NEWS',

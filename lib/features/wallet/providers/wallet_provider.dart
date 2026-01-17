@@ -7,6 +7,8 @@ import 'package:invest_guide/features/wallet/models/yearly_summary.dart';
 import 'package:invest_guide/features/wallet/models/monthly_summary.dart';
 import 'package:invest_guide/features/wallet/models/transaction_category.dart';
 import 'package:invest_guide/core/services/currency_service.dart';
+import 'package:invest_guide/features/wallet/models/bank_account.dart';
+import 'package:invest_guide/features/wallet/providers/bank_account_provider.dart';
 
 class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
   static const String _boxName = 'wallet_transactions';
@@ -84,8 +86,11 @@ class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
         throw Exception('Hive box not initialized');
       }
 
+      debugPrint('📥 Hive: Putting transaction ${transaction.id}');
       await _box!.put(transaction.id, transaction.toJson());
       _loadTransactions();
+      debugPrint(
+          '📥 Hive: Transaction saved, state updated. Count: ${state.length}');
     } catch (e, stackTrace) {
       if (kDebugMode) {
         debugPrint('Error adding transaction: $e');
@@ -164,25 +169,37 @@ class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
       await _initCompleter.future;
       if (_box == null) throw Exception('Hive box not initialized');
 
-      // For recurring instances, they already have a unique ID that includes YYYYMM
-      // For original transactions, we might need special handling if we want to mark a specific month as paid
-      // without affecting the whole series.
-      // Current implementation for recurring uses a separate 'paid' record check in _generateRecurringTransactions.
-
       final parts = id.split('_');
       final isRecurringInstance =
           parts.length >= 2 && RegExp(r'^\d{6}$').hasMatch(parts.last);
 
       if (isRecurringInstance) {
-        // Create an override or a paid record.
-        // For simplicity, let's just find the transaction in state and update it if it exists
-        final transaction = state.firstWhere((t) => t.id == id);
-        await updateTransaction(transaction.copyWith(isPaid: isPaid));
+        // YearMonth suffix (e.g. 202601)
+        final ym = parts.last;
+        final year = int.parse(ym.substring(0, 4));
+        final month = int.parse(ym.substring(4));
+
+        // Find the instance in generated list
+        final instancesTargetMonth =
+            _generateRecurringTransactions(year, month);
+        final instance = instancesTargetMonth.firstWhere((t) => t.id == id);
+
+        // Materialize it in Hive with the new status
+        await addTransaction(instance.copyWith(isPaid: isPaid));
       } else {
-        final transaction = state.firstWhere((t) => t.id == id);
-        await updateTransaction(transaction.copyWith(isPaid: isPaid));
+        // Check if it already exists in state
+        final exists = state.any((t) => t.id == id);
+        if (exists) {
+          final transaction = state.firstWhere((t) => t.id == id);
+          await updateTransaction(transaction.copyWith(isPaid: isPaid));
+        } else {
+          // If not found in state but called with a normal ID, it might be a newly added transaction
+          // that hasn't synced to state yet, but this is rare.
+          debugPrint('markAsPaid: Transaction $id not found in state.');
+        }
       }
     } catch (e) {
+      debugPrint('markAsPaid Error: $e');
       state = oldState;
       rethrow;
     }
@@ -330,21 +347,27 @@ class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
     return recurringTransactions;
   }
 
-  MonthlySummary getMonthlySummary(int year, int month) {
-    final allTransactions = getTransactionsByMonth(year, month);
+  MonthlySummary getMonthlySummary(
+      int year, int month, List<BankAccount>? accounts) {
+    // Collect ALL transactions to calculate brought-forward balance
+    // This includes transactions in Hive AND generated recurring transactions for the target month
+    // Actually, to be truly accurate, we need ALL transactions from past too.
+
+    // We'll pass state (which contains all Hive transactions)
     return MonthlySummary.fromTransactions(
-      allTransactions,
+      state,
       year,
       month,
+      bankAccountList: accounts,
       converter: (amount, currencyCode) =>
           _currencyService.convertToTRY(amount, currencyCode),
     );
   }
 
-  YearlySummary getYearlySummary(int year) {
+  YearlySummary getYearlySummary(int year, List<BankAccount>? accounts) {
     final summaries = <MonthlySummary>[];
     for (var month = 1; month <= 12; month++) {
-      summaries.add(getMonthlySummary(year, month));
+      summaries.add(getMonthlySummary(year, month, accounts));
     }
     return YearlySummary(year: year, monthlySummaries: summaries);
   }
@@ -361,9 +384,9 @@ final currentMonthSummaryProvider = Provider<MonthlySummary>((ref) {
   final now = DateTime.now();
   // Watch the state to trigger rebuild when transactions change
   ref.watch(walletProvider);
+  final accounts = ref.watch(bankAccountProvider);
   final notifier = ref.read(walletProvider.notifier);
-  // IMPORTANT: Use getTransactionsByMonth to include generated recurring transactions
-  return notifier.getMonthlySummary(now.year, now.month);
+  return notifier.getMonthlySummary(now.year, now.month, accounts);
 });
 
 // Provider for selected month summary
@@ -371,8 +394,9 @@ final selectedMonthSummaryProvider =
     Provider.family<MonthlySummary, DateTime>((ref, date) {
   // Watch the state to trigger rebuild when transactions change
   ref.watch(walletProvider);
+  final accounts = ref.watch(bankAccountProvider);
   final notifier = ref.read(walletProvider.notifier);
-  return notifier.getMonthlySummary(date.year, date.month);
+  return notifier.getMonthlySummary(date.year, date.month, accounts);
 });
 
 // Provider for total BES balance
@@ -389,8 +413,9 @@ final totalBESProvider = Provider<double>((ref) {
 // Provider for yearly summary
 final yearlySummaryProvider = Provider.family<YearlySummary, int>((ref, year) {
   ref.watch(walletProvider);
+  final accounts = ref.watch(bankAccountProvider);
   final notifier = ref.read(walletProvider.notifier);
-  return notifier.getYearlySummary(year);
+  return notifier.getYearlySummary(year, accounts);
 });
 
 // Provider for active subscriptions this month (Expenses only)

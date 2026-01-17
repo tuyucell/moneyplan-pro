@@ -9,6 +9,7 @@ class BankAccount {
   final bool isActive;
 
   final String currencyCode; // Para birimi (TRY, USD, EUR vb.)
+  final double initialBalance; // Başlangıç bakiyesi
 
   const BankAccount({
     required this.id,
@@ -20,6 +21,7 @@ class BankAccount {
     this.dueDay = 10,
     this.isActive = true,
     this.currencyCode = 'TRY',
+    this.initialBalance = 0,
   });
 
   Map<String, dynamic> toJson() {
@@ -33,6 +35,7 @@ class BankAccount {
       'dueDay': dueDay,
       'isActive': isActive,
       'currencyCode': currencyCode,
+      'initialBalance': initialBalance,
     };
   }
 
@@ -48,6 +51,7 @@ class BankAccount {
       dueDay: json['dueDay'] as int? ?? 10,
       isActive: json['isActive'] as bool? ?? true,
       currencyCode: json['currencyCode'] as String? ?? 'TRY',
+      initialBalance: (json['initialBalance'] as num?)?.toDouble() ?? 0,
     );
   }
 
@@ -61,6 +65,7 @@ class BankAccount {
     int? dueDay,
     bool? isActive,
     String? currencyCode,
+    double? initialBalance,
   }) {
     return BankAccount(
       id: id ?? this.id,
@@ -73,6 +78,7 @@ class BankAccount {
       dueDay: dueDay ?? this.dueDay,
       isActive: isActive ?? this.isActive,
       currencyCode: currencyCode ?? this.currencyCode,
+      initialBalance: initialBalance ?? this.initialBalance,
     );
   }
 

@@ -11,7 +11,8 @@ class WalletCalendar extends ConsumerWidget {
   final DateTime focusedDay;
   final Function(DateTime, DateTime) onDaySelected;
   final Function(DateTime) onPageChanged;
-  final Function(DateTime, List<WalletTransaction>, List<WalletTransaction>) onShowTransactions;
+  final Function(DateTime, List<WalletTransaction>, List<WalletTransaction>)
+      onShowTransactions;
 
   const WalletCalendar({
     super.key,
@@ -40,8 +41,10 @@ class WalletCalendar extends ConsumerWidget {
         transaction.date.month,
         transaction.date.day,
       );
-      
-      final shouldShowAsTransactionEvent = transaction.type == TransactionType.income || transaction.dueDate == null;
+
+      final shouldShowAsTransactionEvent =
+          transaction.type == TransactionType.income ||
+              transaction.dueDate == null;
 
       if (shouldShowAsTransactionEvent) {
         if (transactionDateEvents[transactionDate] == null) {
@@ -127,26 +130,31 @@ class WalletCalendar extends ConsumerWidget {
                 if (events.isEmpty) return null;
 
                 final normalizedDay = DateTime(day.year, day.month, day.day);
-                final dayTransactionDates = transactionDateEvents[normalizedDay] ?? [];
+                final dayTransactionDates =
+                    transactionDateEvents[normalizedDay] ?? [];
                 final dayDueDates = dueDateEvents[normalizedDay] ?? [];
 
                 final markers = <Widget>[];
 
                 if (dayTransactionDates.isNotEmpty) {
-                  final hasIncome = dayTransactionDates.any((t) => t.type == TransactionType.income);
-                  final hasExpense = dayTransactionDates.any((t) => t.type == TransactionType.expense);
+                  final hasIncome = dayTransactionDates
+                      .any((t) => t.type == TransactionType.income);
+                  final hasExpense = dayTransactionDates
+                      .any((t) => t.type == TransactionType.expense);
 
                   if (hasIncome) {
                     markers.add(_buildMarkerIndicator(AppColors.success));
                   }
                   if (hasExpense) {
-                    markers.add(_buildMarkerIndicator(AppColors.error.withValues(alpha: 0.7)));
+                    markers.add(_buildMarkerIndicator(
+                        AppColors.error.withValues(alpha: 0.7)));
                   }
                 }
 
                 if (dayDueDates.isNotEmpty) {
                   final hasOverdue = dayDueDates.any((t) => t.isOverdue);
-                  markers.add(_buildMarkerIndicator(hasOverdue ? AppColors.error : AppColors.warning));
+                  markers.add(_buildMarkerIndicator(
+                      hasOverdue ? AppColors.error : AppColors.warning));
                 }
 
                 if (markers.isEmpty) return null;
@@ -162,14 +170,15 @@ class WalletCalendar extends ConsumerWidget {
             ),
             onDaySelected: (selDay, focDay) {
               onDaySelected(selDay, focDay);
-              
-              final normalizedDay = DateTime(selDay.year, selDay.month, selDay.day);
-              final dayTransactionDates = transactionDateEvents[normalizedDay] ?? [];
+
+              final normalizedDay =
+                  DateTime(selDay.year, selDay.month, selDay.day);
+              final dayTransactionDates =
+                  transactionDateEvents[normalizedDay] ?? [];
               final dayDueDates = dueDateEvents[normalizedDay] ?? [];
 
-              if (dayTransactionDates.isNotEmpty || dayDueDates.isNotEmpty) {
-                onShowTransactions(selDay, dayTransactionDates, dayDueDates);
-              }
+              // Always show dialog, even if there are no transactions (user can add one)
+              onShowTransactions(selDay, dayTransactionDates, dayDueDates);
             },
             onPageChanged: onPageChanged,
           ),
@@ -180,16 +189,20 @@ class WalletCalendar extends ConsumerWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const _CalendarLegend(label: 'Gelir', color: AppColors.success),
+                    const _CalendarLegend(
+                        label: 'Gelir', color: AppColors.success),
                     const SizedBox(width: 16),
-                    _CalendarLegend(label: 'Gider', color: AppColors.error.withValues(alpha: 0.7)),
+                    _CalendarLegend(
+                        label: 'Gider',
+                        color: AppColors.error.withValues(alpha: 0.7)),
                   ],
                 ),
                 const SizedBox(height: 8),
                 const Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    _CalendarLegend(label: 'Vade Tarihi', color: AppColors.warning),
+                    _CalendarLegend(
+                        label: 'Vade Tarihi', color: AppColors.warning),
                     SizedBox(width: 16),
                     _CalendarLegend(label: 'Gecikmiş', color: AppColors.error),
                   ],

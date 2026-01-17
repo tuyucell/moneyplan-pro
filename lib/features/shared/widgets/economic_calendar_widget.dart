@@ -85,6 +85,7 @@ class EconomicCalendarWidget extends ConsumerWidget {
                     impactLabel:
                         _getLocalizedImpact(data['impact'] ?? 'Medium', lc),
                     currency: data['currency'] ?? 'USD',
+                    flagUrl: data['flag_url'],
                   );
                   return _buildEventCard(context, event);
                 },
@@ -120,16 +121,14 @@ class EconomicCalendarWidget extends ConsumerWidget {
     Color impactColor;
     switch (event.impact) {
       case 'Critical':
+      case 'High':
         impactColor = Colors.red;
         break;
-      case 'High':
+      case 'Medium':
         impactColor = Colors.orange;
         break;
-      case 'Medium':
-        impactColor = Colors.blue;
-        break;
       default:
-        impactColor = Colors.grey;
+        impactColor = Colors.blue;
     }
 
     return Container(
@@ -155,18 +154,31 @@ class EconomicCalendarWidget extends ConsumerWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: AppColors.background(context),
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: AppColors.border(context)),
-                ),
-                child: Text(
-                  event.currency,
-                  style: const TextStyle(
-                      fontSize: 10, fontWeight: FontWeight.bold),
-                ),
+              Row(
+                children: [
+                  if (event.flagUrl != null) ...[
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(2),
+                      child: Image.network(
+                        event.flagUrl!,
+                        width: 18,
+                        height: 12,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) =>
+                            const SizedBox(width: 18),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                  ],
+                  Text(
+                    event.currency,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textSecondary(context),
+                    ),
+                  ),
+                ],
               ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -177,9 +189,10 @@ class EconomicCalendarWidget extends ConsumerWidget {
                 child: Text(
                   event.impactLabel,
                   style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: impactColor),
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: impactColor,
+                  ),
                 ),
               ),
             ],
@@ -187,10 +200,11 @@ class EconomicCalendarWidget extends ConsumerWidget {
           Text(
             event.title,
             style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary(context),
-                height: 1.2),
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary(context),
+              height: 1.2,
+            ),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
@@ -202,9 +216,10 @@ class EconomicCalendarWidget extends ConsumerWidget {
               Text(
                 '${event.date}${event.date.isNotEmpty ? ' • ' : ''}${event.time}',
                 style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textSecondary(context),
-                    fontWeight: FontWeight.w500),
+                  fontSize: 12,
+                  color: AppColors.textSecondary(context),
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ],
           ),
@@ -221,12 +236,15 @@ class _Event {
   final String impact;
   final String impactLabel;
   final String currency;
+  final String? flagUrl;
 
-  _Event(
-      {required this.date,
-      required this.time,
-      required this.title,
-      required this.impact,
-      required this.impactLabel,
-      required this.currency});
+  _Event({
+    required this.date,
+    required this.time,
+    required this.title,
+    required this.impact,
+    required this.impactLabel,
+    required this.currency,
+    this.flagUrl,
+  });
 }

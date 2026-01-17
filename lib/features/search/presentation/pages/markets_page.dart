@@ -10,6 +10,7 @@ import 'package:invest_guide/core/providers/language_provider.dart';
 
 import 'package:invest_guide/features/shared/widgets/economic_calendar_widget.dart';
 import 'package:invest_guide/features/search/presentation/widgets/macro_indicators_widget.dart';
+import 'package:invest_guide/features/search/presentation/widgets/search_overlay.dart';
 import 'package:invest_guide/features/shared/services/widget_service.dart';
 import 'package:invest_guide/core/router/app_router.dart';
 
@@ -34,9 +35,9 @@ class _MarketsPageState extends ConsumerState<MarketsPage> {
   Future<void> _loadAllData() async {
     try {
       final news = await InvestGuideApi.getNews(limit: 10);
-      
+
       // Invalidate providers to force refresh of Macro and Calendar widgets
-      ref.invalidate(macroDataProvider); 
+      ref.invalidate(macroDataProvider);
       ref.invalidate(calendarDataProvider);
 
       if (mounted) {
@@ -94,35 +95,9 @@ class _MarketsPageState extends ConsumerState<MarketsPage> {
               child: _MarketTickerWidget(lc: lc),
             ),
             SliverToBoxAdapter(
-              child: Container(
+              child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                child: InkWell(
-                  onTap: () => context.push('/search'),
-                  borderRadius: BorderRadius.circular(10),
-                  child: Container(
-                    height: 40,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(
-                      color: AppColors.surface(context),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                          color: AppColors.border(context).withValues(alpha: 0.5)),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.search,
-                            size: 18, color: AppColors.textSecondary(context)),
-                        const SizedBox(width: 8),
-                        Text(
-                          AppStrings.tr(AppStrings.searchHint, lc),
-                          style: TextStyle(
-                              fontSize: 13,
-                              color: AppColors.textSecondary(context)),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+                child: SearchOverlay(languageCode: lc),
               ),
             ),
             const SliverToBoxAdapter(
@@ -247,7 +222,7 @@ class _MarketTickerWidget extends StatefulWidget {
 class _MarketTickerWidgetState extends State<_MarketTickerWidget> {
   late ScrollController _scrollController;
   late Timer _timer;
-  final double _scrollSpeed = 1.0; 
+  final double _scrollSpeed = 1.0;
   List<_TickerItem> _items = [];
 
   @override
@@ -332,19 +307,19 @@ class _MarketTickerWidgetState extends State<_MarketTickerWidget> {
            we keep default/demo values for missing items or implement additional logic.
            For now we map what we have:
         */
-        
+
         if (data['bist100'] != null) {
           pBist = (data['bist100']['price'] as num).toStringAsFixed(2);
           final ch = (data['bist100']['change_percent'] as num).toDouble();
           cBist = '${ch >= 0 ? '+' : ''}${ch.toStringAsFixed(2)}%';
         }
-        
+
         if (data['dolar'] != null) {
           pUsd = (data['dolar']['price'] as num).toStringAsFixed(2);
           final ch = (data['dolar']['change_percent'] as num).toDouble();
           cUsd = '${ch >= 0 ? '+' : ''}${ch.toStringAsFixed(2)}%';
         }
-        
+
         if (data['gram_altin'] != null) {
           pGold = (data['gram_altin']['price'] as num).toStringAsFixed(0);
           final ch = (data['gram_altin']['change_percent'] as num).toDouble();
@@ -353,7 +328,7 @@ class _MarketTickerWidgetState extends State<_MarketTickerWidget> {
 
         // BIST data is not in the summary endpoint usually, using hardcoded or waiting for dedicated API
         // Updating widget with latest Available data
-        
+
         await WidgetService.updateMarketData(
           priceBist: pBist,
           changeBist: cBist,
@@ -371,10 +346,12 @@ class _MarketTickerWidgetState extends State<_MarketTickerWidget> {
   List<_TickerItem> _getDemoItems() {
     return [];
   }
+
   void _startAutoScroll() {
     _timer = Timer.periodic(const Duration(milliseconds: 30), (timer) {
       if (_scrollController.hasClients) {
-        if (_scrollController.offset >= _scrollController.position.maxScrollExtent) {
+        if (_scrollController.offset >=
+            _scrollController.position.maxScrollExtent) {
           _scrollController.jumpTo(0);
         } else {
           _scrollController.jumpTo(_scrollController.offset + _scrollSpeed);
@@ -402,7 +379,7 @@ class _MarketTickerWidgetState extends State<_MarketTickerWidget> {
         controller: _scrollController,
         scrollDirection: Axis.horizontal,
         physics: const NeverScrollableScrollPhysics(),
-        itemCount: _items.length * 100, 
+        itemCount: _items.length * 100,
         itemBuilder: (context, index) {
           final item = _items[index % _items.length];
           return _MarketTickerItem(item: item);
@@ -431,7 +408,8 @@ class _MarketTickerItem extends StatelessWidget {
       alignment: Alignment.center,
       decoration: BoxDecoration(
         border: Border(
-          right: BorderSide(color: AppColors.border(context).withValues(alpha: 0.5)),
+          right: BorderSide(
+              color: AppColors.border(context).withValues(alpha: 0.5)),
         ),
       ),
       child: Row(
@@ -531,11 +509,8 @@ class _CategoryCard extends StatelessWidget {
                     ),
                     child: Icon(icon, color: color, size: 24),
                   ),
-                  Icon(
-                    Icons.arrow_forward, 
-                    size: 16, 
-                    color: AppColors.textTertiary(context)
-                  ),
+                  Icon(Icons.arrow_forward,
+                      size: 16, color: AppColors.textTertiary(context)),
                 ],
               ),
               Column(
@@ -574,7 +549,7 @@ class _LatestNewsWidget extends StatelessWidget {
   final List<dynamic> news;
   final bool isLoading;
   final String lc;
-  
+
   const _LatestNewsWidget({
     required this.news,
     required this.isLoading,
@@ -583,12 +558,19 @@ class _LatestNewsWidget extends StatelessWidget {
 
   String _getDefaultImage(String title, String lc) {
     final t = title.toLowerCase();
-    
+
     // Turkish keywords
-    final isCrypto = t.contains('btc') || t.contains('bitcoin') || t.contains('kripto');
+    final isCrypto =
+        t.contains('btc') || t.contains('bitcoin') || t.contains('kripto');
     final isGold = t.contains('altın') || t.contains('gold');
-    final isForex = t.contains('dolar') || t.contains('usd') || t.contains('döviz') || t.contains('eur');
-    final isStock = t.contains('hisse') || t.contains('borsa') || t.contains('bist') || t.contains('nasdaq');
+    final isForex = t.contains('dolar') ||
+        t.contains('usd') ||
+        t.contains('döviz') ||
+        t.contains('eur');
+    final isStock = t.contains('hisse') ||
+        t.contains('borsa') ||
+        t.contains('bist') ||
+        t.contains('nasdaq');
 
     if (isCrypto) {
       return 'https://images.unsplash.com/photo-1518546305927-5a555bb7020d?q=80&w=500&auto=format&fit=crop';
@@ -649,83 +631,90 @@ class _LatestNewsWidget extends StatelessWidget {
         ),
         SizedBox(
           height: 200,
-          child: isLoading 
-            ? const Center(child: CircularProgressIndicator())
-            : ListView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                scrollDirection: Axis.horizontal,
-                itemCount: news.length,
-                itemBuilder: (context, index) {
-                  final item = news[index];
-                  final imageUrl = (item['image_url'] != null && item['image_url'].toString().isNotEmpty)
-                      ? item['image_url']
-                      : _getDefaultImage(item['title'] ?? '', lc);
+          child: isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  scrollDirection: Axis.horizontal,
+                  itemCount: news.length,
+                  itemBuilder: (context, index) {
+                    final item = news[index];
+                    final imageUrl = (item['image_url'] != null &&
+                            item['image_url'].toString().isNotEmpty)
+                        ? item['image_url']
+                        : _getDefaultImage(item['title'] ?? '', lc);
 
-                  return GestureDetector(
-                    onTap: () => context.push(AppRouter.newsDetail, extra: item),
-                    child: Container(
-                      width: 280,
-                      margin: const EdgeInsets.only(right: 12),
-                      decoration: BoxDecoration(
-                        color: AppColors.surface(context),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: AppColors.border(context)),
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              flex: 3,
-                              child: Image.network(
-                                imageUrl,
-                                width: double.infinity,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) => Container(
-                                  color: AppColors.primary.withValues(alpha: 0.05),
+                    return GestureDetector(
+                      onTap: () =>
+                          context.push(AppRouter.newsDetail, extra: item),
+                      child: Container(
+                        width: 280,
+                        margin: const EdgeInsets.only(right: 12),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface(context),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: AppColors.border(context)),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                flex: 3,
+                                child: Image.network(
+                                  imageUrl,
                                   width: double.infinity,
-                                  child: const Icon(Icons.newspaper, color: AppColors.primary, size: 32),
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) =>
+                                      Container(
+                                    color: AppColors.primary
+                                        .withValues(alpha: 0.05),
+                                    width: double.infinity,
+                                    child: const Icon(Icons.newspaper,
+                                        color: AppColors.primary, size: 32),
+                                  ),
                                 ),
                               ),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.all(12),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    item['source']?.toUpperCase() ?? AppStrings.tr(AppStrings.news, lc).toUpperCase(),
-                                    style: const TextStyle(
-                                      color: AppColors.primary,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w800,
-                                      letterSpacing: 0.5,
+                              Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      item['source']?.toUpperCase() ??
+                                          AppStrings.tr(AppStrings.news, lc)
+                                              .toUpperCase(),
+                                      style: const TextStyle(
+                                        color: AppColors.primary,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: 0.5,
+                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    item['title'] ?? '',
-                                    style: TextStyle(
-                                      color: AppColors.textPrimary(context),
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w700,
-                                      height: 1.3,
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      item['title'] ?? '',
+                                      style: TextStyle(
+                                        color: AppColors.textPrimary(context),
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                        height: 1.3,
+                                      ),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                  );
-                },
-              ),
+                    );
+                  },
+                ),
         ),
       ],
     );

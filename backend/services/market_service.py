@@ -62,7 +62,8 @@ class MarketDataProvider:
                             val = future.result()
                             if val and val["price"] > 0:
                                 res[key] = val
-                        except: pass
+                        except Exception:
+                            pass
 
             # Gram Altın anlık hesaplama (Eğer Mynet'ten gelmediyse veya teyit için)
             # Mynet'ten geldiyse öncelik onda ama yoksa hesapla
@@ -149,18 +150,136 @@ class MarketDataProvider:
                         "price": round(p, 2),
                         "change_percent": round(((p - pre) / pre * 100), 2)
                     }
-        except: pass
+        except Exception:
+            pass
         return None
 
     # --- Diğer metodlar (Şablon Gereği) ---
     def get_calendar(self):
-        # Gerçekçi ve Dinamik Takvim Verisi (Ocak 2026)
-        return [
-            {"date": "13 Ocak", "time": "10:00", "title": "Türkiye İşsizlik Oranı", "impact": "High"},
-            {"date": "15 Ocak", "time": "14:00", "title": "TCMB Politika Faizi Kararı", "impact": "High"},
-            {"date": "16 Ocak", "time": "16:30", "title": "ABD Çekirdek TÜFE (Enflasyon)", "impact": "High"},
-            {"date": "20 Ocak", "time": "10:00", "title": "BİST 100 Teknik Analiz Günü", "impact": "Medium"}
-        ]
+        """
+        EKONOMİK TAKVİM (DB): 
+        Veritabanından (SQLite) manuel yüklenmiş veya kaydedilmiş verileri döner.
+        """
+        from database import get_db_connection
+        from datetime import datetime, timezone, timedelta
+        
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            
+            # GMT+3 bazında şu anki zamanı al
+            tz_tr = timezone(timedelta(hours=3))
+            now_tr = datetime.now(tz_tr)
+            now_str = now_tr.strftime('%Y-%m-%d %H:%M:%S')
+            
+            # Filtreleme: Tam şu andan sonraki etkinlikleri getir (Saat bazlı filtreleme için)
+            # Böylece saati geçmiş etkinlikler gelmez.
+            query = "SELECT * FROM calendar_events WHERE date_time >= ? ORDER BY date_time ASC LIMIT 100"
+            cursor.execute(query, (now_str,))
+            rows = cursor.fetchall()
+            conn.close()
+            
+            formatted = []
+            months_tr = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", 
+                       "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"]
+            
+            flag_map = {
+                5: "us",     # USA
+                63: "tr",    # Turkey
+                32: "tr",    # Turkey (alt)
+                72: "eu",    # Euro Zone
+                12: "gb",    # UK (GBP)
+                4: "de",     # Germany (DEM)
+                6: "ca",     # Canada
+                37: "jp",    # Japan
+                7: "au",     # Australia
+                35: "nz",    # New Zealand
+                110: "ch",   # Switzerland
+                39: "ch",    # Switzerland (alt)
+                36: "ch",    # Switzerland (alt)
+                51: "cn",    # China
+                160: "in",   # India
+                14: "in",    # India (alt)
+                17: "de",    # Germany (Alt)
+                25: "au",    # Australia (Alt)
+                10: "it",    # Italy
+                22: "fr",    # France
+                26: "es",    # Spain
+                21: "nl",    # Netherlands
+                56: "ru"     # Russia
+            }
+
+            for row in rows:
+                dt = datetime.fromisoformat(row["date_time"])
+                formatted_date = f"{dt.day} {months_tr[dt.month-1]}"
+                
+                c_id = row["country_id"]
+                flag_code = flag_map.get(c_id, "us")
+                flag_url = f"https://flagcdn.com/w40/{flag_code}.png"
+                if flag_code == "eu":
+                    flag_url = "https://flagcdn.com/w40/eu.png"
+
+                formatted.append({
+                    "id": row["id"],
+                    "date": formatted_date,
+                    "time": dt.strftime('%H:%M'),
+                    "title": row["title"],
+                    "impact": row["impact"],
+                    "actual": row["actual"],
+                    "forecast": row["forecast"],
+                    "previous": row["previous"],
+                    "unit": row["unit"],
+                    "country_id": c_id,
+                    "flag_url": flag_url,
+                    "currency": row["currency"]
+                })
+            
+            return formatted
+        except Exception as e:
+            print(f"Calendar DB Error: {e}")
+            return []
+
+    def save_calendar_events(self, events: list):
+        """
+        Dışarıdan (JSON) gelen takvim verilerini DB'ye kaydeder.
+        """
+        from database import get_db_connection
+        from datetime import datetime
+        
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            
+            # Mevcut eski (gelecek olmayan) verileri isteğe bağlı temizleyebiliriz
+            # cursor.execute("DELETE FROM calendar_events") 
+
+            for ev in events:
+                # Kullanıcının JSON formatına göre parse et (Örn: "2026-01-14 16:30")
+                dt_str = ev.get("date_time") or datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                
+                cursor.execute("""
+                    INSERT INTO calendar_events 
+                    (event_id, date_time, country_id, currency, title, impact, actual, forecast, previous, unit)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    str(ev.get("event_id", "")),
+                    dt_str,
+                    ev.get("country_id", 0),
+                    ev.get("currency", ""),
+                    ev.get("short_name") or ev.get("title") or "Olay",
+                    ev.get("importance") or ev.get("impact") or "Medium",
+                    ev.get("actual", "-"),
+                    ev.get("forecast", "-"),
+                    ev.get("previous", "-"),
+                    ev.get("unit", "")
+                ))
+            
+            conn.commit()
+            conn.close()
+            return True
+        except Exception as e:
+            print(f"Error saving events: {e}")
+            return False
     
     def _get_yf_session(self):
         """Yahoo bloklmasını aşmak için Custom Session"""
@@ -213,7 +332,7 @@ class MarketDataProvider:
                  # Çoğu zaman USD/TRY şeklinde aranır
                  try:
                      df = investpy.get_currency_cross_historical_data(currency_cross=cross, from_date=start_date, to_date=end_date)
-                 except: 
+                 except Exception:
                      # Bulamazsa search denenebilir
                      pass
             
@@ -257,7 +376,8 @@ class MarketDataProvider:
                         "volume": float(row['Volume'])
                     })
                 return formatted
-        except: pass
+        except Exception:
+            pass
             
         return []
 
@@ -298,7 +418,8 @@ class MarketDataProvider:
                     "logo_url": "", 
                     "currency": "USD"
                 }
-        except: pass
+        except Exception:
+            pass
 
         # 3. TradingView (En Sağlam Fiyat/Stats Kaynağı)
         ta_data = ta_service.get_analysis(symbol)
@@ -402,7 +523,8 @@ class MarketDataProvider:
                     res = future.result()
                     if res and res.get("price", 0) > 0:
                         results.append(res)
-                except: pass
+                except Exception:
+                    pass
         return results
 
 market_provider = MarketDataProvider()

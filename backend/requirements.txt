@@ -13,3 +13,4 @@ httpx==0.26.0
 tradingview-ta==3.3.0
 investpy
 redis
+cloudscraper

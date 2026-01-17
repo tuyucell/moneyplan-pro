@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
 from services.market_service import market_provider
 from services.crypto_service import crypto_service
@@ -78,8 +78,27 @@ def get_bond_markets():
     return market_provider.get_bond_markets()
 
 @app.get("/api/v1/market/calendar")
-def get_market_calendar():
-    return market_provider.get_calendar()
+def get_market_calendar(country_code: str = "ALL"):
+    return market_provider.get_calendar(country_code)
+
+@app.post("/api/v1/market/calendar")
+def upload_market_calendar(events: list = Body(..., embed=True), clear: bool = False):
+    """
+    MANUEL TAKVİM YÜKLEME:
+    Haftalık verileri JSON olarak yükler.
+    clear=True ise mevcut verileri siler.
+    """
+    if clear:
+        from database import get_db_connection
+        conn = get_db_connection()
+        conn.execute("DELETE FROM calendar_events")
+        conn.commit()
+        conn.close()
+        
+    success = market_provider.save_calendar_events(events)
+    if not success:
+        raise HTTPException(status_code=500, detail="Veriler kaydedilemedi")
+    return {"status": "success", "count": len(events)}
 
 @app.get("/api/v1/market/crypto")
 def get_crypto_markets(limit: int = 50):

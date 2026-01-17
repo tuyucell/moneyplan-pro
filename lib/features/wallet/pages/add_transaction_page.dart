@@ -9,11 +9,14 @@ import 'package:invest_guide/features/wallet/providers/bank_account_provider.dar
 import 'package:invest_guide/core/utils/currency_input_formatter.dart';
 import 'package:uuid/uuid.dart';
 import 'package:invest_guide/core/services/currency_service.dart';
+import 'package:invest_guide/features/wallet/providers/email_integration_provider.dart';
+import 'package:invest_guide/features/wallet/pages/email_sync_page.dart';
 
 class AddTransactionPage extends ConsumerStatefulWidget {
   final WalletTransaction? transaction;
+  final DateTime? initialDate;
 
-  const AddTransactionPage({super.key, this.transaction});
+  const AddTransactionPage({super.key, this.transaction, this.initialDate});
 
   @override
   ConsumerState<AddTransactionPage> createState() => _AddTransactionPageState();
@@ -32,14 +35,21 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
   BankAccount? _selectedBankAccount;
   DateTime? _dueDate;
   DateTime? _recurrenceEndDate;
-  bool _isPaidThisMonth = false;
+  bool _isPaidThisMonth = true; // Varsayılan olarak ödendi
   bool _isSubscription = false;
+  bool _isPaidByCard = false; // Kredi kartından otomatik ödeniyor mu?
 
   String _selectedCurrencyCode = 'TRY';
 
   @override
   void initState() {
     super.initState();
+
+    // Use initialDate if provided
+    if (widget.initialDate != null) {
+      _selectedDate = widget.initialDate!;
+    }
+
     if (widget.transaction != null) {
       final tx = widget.transaction!;
       _amountController.text = tx.amount.toStringAsFixed(0);
@@ -52,7 +62,7 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
       _isPaidThisMonth = tx.isPaid;
       _isSubscription = tx.isSubscription;
       _selectedCurrencyCode = tx.currencyCode;
-      
+
       final cat = TransactionCategory.findById(tx.categoryId);
       if (cat != null) {
         if (cat.parentId == null) {
@@ -81,12 +91,13 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
         : <TransactionCategory>[];
 
     final showBankSelection = _selectedMainCategory?.id == 'bank' ||
-                              _selectedSubCategory?.parentId == 'bank';
+        _selectedSubCategory?.parentId == 'bank';
 
     return Scaffold(
       backgroundColor: AppColors.background(context),
       appBar: AppBar(
-        title: Text(widget.transaction != null ? 'İŞLEMİ DÜZENLE' : 'YENİ İŞLEM'),
+        title:
+            Text(widget.transaction != null ? 'İŞLEMİ DÜZENLE' : 'YENİ İŞLEM'),
         leading: IconButton(
           icon: const Icon(Icons.close),
           onPressed: () => Navigator.of(context).pop(),
@@ -109,8 +120,12 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
                 padding: const EdgeInsets.all(4),
                 child: Row(
                   children: [
-                    Expanded(child: _buildTypeSegment('GELİR', TransactionType.income)),
-                    Expanded(child: _buildTypeSegment('GİDER', TransactionType.expense)),
+                    Expanded(
+                        child:
+                            _buildTypeSegment('GELİR', TransactionType.income)),
+                    Expanded(
+                        child: _buildTypeSegment(
+                            'GİDER', TransactionType.expense)),
                   ],
                 ),
               ),
@@ -139,9 +154,13 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
                           fontSize: 14,
                         ),
                         onChanged: (String? newValue) {
-                          if (newValue != null) setState(() => _selectedCurrencyCode = newValue);
+                          if (newValue != null) {
+                            setState(() => _selectedCurrencyCode = newValue);
+                          }
                         },
-                        items: currencyService.getAvailableCurrencies().map<DropdownMenuItem<String>>((String value) {
+                        items: currencyService
+                            .getAvailableCurrencies()
+                            .map<DropdownMenuItem<String>>((String value) {
                           return DropdownMenuItem<String>(
                             value: value,
                             child: Text(value),
@@ -155,31 +174,39 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
                       controller: _amountController,
                       keyboardType: TextInputType.number,
                       inputFormatters: [CurrencyInputFormatter()],
-                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                        color: _selectedType == TransactionType.income 
-                          ? AppColors.success 
-                          : AppColors.error,
-                        fontWeight: FontWeight.bold,
-                      ),
+                      style:
+                          Theme.of(context).textTheme.headlineMedium?.copyWith(
+                                color: _selectedType == TransactionType.income
+                                    ? AppColors.success
+                                    : AppColors.error,
+                                fontWeight: FontWeight.bold,
+                              ),
                       decoration: InputDecoration(
                         labelText: 'Tutar',
                         hintText: '0',
-                        suffixText: currencyService.getSymbol(_selectedCurrencyCode),
+                        suffixText:
+                            currencyService.getSymbol(_selectedCurrencyCode),
                         filled: true,
                         fillColor: AppColors.surface(context),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(16),
-                          borderSide: BorderSide(color: AppColors.border(context)),
+                          borderSide:
+                              BorderSide(color: AppColors.border(context)),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(16),
-                          borderSide: BorderSide(color: AppColors.border(context)),
+                          borderSide:
+                              BorderSide(color: AppColors.border(context)),
                         ),
                       ),
                       validator: (value) {
-                        if (value == null || value.isEmpty) return 'Lütfen tutar girin';
-                        final cleanValue = value.replaceAll('.', '').replaceAll(',', '');
-                        if (int.tryParse(cleanValue) == null || int.parse(cleanValue) <= 0) {
+                        if (value == null || value.isEmpty) {
+                          return 'Lütfen tutar girin';
+                        }
+                        final cleanValue =
+                            value.replaceAll('.', '').replaceAll(',', '');
+                        if (int.tryParse(cleanValue) == null ||
+                            int.parse(cleanValue) <= 0) {
                           return 'Geçerli bir tutar girin';
                         }
                         return null;
@@ -193,21 +220,23 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
               // Categories Section
               Text('KATEGORİ', style: Theme.of(context).textTheme.labelLarge),
               const SizedBox(height: 12),
-              
+
               _buildSelectableCard(
                 label: 'Ana Kategori',
                 value: _selectedMainCategory?.name,
                 icon: Icons.category,
-                onTap: () => _showCategoryPicker(mainCategories, 'Ana Kategori', true),
+                onTap: () =>
+                    _showCategoryPicker(mainCategories, 'Ana Kategori', true),
               ),
-              
+
               if (subCategories.isNotEmpty) ...[
                 const SizedBox(height: 12),
                 _buildSelectableCard(
                   label: 'Alt Kategori',
                   value: _selectedSubCategory?.name,
                   icon: Icons.subdirectory_arrow_right,
-                  onTap: () => _showCategoryPicker(subCategories, 'Alt Kategori', false),
+                  onTap: () =>
+                      _showCategoryPicker(subCategories, 'Alt Kategori', false),
                 ),
               ],
 
@@ -221,14 +250,16 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
                 ),
               ],
 
-              if (_selectedMainCategory?.isBES == true || _selectedSubCategory?.isBES == true) ...[
+              if (_selectedMainCategory?.isBES == true ||
+                  _selectedSubCategory?.isBES == true) ...[
                 const SizedBox(height: 16),
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     color: Colors.indigo.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.indigo.withValues(alpha: 0.3)),
+                    border:
+                        Border.all(color: Colors.indigo.withValues(alpha: 0.3)),
                   ),
                   child: Row(
                     children: [
@@ -240,7 +271,10 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
                           children: [
                             const Text(
                               'Proaktif İpucu',
-                              style: TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo, fontSize: 13),
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.indigo,
+                                  fontSize: 13),
                             ),
                             const SizedBox(height: 4),
                             const Text(
@@ -256,7 +290,10 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
                                 minimumSize: const Size(0, 30),
                                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                               ),
-                              child: const Text('BES Sayfasına Git →', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                              child: const Text('BES Sayfasına Git →',
+                                  style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold)),
                             ),
                           ],
                         ),
@@ -274,15 +311,18 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
                 children: [
                   Expanded(
                     child: _buildSelectableCard(
-                      label: _selectedType == TransactionType.expense ? 'Ödeme Tarihi' : 'İşlem Tarihi',
-                      value: '${_selectedDate.day}.${_selectedDate.month}.${_selectedDate.year}',
+                      label: _selectedType == TransactionType.expense
+                          ? 'Ödeme Tarihi'
+                          : 'İşlem Tarihi',
+                      value:
+                          '${_selectedDate.day}.${_selectedDate.month}.${_selectedDate.year}',
                       icon: Icons.calendar_today,
                       onTap: () => _pickDate(true),
                     ),
                   ),
                 ],
               ),
-              
+
               const SizedBox(height: 12),
               Card(
                 margin: EdgeInsets.zero,
@@ -293,19 +333,174 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
                         title: const Text('Ödendi'),
                         subtitle: const Text('Bakiyeye yansıt'),
                         value: _isPaidThisMonth,
-                        activeTrackColor: AppColors.success.withValues(alpha: 0.5),
+                        activeTrackColor:
+                            AppColors.success.withValues(alpha: 0.5),
                         activeThumbColor: AppColors.success,
-                        onChanged: (val) => setState(() => _isPaidThisMonth = val),
+                        onChanged: (val) =>
+                            setState(() => _isPaidThisMonth = val),
                       ),
-                    if (_selectedType == TransactionType.expense) const Divider(height: 1),
+                    if (_selectedType == TransactionType.expense)
+                      const Divider(height: 1),
                     SwitchListTile(
-                      title: Text(_selectedType == TransactionType.income ? 'Düzenli Gelir' : 'Abonelik / Düzenli Gider'),
+                      title: Text(_selectedType == TransactionType.income
+                          ? 'Düzenli Gelir'
+                          : 'Abonelik / Düzenli Gider'),
                       subtitle: const Text('Her ay otomatik tekrarla'),
                       value: _isSubscription,
-                      activeTrackColor: AppColors.primary.withValues(alpha: 0.5),
+                      activeTrackColor:
+                          AppColors.primary.withValues(alpha: 0.5),
                       activeThumbColor: AppColors.primary,
                       onChanged: (val) => setState(() => _isSubscription = val),
                     ),
+                    // Kredi kartından otomatik ödeme checkbox'ı (sadece düzenli gider ise)
+                    if (_isSubscription &&
+                        _selectedType == TransactionType.expense)
+                      Consumer(
+                        builder: (context, ref, _) {
+                          final hasEmailIntegration =
+                              ref.watch(emailIntegrationProvider.select(
+                            (state) =>
+                                state.isGmailConnected ||
+                                state.isOutlookConnected,
+                          ));
+
+                          return Column(
+                            children: [
+                              const Divider(height: 1),
+                              SwitchListTile(
+                                title: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        const Expanded(
+                                          child: Text(
+                                            'Kredi Kartından Otomatik Ödeniyor',
+                                            style: TextStyle(fontSize: 14),
+                                          ),
+                                        ),
+                                        GestureDetector(
+                                          onTap: () {
+                                            showDialog(
+                                              context: context,
+                                              builder: (context) => AlertDialog(
+                                                title: const Text(
+                                                    'Duplicate Önleme'),
+                                                content: Column(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  children: [
+                                                    const Text(
+                                                      'Kredi kartından otomatik ödenen giderler (fatura, abonelik) mail ekstresinde zaten görünür.',
+                                                      style: TextStyle(
+                                                          fontSize: 14),
+                                                    ),
+                                                    const SizedBox(height: 12),
+                                                    Text(
+                                                      hasEmailIntegration
+                                                          ? '✅ Mail bağlantınız aktif. Bu gider bakiyeye dahil edilmeyecek.'
+                                                          : '⚠️ Mail bağlantınız yok. Bu gider bakiyeye dahil edilecek.',
+                                                      style: TextStyle(
+                                                        fontSize: 13,
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                        color:
+                                                            hasEmailIntegration
+                                                                ? AppColors
+                                                                    .success
+                                                                : AppColors
+                                                                    .warning,
+                                                      ),
+                                                    ),
+                                                    if (!hasEmailIntegration) ...[
+                                                      const SizedBox(
+                                                          height: 16),
+                                                      SizedBox(
+                                                        width: double.infinity,
+                                                        child:
+                                                            ElevatedButton.icon(
+                                                          onPressed: () async {
+                                                            Navigator.pop(
+                                                                context); // Dialog'u kapat
+                                                            await Navigator
+                                                                .push(
+                                                              context,
+                                                              MaterialPageRoute(
+                                                                builder:
+                                                                    (context) =>
+                                                                        const EmailSyncPage(),
+                                                              ),
+                                                            );
+                                                            // Kullanıcı geri döndüğünde form state korunur
+                                                          },
+                                                          icon: const Icon(
+                                                              Icons.settings,
+                                                              size: 18),
+                                                          label: const Text(
+                                                              'Mail Bağlantısı Ayarla'),
+                                                          style: ElevatedButton
+                                                              .styleFrom(
+                                                            backgroundColor:
+                                                                AppColors
+                                                                    .primary,
+                                                            foregroundColor:
+                                                                Colors.white,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ],
+                                                ),
+                                                actions: [
+                                                  TextButton(
+                                                    onPressed: () =>
+                                                        Navigator.pop(context),
+                                                    child: const Text('Tamam'),
+                                                  ),
+                                                ],
+                                              ),
+                                            );
+                                          },
+                                          child: const Icon(
+                                            Icons.info_outline,
+                                            size: 18,
+                                            color: AppColors.primary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                                subtitle: Padding(
+                                  padding: const EdgeInsets.only(top: 4),
+                                  child: Text(
+                                    _isPaidByCard
+                                        ? (hasEmailIntegration
+                                            ? 'Bakiyeye dahil edilmez'
+                                            : 'Mail bağlı değil, bakiyeye dahil edilir')
+                                        : 'Manuel eklenir, bakiyeye dahil edilir',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color:
+                                          _isPaidByCard && hasEmailIntegration
+                                              ? AppColors.success
+                                              : AppColors.textTertiary(context),
+                                    ),
+                                  ),
+                                ),
+                                value: _isPaidByCard,
+                                activeTrackColor:
+                                    AppColors.warning.withValues(alpha: 0.5),
+                                activeThumbColor: AppColors.warning,
+                                onChanged: (val) =>
+                                    setState(() => _isPaidByCard = val),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
                   ],
                 ),
               ),
@@ -314,9 +509,9 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
                 const SizedBox(height: 12),
                 _buildSelectableCard(
                   label: 'Tekrar Bitiş Tarihi (Opsiyonel)',
-                  value: _recurrenceEndDate != null 
-                    ? '${_recurrenceEndDate!.day}.${_recurrenceEndDate!.month}.${_recurrenceEndDate!.year}'
-                    : 'Süresiz (Hiç Bitmesin)',
+                  value: _recurrenceEndDate != null
+                      ? '${_recurrenceEndDate!.day}.${_recurrenceEndDate!.month}.${_recurrenceEndDate!.year}'
+                      : 'Süresiz (Hiç Bitmesin)',
                   icon: Icons.event_note,
                   onTap: _showRecurrenceEndDatePicker,
                 ),
@@ -324,10 +519,13 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
                   Padding(
                     padding: const EdgeInsets.only(top: 8, left: 4),
                     child: TextButton.icon(
-                      onPressed: () => setState(() => _recurrenceEndDate = null),
+                      onPressed: () =>
+                          setState(() => _recurrenceEndDate = null),
                       icon: const Icon(Icons.clear, size: 16),
-                      label: const Text('Bitiş Tarihini Kaldır (Süresiz Yap)', style: TextStyle(fontSize: 12)),
-                      style: TextButton.styleFrom(foregroundColor: AppColors.error),
+                      label: const Text('Bitiş Tarihini Kaldır (Süresiz Yap)',
+                          style: TextStyle(fontSize: 12)),
+                      style: TextButton.styleFrom(
+                          foregroundColor: AppColors.error),
                     ),
                   ),
               ],
@@ -351,7 +549,8 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
                 height: 54,
                 child: ElevatedButton(
                   onPressed: _saveTransaction,
-                  child: Text(widget.transaction != null ? 'GÜNCELLE' : 'KAYDET'),
+                  child:
+                      Text(widget.transaction != null ? 'GÜNCELLE' : 'KAYDET'),
                 ),
               ),
               const SizedBox(height: 32),
@@ -364,8 +563,9 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
 
   Widget _buildTypeSegment(String label, TransactionType type) {
     final isSelected = _selectedType == type;
-    final color = type == TransactionType.income ? AppColors.success : AppColors.error;
-    
+    final color =
+        type == TransactionType.income ? AppColors.success : AppColors.error;
+
     return GestureDetector(
       onTap: () => setState(() {
         _selectedType = type;
@@ -424,10 +624,10 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
                   Text(
                     value ?? 'Seçiniz',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: value != null 
-                        ? AppColors.textPrimary(context) 
-                        : AppColors.textTertiary(context),
-                    ),
+                          color: value != null
+                              ? AppColors.textPrimary(context)
+                              : AppColors.textTertiary(context),
+                        ),
                   ),
                 ],
               ),
@@ -443,7 +643,8 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
     final now = DateTime.now();
     final picked = await showDatePicker(
       context: context,
-      initialDate: isTransactionDate ? _selectedDate : (_recurrenceEndDate ?? now),
+      initialDate:
+          isTransactionDate ? _selectedDate : (_recurrenceEndDate ?? now),
       firstDate: DateTime(2020),
       lastDate: DateTime(2035),
       builder: (context, child) => Theme(
@@ -453,7 +654,7 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
         child: child!,
       ),
     );
-    
+
     if (picked != null) {
       setState(() {
         if (isTransactionDate) {
@@ -472,7 +673,8 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
     _pickDate(false);
   }
 
-  void _showCategoryPicker(List<TransactionCategory> categories, String label, bool isMain) {
+  void _showCategoryPicker(
+      List<TransactionCategory> categories, String label, bool isMain) {
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.surface(context),
@@ -528,28 +730,33 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
                       // Proactive Flow:
                       if (isMain && cat.hasSubCategories) {
                         // 1. If main category has subcategories, open sub-picker
-                        final subs = TransactionCategory.getSubCategories(cat.id);
+                        final subs =
+                            TransactionCategory.getSubCategories(cat.id);
                         _showCategoryPicker(subs, 'Alt Kategori', false);
                       } else {
                         // 2. If no sub-picker OR after selecting sub-category, check for bank account
-                        final finalCat = _selectedSubCategory ?? _selectedMainCategory;
+                        final finalCat =
+                            _selectedSubCategory ?? _selectedMainCategory;
                         if (finalCat != null) {
-                          final isBankRelated = finalCat.id == 'bank' || 
-                                              finalCat.parentId == 'bank' ||
-                                              finalCat.id == 'bes';
-                          
+                          final isBankRelated = finalCat.id == 'bank' ||
+                              finalCat.parentId == 'bank' ||
+                              finalCat.id == 'bes';
+
                           if (isBankRelated) {
                             String? filter;
                             if (finalCat.id == 'bank_credit_card') {
                               filter = 'Kredi Kartı';
-                            } else if (finalCat.id == 'bank_loan' || finalCat.id == 'bank_interest') {
-                              // Maybe show checking accounts or specific types? 
+                            } else if (finalCat.id == 'bank_loan' ||
+                                finalCat.id == 'bank_interest') {
+                              // Maybe show checking accounts or specific types?
                               // For now, just open general if not CC.
                             }
-                            
+
                             // Delayed call to ensure the keyboard or previous bottom sheet is cleared
-                            Future.delayed(const Duration(milliseconds: 300), () {
-                              _showBankPicker(ref.read(bankAccountProvider), filterType: filter);
+                            Future.delayed(const Duration(milliseconds: 300),
+                                () {
+                              _showBankPicker(ref.read(bankAccountProvider),
+                                  filterType: filter);
                             });
                           }
                         }
@@ -558,19 +765,28 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                       side: BorderSide(
-                        color: isSelected ? AppColors.primary : AppColors.border(context),
+                        color: isSelected
+                            ? AppColors.primary
+                            : AppColors.border(context),
                       ),
                     ),
-                    tileColor: isSelected ? AppColors.primary.withValues(alpha: 0.05) : null,
+                    tileColor: isSelected
+                        ? AppColors.primary.withValues(alpha: 0.05)
+                        : null,
                     leading: Icon(
                       isSelected ? Icons.check_circle : Icons.circle_outlined,
-                      color: isSelected ? AppColors.primary : AppColors.textTertiary(context),
+                      color: isSelected
+                          ? AppColors.primary
+                          : AppColors.textTertiary(context),
                     ),
                     title: Text(
                       cat.name,
                       style: TextStyle(
-                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                        color: isSelected ? AppColors.primary : AppColors.textPrimary(context),
+                        fontWeight:
+                            isSelected ? FontWeight.bold : FontWeight.normal,
+                        color: isSelected
+                            ? AppColors.primary
+                            : AppColors.textPrimary(context),
                       ),
                     ),
                   );
@@ -584,7 +800,7 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
   }
 
   void _showBankPicker(List<BankAccount> accounts, {String? filterType}) {
-    final filteredAccounts = filterType != null 
+    final filteredAccounts = filterType != null
         ? accounts.where((a) => a.accountType == filterType).toList()
         : accounts;
 
@@ -600,8 +816,7 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
           children: [
             Padding(
               padding: const EdgeInsets.all(16),
-              child: Text(
-                  filterType ?? 'Banka Hesabı', 
+              child: Text(filterType ?? 'Banka Hesabı',
                   style: Theme.of(context).textTheme.titleLarge),
             ),
             ListTile(
@@ -620,7 +835,7 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
                 itemBuilder: (context, index) {
                   final bank = filteredAccounts[index];
                   final isSelected = _selectedBankAccount?.id == bank.id;
-                  
+
                   return ListTile(
                     onTap: () {
                       setState(() => _selectedBankAccount = bank);
@@ -628,9 +843,10 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
                     },
                     selected: isSelected,
                     selectedColor: AppColors.primary,
-                    leading: Icon(Icons.account_balance, color: isSelected ? AppColors.primary : null),
+                    leading: Icon(Icons.account_balance,
+                        color: isSelected ? AppColors.primary : null),
                     title: Text(bank.name),
-                    subtitle: Text(bank.accountType == 'Kredi Kartı' 
+                    subtitle: Text(bank.accountType == 'Kredi Kartı'
                         ? 'Limit: ${bank.overdraftLimit}₺ | Kesim: ${bank.paymentDay} / Son: ${bank.dueDay}'
                         : 'KMH Limit: ${bank.overdraftLimit}₺ | Vade: ${bank.paymentDay}. gün'),
                     trailing: isSelected ? const Icon(Icons.check) : null,
@@ -657,7 +873,8 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
     final finalCategory = _selectedSubCategory ?? _selectedMainCategory!;
 
     // Temiz tutar değerini al (bindelik ayracı kaldır)
-    final cleanAmount = _amountController.text.replaceAll('.', '').replaceAll(',', '');
+    final cleanAmount =
+        _amountController.text.replaceAll('.', '').replaceAll(',', '');
 
     final transaction = WalletTransaction(
       id: widget.transaction?.id ?? const Uuid().v4(),
@@ -674,10 +891,16 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
       isPaid: _isPaidThisMonth,
       isSubscription: _isSubscription,
       currencyCode: _selectedCurrencyCode,
+      // Ödeme yöntemi ve bakiye hesaplama
+      paymentMethod:
+          _isPaidByCard ? PaymentMethod.autoPayment : PaymentMethod.cash,
+      excludeFromBalance: _isPaidByCard &&
+          (ref.read(emailIntegrationProvider).isGmailConnected ||
+              ref.read(emailIntegrationProvider).isOutlookConnected),
     );
 
     final notifier = ref.read(walletProvider.notifier);
-    
+
     if (widget.transaction != null) {
       await notifier.updateTransaction(transaction);
     } else {

@@ -8,8 +8,11 @@ class ProcessedDocument {
   final String description;
   final String categoryId;
   final bool isBes;
-
+  final String currencyCode; // Para birimi (TRY, USD, EUR, GBP)
   final String? bankId;
+  final String? originalMessageId;
+  final bool hasData; // Veri içeriyor mu yoksa sadece bildirim mi?
+  final DateTime? dueDate; // Son ödeme tarihi (Kredi kartı/Fatura için)
 
   ProcessedDocument({
     required this.amount,
@@ -17,8 +20,38 @@ class ProcessedDocument {
     required this.description,
     required this.categoryId,
     this.isBes = false,
+    this.currencyCode = 'TRY',
     this.bankId,
+    this.originalMessageId,
+    this.hasData = true,
+    this.dueDate,
   });
+
+  ProcessedDocument copyWith({
+    double? amount,
+    DateTime? date,
+    String? description,
+    String? categoryId,
+    bool? isBes,
+    String? currencyCode,
+    String? bankId,
+    String? originalMessageId,
+    bool? hasData,
+    DateTime? dueDate,
+  }) {
+    return ProcessedDocument(
+      amount: amount ?? this.amount,
+      date: date ?? this.date,
+      description: description ?? this.description,
+      categoryId: categoryId ?? this.categoryId,
+      isBes: isBes ?? this.isBes,
+      currencyCode: currencyCode ?? this.currencyCode,
+      bankId: bankId ?? this.bankId,
+      originalMessageId: originalMessageId ?? this.originalMessageId,
+      hasData: hasData ?? this.hasData,
+      dueDate: dueDate ?? this.dueDate,
+    );
+  }
 }
 
 class AIProcessingService {
@@ -29,6 +62,7 @@ class AIProcessingService {
     required String subject,
     required String body,
     String? attachmentText,
+    String? messageId,
   }) async {
     if (_apiKey == 'YOUR_GEMINI_API_KEY') {
       debugPrint('UYARI: Gemini API Anahtarı ayarlanmamış.');
@@ -37,8 +71,8 @@ class AIProcessingService {
 
     // Clean HTML and truncate to reduce prompt size and avoid timeouts
     final cleanBody = _stripHtml(body);
-    final truncatedBody = cleanBody.length > 6000
-        ? '${cleanBody.substring(0, 6000)}...'
+    final truncatedBody = cleanBody.length > 8000
+        ? '${cleanBody.substring(0, 8000)}...'
         : cleanBody;
 
     final cleanAttachment =
@@ -56,30 +90,111 @@ class AIProcessingService {
     );
 
     final prompt = '''
-Aşağıdaki e-posta içeriğinden finansal verileri (tutar, tarih, açıklama) ayıkla.
+Aşağıdaki e-posta içeriği bir finansal işlem (ekstre, fatura, alım-satım) mi yoksa sadece bilgilendirme (uygulamadan bakın, mobil şubeye girin vb.) mi kontrol et ve verileri ayıkla.
 Mail Konusu: $subject
 Mail İçeriği: $truncatedBody
 ${truncatedAttachment != null ? 'Ekstre/Fatura Metni: $truncatedAttachment' : ''}
 
-KRİTİK TALİMATLAR:
-1. 'amount' (tutar) alanını bulurken e-postanın en can alıcı rakamına odaklan. 
-   - Kredi kartı ekstrelerinde 'Dönem Borcu', 'Toplam Borç' veya 'Ödenecek Tutar'ı al.
-   - Faturalarda 'Fatura Tutarı' veya 'Toplam Ödenecek' kısmını al.
-   - 0.00 TL gibi rakamları, eğer mailde daha büyük ve anlamlı bir harcama/borç rakamı varsa KESİNLİKLE dikkate alma. İş Bankası Maximum ekstrelerinde 'Dönem Borcu'nu bul.
-2. 'date' alanını işlem veya fatura tarihi olarak belirle (YYYY-MM-DD).
-3. 'type' alanını belirle: 
-   - BES, Hisse Senedi, Fon alımları için 'investment' kullan.
-   - Sigorta, Fatura, Kredi Kartı, Faiz, Vergi ödemeleri için 'expense' kullan.
-4. 'bankId' alanını belirle (Örn: akbank, isbank, garanti, yapi_kredi, ziraat). Mail içeriğinden hangi banka olduğunu bul.
-5. 'description' alanını 'Banka Adı + Mail Konusu' gibi anlaşılır yap.
+CRITICAL INSTRUCTIONS (Email content can be in ANY language - Turkish, English, etc.):
+1. 'amount' - SEMANTIC UNDERSTANDING:
+   
+   **CLASSIFICATION RULES:**
+   
+   A) ACTUAL DEBT (Find this):
+      - Contains keywords: "Toplam", "Total", "Net", "Dönem", "Period", "Ekstre", "Statement"
+      - AND keywords: "Borç", "Debt", "Ödenecek", "Due", "Payable", "Amount"
+      - AND NO date format (DD/MM/YYYY, MM/DD/YYYY) nearby
+      - POSITIVE (+) or unsigned numbers
+   
+   B) INSTALLMENT/MINIMUM PAYMENT (Ignore this):
+      - Has date format nearby (e.g., "by 15/02/2026", "02/02/2026 tarihine kadar")
+      - Contains: "tarihe kadar", "tarihine kadar", "by date", "until"
+      - Contains: "Asgari", "Minimum", "En az", "At least"
+      - Contains month names (Ocak, January, Şubat, February, etc.)
+   
+   C) LIMIT/BALANCE (Ignore this):
+      - Negative (-) sign + "Toplam/Total" together
+      - Contains: "Limit", "Kullanılabilir", "Available", "Kalan", "Remaining", "Balance"
+      - Contains: "Mevcut bakiye", "Current balance"
+   
+   **DECISION ALGORITHM:**
+   
+   ⚠️ STEP 0 - MANDATORY FIRST STEP (DO THIS BEFORE ANYTHING ELSE):
+   Scan the ENTIRE email for these patterns and DELETE any number associated with them:
+   - "\\d{1,2}/\\d{1,2}/\\d{4}" (e.g., 02/02/2026, 15/01/2025)
+   - "\\d{1,2}.\\d{1,2}.\\d{4}" (e.g., 02.02.2026)
+   - "tarihe kadar", "tarihine kadar", "vadeye kadar"
+   - "Asgari ödeme", "Minimum payment", "En az ödeme"
+   - Month names: Ocak, Şubat, Mart, Nisan, Mayıs, Haziran, etc.
+   
+   Example: If you see "02/02/2026 tarihine kadar ödenmesi gereken borç: 343,73 TL" → DELETE 343.73 completely!
+   
+   1. Extract ALL remaining numbers from email (after Step 0 deletion)
+   2. Check SURROUNDING WORDS (5 words before, 5 words after) for each number
+   3. Apply A/B/C classification above
+   4. Select LARGEST number from class A
+   5. If no class A found, pick largest POSITIVE number not in B or C
+   6. RULE: Larger amount = Total Debt, Smaller amount = Installment
+   
+   **CURRENCY DETECTION:**
+   - If symbol appears NEAR the selected number (within 2 words):
+     * "USD", "Dolar", "Dollar" → USD
+     * "€", "EUR", "Euro" → EUR
+     * "£", "GBP", "Sterlin", "Sterling" → GBP
+     * "₺", "TL", "TRY", "Lira" → TRY
+   - Default → TRY
+   
+   **ZERO CHECK:**
+   - NEVER use: 0, 0.00, 0,00
 
-Lütfen şu bilgileri JSON formatında döndür:
-1. amount: Toplam tutar (sayı olarak)
-2. date: İşlem tarihi (YYYY-MM-DD)
-3. type: 'expense' veya 'investment'
-4. description: Kısa açıklama
-5. bankId: Banka ID'si (akbank, isbank vb. yoksa null)
-6. category: En uygun kategori ID'si (bes, insurance_life, insurance_health, bank_interest, bank_tax, bank_credit_card, bills_electric, bills_phone, other_expense)
+2. 'date' - Transaction or bill date (YYYY-MM-DD format).
+
+3. 'dueDate' - Payment deadline:
+   - Credit cards: "Son Ödeme Tarihi", "Due Date", "Payment Due"
+   - Bills: "Son Ödeme Tarihi", "Due Date"
+   - If not found → null. Format: YYYY-MM-DD
+
+4. 'type' field: 
+   - 'investment' for: BES, Stocks, Fund purchases
+   - 'expense' for: Insurance, Bills, Credit Cards, Interest, Tax payments
+
+5. 'bankId' field:
+   - IMPORTANT: If CREDIT CARD statement, append '_cc' to bank ID (e.g., 'isbank_cc', 'akbank_cc')
+   - For regular accounts: 'isbank', 'akbank', 'garanti', 'yapi_kredi', 'ziraat', 'qnb', 'enpara'
+   - Others → null
+
+6. 'description' - Make it readable (Bank Name + Transaction Type)
+
+7. Data availability:
+   - If email says "check mobile app", "SafeKey", "login required", "no amount" AND no PDF:
+     * 'amount' = 0.0
+     * 'hasData' = false
+   - Otherwise 'hasData' = true
+
+Return JSON:
+{
+  "amount": 123.45,
+  "currency": "TRY",
+  "date": "2026-01-15",
+  "dueDate": "2026-01-25",
+  "type": "expense",
+  "description": "Bank Name + Type",
+  "bankId": "enpara",
+  "category": "bank_flexible",
+  "hasData": true
+}
+TIP: Ekpara/KMH → 'bank_flexible', Credit cards → 'bank_credit_card'
+
+Kategori ID'leri:
+- bes (BES/Emeklilik)
+- insurance_life (Hayat Sigortası)
+- insurance_health (Sağlık Sigortası)
+- bank_interest (Banka Faizi)
+- bank_tax (Banka Vergisi)
+- bank_credit_card (Kredi Kartı)
+- bills_electric (Elektrik Faturası)
+- bills_phone (Telefon Faturası)
+- other_expense (Diğer Gider)
 
 Sadece geçerli JSON döndür, açıklama yazma.
 ''';
@@ -116,20 +231,26 @@ Sadece geçerli JSON döndür, açıklama yazma.
 
       final categoryId = data['category'] ?? 'other_expense';
       final typeStr = data['type'] ?? 'expense';
+      final amountValue = data['amount'];
 
       return ProcessedDocument(
-        amount: (data['amount'] as num).toDouble(),
+        amount: amountValue != null ? (amountValue as num).toDouble() : 0.0,
+        currencyCode: data['currency'] ?? 'TRY',
         date: DateTime.parse(data['date'] ?? DateTime.now().toIso8601String()),
+        dueDate:
+            data['dueDate'] != null ? DateTime.parse(data['dueDate']) : null,
         description: data['description'] ?? subject,
         categoryId: categoryId,
         isBes: categoryId == 'bes' ||
             (typeStr == 'investment' && categoryId != 'insurance_life'),
         bankId: data['bankId'],
+        originalMessageId: messageId,
+        hasData: data['hasData'] ?? (amountValue != null && amountValue != 0),
       );
     } catch (e) {
       debugPrint('AI Processing Error with $modelName: $e');
 
-      // Fallback to gemini-flash-latest or gemini-2.5-flash if 2.0 fails
+      // Fallback logic
       final fallbacks = [
         'gemini-flash-latest',
         'gemini-2.5-flash',
@@ -154,15 +275,25 @@ Sadece geçerli JSON döndür, açıklama yazma.
             debugPrint('AI Success: Data parsed via Fallback ($fModel)');
             final fCategoryId = data['category'] ?? 'other_expense';
             final fTypeStr = data['type'] ?? 'expense';
+            final fAmountValue = data['amount'];
+
             return ProcessedDocument(
-              amount: (data['amount'] as num).toDouble(),
+              amount:
+                  fAmountValue != null ? (fAmountValue as num).toDouble() : 0.0,
+              currencyCode: data['currency'] ?? 'TRY',
               date: DateTime.parse(
                   data['date'] ?? DateTime.now().toIso8601String()),
+              dueDate: data['dueDate'] != null
+                  ? DateTime.parse(data['dueDate'])
+                  : null,
               description: data['description'] ?? subject,
               categoryId: fCategoryId,
               isBes: fCategoryId == 'bes' ||
                   (fTypeStr == 'investment' && fCategoryId != 'insurance_life'),
               bankId: data['bankId'],
+              originalMessageId: messageId,
+              hasData: data['hasData'] ??
+                  (fAmountValue != null && fAmountValue != 0),
             );
           }
         } catch (fallbackError) {

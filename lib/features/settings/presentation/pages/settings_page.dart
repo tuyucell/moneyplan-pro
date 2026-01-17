@@ -6,6 +6,7 @@ import 'package:invest_guide/features/monetization/services/ad_service.dart';
 import 'package:invest_guide/features/admin/presentation/pages/admin_dashboard_page.dart';
 import 'package:invest_guide/core/i18n/app_strings.dart';
 import 'package:invest_guide/core/providers/language_provider.dart';
+import 'package:invest_guide/features/wallet/providers/email_integration_provider.dart';
 
 class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
@@ -33,9 +34,9 @@ class SettingsPage extends ConsumerWidget {
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: isPro 
-                  ? [Colors.indigo.shade900, Colors.purple.shade900]
-                  : [Colors.grey.shade200, Colors.grey.shade100],
+                colors: isPro
+                    ? [Colors.indigo.shade900, Colors.purple.shade900]
+                    : [Colors.grey.shade200, Colors.grey.shade100],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
@@ -43,13 +44,15 @@ class SettingsPage extends ConsumerWidget {
               border: Border.all(
                 color: isPro ? Colors.transparent : Colors.grey.shade300,
               ),
-              boxShadow: isPro ? [
-                BoxShadow(
-                  color: Colors.purple.withValues(alpha: 0.3),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                )
-              ] : [],
+              boxShadow: isPro
+                  ? [
+                      BoxShadow(
+                        color: Colors.purple.withValues(alpha: 0.3),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      )
+                    ]
+                  : [],
             ),
             child: Column(
               children: [
@@ -66,7 +69,9 @@ class SettingsPage extends ConsumerWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            isPro ? AppStrings.tr(AppStrings.proActive, lc) : AppStrings.tr(AppStrings.freePlan, lc),
+                            isPro
+                                ? AppStrings.tr(AppStrings.proActive, lc)
+                                : AppStrings.tr(AppStrings.freePlan, lc),
                             style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
@@ -74,7 +79,10 @@ class SettingsPage extends ConsumerWidget {
                             ),
                           ),
                           Text(
-                            isPro ? AppStrings.tr(AppStrings.fullAccessDesc, lc) : AppStrings.tr(AppStrings.upgradeToProDescLong, lc),
+                            isPro
+                                ? AppStrings.tr(AppStrings.fullAccessDesc, lc)
+                                : AppStrings.tr(
+                                    AppStrings.upgradeToProDescLong, lc),
                             style: TextStyle(
                               fontSize: 12,
                               color: isPro ? Colors.white70 : Colors.black54,
@@ -91,16 +99,19 @@ class SettingsPage extends ConsumerWidget {
                     width: double.infinity,
                     child: ElevatedButton(
                       onPressed: () {
-                         ref.read(subscriptionProvider.notifier).upgradeToPro();
-                         ScaffoldMessenger.of(context).showSnackBar(
-                           SnackBar(content: Text(AppStrings.tr(AppStrings.upgradedToProSuccess, lc))),
-                         );
+                        ref.read(subscriptionProvider.notifier).upgradeToPro();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                              content: Text(AppStrings.tr(
+                                  AppStrings.upgradedToProSuccess, lc))),
+                        );
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primary,
                         foregroundColor: Colors.white,
                       ),
-                      child: Text(AppStrings.tr(AppStrings.upgradeToProSim, lc)),
+                      child:
+                          Text(AppStrings.tr(AppStrings.upgradeToProSim, lc)),
                     ),
                   ),
                 if (isPro)
@@ -108,16 +119,21 @@ class SettingsPage extends ConsumerWidget {
                     width: double.infinity,
                     child: OutlinedButton(
                       onPressed: () {
-                         ref.read(subscriptionProvider.notifier).downgradeToFree();
-                         ScaffoldMessenger.of(context).showSnackBar(
-                           SnackBar(content: Text(AppStrings.tr(AppStrings.downgradedToFreeSuccess, lc))),
-                         );
+                        ref
+                            .read(subscriptionProvider.notifier)
+                            .downgradeToFree();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                              content: Text(AppStrings.tr(
+                                  AppStrings.downgradedToFreeSuccess, lc))),
+                        );
                       },
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.white,
                         side: const BorderSide(color: Colors.white30),
                       ),
-                      child: Text(AppStrings.tr(AppStrings.cancelSubscriptionSim, lc)),
+                      child: Text(
+                          AppStrings.tr(AppStrings.cancelSubscriptionSim, lc)),
                     ),
                   ),
               ],
@@ -125,7 +141,92 @@ class SettingsPage extends ConsumerWidget {
           ),
 
           const SizedBox(height: 24),
-          
+
+          // Email Integration Section
+          Text(
+            'Mail Entegrasyonu',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textSecondary(context),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            decoration: BoxDecoration(
+              color: AppColors.surface(context),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.border(context)),
+            ),
+            child: Column(
+              children: [
+                SwitchListTile(
+                  secondary: const Icon(Icons.mail, color: Colors.red),
+                  title: const Text('Gmail Bağlantısı'),
+                  subtitle: const Text(
+                    'Kredi kartı ekstreleri için (Duplicate önleme)',
+                    style: TextStyle(fontSize: 11),
+                  ),
+                  value: ref.watch(emailIntegrationProvider).isGmailConnected,
+                  activeTrackColor: AppColors.success.withValues(alpha: 0.5),
+                  activeThumbColor: AppColors.success,
+                  onChanged: (value) {
+                    ref
+                        .read(emailIntegrationProvider.notifier)
+                        .setGmailConnected(value);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          value
+                              ? 'Gmail bağlantısı aktif edildi. Artık düzenli giderler bakiyeye dahil edilmeyecek.'
+                              : 'Gmail bağlantısı kapatıldı. Tüm giderler bakiyeye dahil edilecek.',
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                const Divider(height: 1),
+                SwitchListTile(
+                  secondary: const Icon(Icons.mail, color: Colors.blue),
+                  title: const Text('Outlook Bağlantısı'),
+                  subtitle: const Text(
+                    'Kredi kartı ekstreleri için (Duplicate önleme)',
+                    style: TextStyle(fontSize: 11),
+                  ),
+                  value: ref.watch(emailIntegrationProvider).isOutlookConnected,
+                  activeTrackColor: AppColors.success.withValues(alpha: 0.5),
+                  activeThumbColor: AppColors.success,
+                  onChanged: (value) {
+                    ref
+                        .read(emailIntegrationProvider.notifier)
+                        .setOutlookConnected(value);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          value
+                              ? 'Outlook bağlantısı aktif edildi. Artık düzenli giderler bakiyeye dahil edilmeyecek.'
+                              : 'Outlook bağlantısı kapatıldı. Tüm giderler bakiyeye dahil edilecek.',
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          Text(
+            'Genel',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textSecondary(context),
+            ),
+          ),
+          const SizedBox(height: 8),
+
           ListTile(
             leading: const Icon(Icons.palette),
             title: Text(AppStrings.tr(AppStrings.themeSettings, lc)),
@@ -141,20 +242,21 @@ class SettingsPage extends ConsumerWidget {
             onTap: () {},
           ),
           ListTile(
-             leading: const Icon(Icons.ad_units),
-             title: Text(AppStrings.tr(AppStrings.showTestAd, lc)),
-             onTap: () {
-               ref.read(adServiceProvider.notifier).showInterstitialAd(context);
-             },
+            leading: const Icon(Icons.ad_units),
+            title: Text(AppStrings.tr(AppStrings.showTestAd, lc)),
+            onTap: () {
+              ref.read(adServiceProvider.notifier).showInterstitialAd(context);
+            },
           ),
           const Divider(),
           GestureDetector(
             onLongPress: () {
-               // Secret Admin Access: Long Press on 'About'
-               Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const AdminDashboardPage()),
-               );
+              // Secret Admin Access: Long Press on 'About'
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => const AdminDashboardPage()),
+              );
             },
             child: ListTile(
               leading: const Icon(Icons.info_outline),

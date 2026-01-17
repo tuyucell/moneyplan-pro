@@ -8,28 +8,51 @@ import '../../../../core/i18n/app_strings.dart';
 import '../../../../core/providers/balance_visibility_provider.dart';
 
 class WalletSummaryCards extends ConsumerWidget {
-  final double totalIncome;
-  final double totalExpense;
+  final Map<String, double> incomeByCurrency;
+  final Map<String, double> expenseByCurrency;
   final NumberFormat currencyFormat;
 
   const WalletSummaryCards({
     super.key,
-    required this.totalIncome,
-    required this.totalExpense,
+    required this.incomeByCurrency,
+    required this.expenseByCurrency,
     required this.currencyFormat,
   });
+
+  String _formatAmount(String code, double amount) {
+    if (code == 'TRY') {
+      return NumberFormat.currency(
+              locale: 'tr_TR', symbol: '₺', decimalDigits: 0)
+          .format(amount);
+    } else if (code == 'USD') {
+      return NumberFormat.currency(
+              locale: 'en_US', symbol: '\$', decimalDigits: 0)
+          .format(amount);
+    } else if (code == 'EUR') {
+      return NumberFormat.currency(
+              locale: 'de_DE', symbol: '€', decimalDigits: 0)
+          .format(amount);
+    }
+    return NumberFormat.currency(
+            locale: 'tr_TR', symbol: '$code ', decimalDigits: 0)
+        .format(amount);
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final language = ref.watch(languageProvider);
     final lc = language.code;
+    final isMasked = !ref.watch(balanceVisibilityProvider);
 
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
           child: _SummaryCard(
             title: AppStrings.tr(AppStrings.totalIncome, lc),
-            amount: currencyFormat.format(totalIncome).mask(ref.watch(balanceVisibilityProvider)),
+            amounts: incomeByCurrency.entries
+                .map((e) => _formatAmount(e.key, e.value).mask(!isMasked))
+                .toList(),
             color: AppColors.success,
             icon: Icons.trending_up,
           ),
@@ -38,7 +61,9 @@ class WalletSummaryCards extends ConsumerWidget {
         Expanded(
           child: _SummaryCard(
             title: AppStrings.tr(AppStrings.totalExpense, lc),
-            amount: currencyFormat.format(totalExpense).mask(ref.watch(balanceVisibilityProvider)),
+            amounts: expenseByCurrency.entries
+                .map((e) => _formatAmount(e.key, e.value).mask(!isMasked))
+                .toList(),
             color: AppColors.error,
             icon: Icons.trending_down,
           ),
@@ -50,13 +75,13 @@ class WalletSummaryCards extends ConsumerWidget {
 
 class _SummaryCard extends StatelessWidget {
   final String title;
-  final String amount;
+  final List<String> amounts;
   final Color color;
   final IconData icon;
 
   const _SummaryCard({
     required this.title,
-    required this.amount,
+    required this.amounts,
     required this.color,
     required this.icon,
   });
@@ -64,7 +89,7 @@ class _SummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       decoration: BoxDecoration(
         color: AppColors.surface(context),
         borderRadius: BorderRadius.circular(16),
@@ -98,18 +123,23 @@ class _SummaryCard extends StatelessWidget {
             title,
             style: TextStyle(
               fontSize: context.adaptiveSp(13),
-              color: AppColors.textSecondary(context),
+              color: AppColors.textPrimary(context),
               fontWeight: FontWeight.w500,
             ),
           ),
           const SizedBox(height: 4),
-          Text(
-            amount,
-            style: TextStyle(
-              fontSize: context.adaptiveSp(18),
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: (amounts.isEmpty ? ['₺0'] : amounts)
+                .map((amt) => Text(
+                      amt,
+                      style: TextStyle(
+                        fontSize: context.adaptiveSp(16),
+                        fontWeight: FontWeight.bold,
+                        color: color,
+                      ),
+                    ))
+                .toList(),
           ),
         ],
       ),
