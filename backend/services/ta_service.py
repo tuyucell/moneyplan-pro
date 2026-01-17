@@ -21,7 +21,9 @@ class TradingViewService:
             "america": [],
             "crypto": [],
             "forex": [],
-            "cfd": []
+            "cfd": [],
+            "germany": [],
+            "uk": []
         }
         
         # Orijinal sembol eşleşmesi için (Clean -> Original)
@@ -77,7 +79,8 @@ class TradingViewService:
                 print(f"TA Batch Error ({screener}): {e}")
 
         # 3. Sıralama (Hacim)
-        results.sort(key=lambda x: x["volume"], reverse=True)
+        # Volume bazen None olabilir, güvenli sıralama
+        results.sort(key=lambda x: x.get("volume", 0) or 0, reverse=True)
         return results
 
     def _classify_symbol(self, symbol):
@@ -94,31 +97,51 @@ class TradingViewService:
             else:
                 clean = symbol
         
-        elif symbol in ["AAPL", "TSLA", "MSFT", "AMZN", "GOOGL", "NVDA", "META"]:
+        elif symbol in ["AAPL", "TSLA", "MSFT", "AMZN", "GOOGL", "NVDA", "META", "NFLX", "AMD", 
+                     "INTC", "KO", "PEP", "MCD", "V", "MA", "JPM", "DIS", "BRK.B"]:
             screener = "america"
             exchange = "NASDAQ"
+            if symbol in ["KO", "PEP", "MCD", "V", "MA", "JPM", "DIS", "BRK.B"]:
+                 exchange = "NYSE"
             
         elif symbol in ["USD", "EUR", "GBP", "CHF", "JPY", "CAD", "AUD", "DKK", "SEK", "NOK", "SAR"]:
             screener = "forex" 
             exchange = "FX_IDC"
             clean = f"{symbol}TRY" # USD -> USDTRY, JPY -> JPYTRY
             
-        elif symbol in ["GOLD", "SILVER", "BRENT", "UKOIL", "PLATINUM", "PALLADIUM", "COPPER", "NG1!", "CORN", "WHEAT", "SOYBEAN", "GC=F", "SI=F"]:
-             screener = "cfd" # Çoğu emtia TVC veya CFD borsalarındadır.
+        elif symbol in ["GOLD", "SILVER", "BRENT", "UKOIL", "USOIL", "CRUDE_OIL", "PLATINUM", "PALLADIUM", "COPPER", "NATURAL_GAS", "NG1!", "CORN", "WHEAT", "SOYBEAN", "COFFEE", "SUGAR", "COTTON", "GC=F", "SI=F"]:
+             screener = "cfd" 
              exchange = "TVC"
              
+             # Metals & Energy (TVC/CFD)
              if symbol in ["GOLD", "GC=F"]: clean = "GOLD"
              elif symbol in ["SILVER", "SI=F"]: clean = "SILVER"
              elif symbol in ["BRENT", "UKOIL"]: clean = "UKOIL"
-             elif symbol == "NG1!": clean = "NG1!" # Natural Gas
-             elif symbol == "COPPER": clean = "HG1!" # Copper Futures genelde HG1! dir veya TVC:COPPER
-             elif symbol in ["CORN", "WHEAT", "SOYBEAN"]:
-                 screener = "america" # Tarım ürünleri genelde CBOT (America)
-                 exchange = "CBOT"
-                 # ZC1! (Corn), ZW1! (Wheat), ZS1! (Soybean) vadeli kodları daha garantidir
-                 if symbol == "CORN": clean = "ZC1!"
-                 if symbol == "WHEAT": clean = "ZW1!"
-                 if symbol == "SOYBEAN": clean = "ZS1!"
+             elif symbol in ["CRUDE_OIL", "USOIL"]: clean = "USOIL"
+             elif symbol == "PLATINUM": clean = "PLATINUM"
+             elif symbol == "PALLADIUM": clean = "PALLADIUM"
+             
+             # Softs & Grains (Switched to TVC CFDs for reliability)
+             elif symbol in ["NATURAL_GAS", "NG1!"]: clean = "NATURALGAS"
+             elif symbol == "COPPER": clean = "COPPER"
+             elif symbol == "CORN": clean = "CORN"
+             elif symbol == "WHEAT": clean = "WHEAT"
+             elif symbol == "SOYBEAN": clean = "SOYBEAN"
+             elif symbol == "COFFEE": clean = "COFFEE"
+             elif symbol == "SUGAR": clean = "SUGAR"
+             elif symbol == "COTTON": clean = "COTTON"
+
+        elif symbol in ["SAP", "SIE", "ALV", "DTE", "BMW", "VOW3", "BAS", "AIR", "DDAIF"]:
+             screener = "germany"
+             exchange = "XETR"
+             clean = symbol
+
+        elif symbol in ["SHEL", "HSBA", "AZN", "ULVR", "BP.", "BARC", "VOD", "LLOY", "NG."]:
+             screener = "uk"
+             exchange = "LSE"
+             if symbol == "BP.": clean = "BP."
+             elif symbol == "NG.": clean = "NG."
+             else: clean = symbol
 
         return clean, screener, exchange
 
@@ -143,11 +166,11 @@ class TradingViewService:
                 "market_cap": 0,
                 "logo_url": f"https://s3-symbol-logo.tradingview.com/{symbol.lower()}.svg" 
             }
-        except Exception as e:
+        except Exception:
             # print(f"Format Error: {e}")
             return None
 
-    def get_analysis(self, symbol, exchange=None):
+    def get_analysis(self, symbol):
         """Tekli Analiz (Eski Yöntem - Detay Sayfası İçin)"""
         cache_key = f"ta_analysis_v5_{symbol}"
         cached = cache.get(cache_key)
@@ -190,7 +213,7 @@ class TradingViewService:
             cache.set(cache_key, result, ttl_seconds=self.TTL)
             return result
 
-        except Exception as e:
+        except Exception:
             # print(f"Tv Analysis Error ({symbol}): {e}") # Log kirliliği yapmasın
             return None
 
