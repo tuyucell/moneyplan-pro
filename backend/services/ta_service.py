@@ -60,6 +60,18 @@ class TradingViewService:
                         if analysis:
                             formatted = self._format_analysis(orig_sym, analysis)
                             if formatted: results.append(formatted)
+                        else:
+                            # Fallback if analysis is empty
+                            results.append({
+                                "symbol": orig_sym,
+                                "name": orig_sym,
+                                "price": 0.0,
+                                "change_percent": 0.0,
+                                "recommendation": "NEUTRAL",
+                                "volume": 0,
+                                "market_cap": 0,
+                                "logo_url": ""
+                            })
                             
             except Exception as e:
                 print(f"TA Batch Error ({screener}): {e}")
@@ -113,17 +125,27 @@ class TradingViewService:
     def _format_analysis(self, symbol, analysis):
         """Analysis objesini dict'e çevirir"""
         try:
+            # Extract indicators safely
+            indicators = analysis.indicators
+            price = float(indicators.get("close") or 0.0)
+            change = float(indicators.get("change") or 0.0)
+            
+            # Simple heuristic for change_percent if not directly available as "change_abs"
+            # TradingView 'change' is usually the percentage change in many screeners
+            
             return {
                 "symbol": symbol,
                 "name": symbol, 
-                "price": float(analysis.indicators.get("close") or 0.0),
-                "change_percent": 0.0,
-                "recommendation": analysis.summary.get("RECOMMENDATION") or "NEUTRAL",
-                "volume": float(analysis.indicators.get("volume") or 0.0),
+                "price": price,
+                "change_percent": round(change, 2), # % Change
+                "recommendation": (analysis.summary.get("RECOMMENDATION") or "NEUTRAL").upper(),
+                "volume": float(indicators.get("volume") or 0.0),
                 "market_cap": 0,
-                "logo_url": "" 
+                "logo_url": f"https://s3-symbol-logo.tradingview.com/{symbol.lower()}.svg" 
             }
-        except: return None
+        except Exception as e:
+            # print(f"Format Error: {e}")
+            return None
 
     def get_analysis(self, symbol, exchange=None):
         """Tekli Analiz (Eski Yöntem - Detay Sayfası İçin)"""

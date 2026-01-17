@@ -155,7 +155,7 @@ class MarketDataProvider:
         return None
 
     # --- Diğer metodlar (Şablon Gereği) ---
-    def get_calendar(self):
+    def get_calendar(self, country_code: str = "ALL"):
         """
         EKONOMİK TAKVİM (DB): 
         Veritabanından (SQLite) manuel yüklenmiş veya kaydedilmiş verileri döner.
@@ -172,10 +172,34 @@ class MarketDataProvider:
             now_tr = datetime.now(tz_tr)
             now_str = now_tr.strftime('%Y-%m-%d %H:%M:%S')
             
-            # Filtreleme: Tam şu andan sonraki etkinlikleri getir (Saat bazlı filtreleme için)
-            # Böylece saati geçmiş etkinlikler gelmez.
-            query = "SELECT * FROM calendar_events WHERE date_time >= ? ORDER BY date_time ASC LIMIT 100"
-            cursor.execute(query, (now_str,))
+            # Dinamik Sorgu Oluşturma
+            query = "SELECT * FROM calendar_events WHERE date_time >= ?"
+            params = [now_str]
+
+            if country_code and country_code.upper() != "ALL":
+                # Ülke kodlarını ID'lere eşle
+                id_map = {
+                    "TR": [63, 32],
+                    "US": [5],
+                    "USA": [5],
+                    "EU": [72],
+                    "GBP": [12],
+                    "GB": [12],
+                    "DE": [4, 17],
+                    "CA": [6],
+                    "JP": [37],
+                    "AU": [7, 25],
+                    "NZ": [35],
+                    "CH": [110, 39, 36]
+                }
+                target_ids = id_map.get(country_code.upper())
+                if target_ids:
+                    placeholders = ",".join(["?"] * len(target_ids))
+                    query += f" AND country_id IN ({placeholders})"
+                    params.extend(target_ids)
+            
+            query += " ORDER BY date_time ASC LIMIT 100"
+            cursor.execute(query, tuple(params))
             rows = cursor.fetchall()
             conn.close()
             
@@ -509,9 +533,24 @@ class MarketDataProvider:
         symbols = ["GOLD", "SILVER", "BRENT"] 
         return ta_service.get_multiple_analysis(symbols)
 
-    def get_etf_markets(self): return []
-    def get_bond_markets(self): return []
-    def get_top_funds(self): return []
+    def get_etf_markets(self):
+        """Popüler ETF'leri Getir (TradingView Source)"""
+        from services.ta_service import ta_service
+        symbols = ["SPY", "QQQ", "VOO", "GLD", "SLV", "VTI", "IVV", "ARKK"]
+        return ta_service.get_multiple_analysis(symbols)
+
+    def get_bond_markets(self):
+        """Tahvil ve Bono Piyasasını Getir (TradingView Source)"""
+        from services.ta_service import ta_service
+        symbols = ["TLT", "BND", "AGG", "SHY", "IEF", "LQD", "HYG"]
+        return ta_service.get_multiple_analysis(symbols)
+
+    def get_top_funds(self):
+        """Öne Çıkan Fonları Getir (Global/Dinamik)"""
+        from services.ta_service import ta_service
+        # Karma: Teknoloji, Sektörel ve Endeks Fonları
+        symbols = ["XLK", "XLV", "XLF", "XLY", "XLI", "VGT", "SMH"]
+        return ta_service.get_multiple_analysis(symbols)
 
     def _fetch_batch_details(self, symbols):
         """Yardımcı: Çoklu sembol verilerini paralel çek"""
