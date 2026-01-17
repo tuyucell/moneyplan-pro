@@ -9,6 +9,8 @@ from utils.network import SafeRequest
 TTL_MARKET = 60
 # --------------------------------------
 
+DATE_FMT_TR = '%d/%m/%Y'
+
 # Kullanıcının sağladığı "Gerçekçi Fallback" değerleri (Ocak 2026 Projeksiyonu/Güncel)
 FALLBACK_DATA = {
     "bist100": {"price": 12200.0, "change_percent": 0.5},
@@ -170,7 +172,9 @@ class MarketDataProvider:
             # GMT+3 bazında şu anki zamanı al
             tz_tr = timezone(timedelta(hours=3))
             now_tr = datetime.now(tz_tr)
-            now_str = now_tr.strftime('%Y-%m-%d %H:%M:%S')
+            # Günün başından itibaren getir (00:00:00)
+            start_of_day = now_tr.replace(hour=0, minute=0, second=0, microsecond=0)
+            now_str = start_of_day.strftime('%Y-%m-%d %H:%M:%S')
             
             # Dinamik Sorgu Oluşturma
             query = "SELECT * FROM calendar_events WHERE date_time >= ?"
@@ -329,19 +333,22 @@ class MarketDataProvider:
             from datetime import datetime, timedelta
             
             # Tarih Aralığı
-            end_date = datetime.now().strftime('%d/%m/%Y')
+            end_date = datetime.now().strftime(DATE_FMT_TR)
             days_back = 30
             if period == "3mo": days_back = 90
             elif period == "1y": days_back = 365
             elif period == "5y": days_back = 365 * 5
             
-            start_date = (datetime.now() - timedelta(days=days_back)).strftime('%d/%m/%Y')
+            start_date = (datetime.now() - timedelta(days=days_back)).strftime(DATE_FMT_TR)
 
             df = None
             # Hisse Senedi
             if ".IS" in symbol or symbol in ["THYAO", "GARAN", "AKBNK", "EREGL"]:
                 clean = symbol.replace(".IS", "")
                 df = investpy.get_stock_historical_data(stock=clean, country='turkey', from_date=start_date, to_date=end_date)
+            # TEFAS Fonları (Robust Search)
+            elif self._is_tefas_fund(symbol):
+                df = self._fetch_fund_from_investpy(symbol, start_date, end_date)
             # ABD Hisseleri
             elif symbol in ["AAPL", "TSLA", "MSFT", "AMZN", "GOOGL", "NVDA", "META"]:
                 df = investpy.get_stock_historical_data(stock=symbol, country='united states', from_date=start_date, to_date=end_date)
@@ -409,6 +416,11 @@ class MarketDataProvider:
         """
         ULTIMATE AGGREGATOR: Fmp (Detay) > Yahoo (Detay) > TradingView (Fiyat/Stats)
         """
+        # 0. TEFAS Fon Kontrolü
+        if self._is_tefas_fund(symbol):
+            tefas_data = self._get_tefas_data(symbol)
+            if tefas_data: return tefas_data
+            
         from services.fmp_service import fmp_service
         from services.ta_service import ta_service
         
@@ -462,9 +474,232 @@ class MarketDataProvider:
             
         return {"price": 0.0}
 
-    def get_analysis(self, symbol):
-        from services.ta_service import ta_service
-        return ta_service.get_analysis(symbol)
+    def _fetch_tefas_direct(self, symbol, start_date=None):
+        """
+        TEFAS Resmi Sitesinden Direkt Veri Çekme (Libraryless Fallback)
+        Endpoint: https://www.tefas.gov.tr/api/DB/BindHistoryInfo
+        """
+        try:
+            url = "https://www.tefas.gov.tr/api/DB/BindHistoryInfo"
+            
+            # Tarih formatı: dd.mm.yyyy olmalı
+            # start_date genelde yyyy-mm-dd geliyor
+            from datetime import datetime
+            
+            d_start = datetime.now()
+            if start_date:
+                try:
+                    # Gelen format yyyy-mm-dd ise
+                    d_start = datetime.strptime(start_date, "%Y-%m-%d")
+                except:
+                    # Belki dd/mm/yyyy geliyordur (DATE_FMT_TR)
+                    try:
+                        d_start = datetime.strptime(start_date, DATE_FMT_TR)
+                    except:
+                        pass
+                        
+            # Bitis bugun
+            d_end = datetime.now()
+            
+            payload = {
+                "fontip": "YAT",
+                "sfontip": "",
+                "bastarih": d_start.strftime("%d.%m.%Y"),
+                "bittarih": d_end.strftime("%d.%m.%Y"),
+                "fonkod": symbol.upper()
+            }
+            
+            headers = {
+                "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+                "Referer": "https://www.tefas.gov.tr/TarihselVeriler.aspx",
+                "Origin": "https://www.tefas.gov.tr",
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "X-Requested-With": "XMLHttpRequest"
+            }
+            
+            resp = requests.post(url, data=payload, headers=headers, timeout=10)
+            if resp.status_code == 200:
+                data = resp.json()
+                # Data: {"data": [...]}
+                if "data" in data and len(data["data"]) > 0:
+                     import pandas as pd
+                     rows = data["data"]
+                     # columns: TARIH, FIYAT, KISI_SAYISI etc.
+                     df = pd.DataFrame(rows)
+                     # Tarih parse
+                     df['date'] = pd.to_datetime(df['TARIH'], format='%d.%m.%Y', errors='coerce') # unix timestamp gelebilir mi? genelde integer
+                     # Aslinda TARIH unix timestamp (ms) olarak geliyor olabilir: /Date(1705449600000)/
+                     # Veya string "17.01.2024"
+                     
+                     # Genelde TEFAS API unix timestamp döner: /Date(1641254400000)/
+                     # Bunu basitce handle edelim
+                     if df['TARIH'].astype(str).str.contains("/Date").any():
+                         # Regex ile timestamp al
+                         df['date'] = df['TARIH'].astype(str).str.extract(r'(\d+)').astype(float) / 1000
+                         df['date'] = pd.to_datetime(df['date'], unit='s')
+                     
+                     df.set_index('date', inplace=True)
+                     df.rename(columns={'FIYAT': 'Close'}, inplace=True)
+                     
+                     # Fiyat "Close" string olabilir ? "3,14" gibi?
+                     # API genelde float doner ama bazen string de olabilir.
+                     
+                     return df
+                     
+        except Exception as e:
+            print(f"Direct TEFAS Fetch Error ({symbol}): {e}")
+            
+        return None
+
+    def _fetch_from_tefas_crawler(self, symbol, start_date=None):
+        """Fallback: tefas-crawler kütüphanesi ile çekim"""
+        # 0. Önce kendi direkt metodumuzu deneyelim (Daha kontrollü)
+        df_direct = self._fetch_tefas_direct(symbol, start_date)
+        if df_direct is not None:
+             return df_direct
+
+        try:
+             from tefas import Crawler
+             import pandas as pd
+             from datetime import datetime, timedelta
+             
+             crawler = Crawler()
+             
+             if not start_date:
+                 # Son 30 gün
+                 start_date = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
+             else:
+                 # dd/mm/yyyy -> yyyy-mm-dd format dönüşümü gerekebilir
+                 # Gelen format genelde dd/mm/yyyy
+                 try:
+                    d = datetime.strptime(start_date, DATE_FMT_TR)
+                    start_date = d.strftime("%Y-%m-%d")
+                 except ValueError:
+                    pass # Zaten uygun olabilir
+
+             # Crawler genelde tüm fonları çeker veya spesifik. 
+             # tefas-crawler kütüphanesi 'fetch' metodu ile çalışır.
+             # Örnek: crawler.fetch(start="2023-01-01", end="2023-01-05", name="AFT", columns=["code", "date", "price"])
+             
+             # Sadece ilgili fonu çekmek için
+             result = crawler.fetch(start=start_date, name=symbol, columns=["code", "date", "price"])
+             if result is not None and not result.empty:
+                 # Sütun isimlerini standardize et (investpy return formatına benzet)
+                 # investpy: Date (Index), Open, High, Low, Close, Currency
+                 # tefas-crawler: code, date, price
+                 
+                 df = result.copy()
+                 df['date'] = pd.to_datetime(df['date'])
+                 df.set_index('date', inplace=True)
+                 df.rename(columns={'price': 'Close'}, inplace=True)
+                 df['Open'] = df['Close']
+                 df['High'] = df['Close']
+                 df['Low'] = df['Close']
+                 return df
+                 
+        except Exception as e:
+            # print(f"Tefas Crawler Error ({symbol}): {e}")
+            pass
+        return None
+
+    def _fetch_fund_from_investpy(self, symbol, start_date=None, end_date=None):
+        """Yardımcı: investpy veya tefas-crawler üzerinden fon verisi çekimi."""
+        # 0. Önce tefas-crawler dene (Daha resmi ve stabil olabilir sunucularda)
+        df_crawler = self._fetch_from_tefas_crawler(symbol, start_date)
+        if df_crawler is not None:
+             return df_crawler
+
+        # 1. Fallback: Investpy
+        try:
+            import investpy
+            from datetime import datetime, timedelta
+            
+            # ... investpy search_quotes ...
+            try:
+                search_results = investpy.search_quotes(text=symbol, products=['funds'], countries=['turkey'], n_results=1)
+                if search_results:
+                    if not start_date or not end_date:
+                        end_date = datetime.now().strftime(DATE_FMT_TR)
+                        start_date = (datetime.now() - timedelta(days=7)).strftime(DATE_FMT_TR)
+                    df = search_results.retrieve_historical_data(from_date=start_date, to_date=end_date)
+                    if df is not None and not df.empty:
+                        return df
+            except Exception:
+                pass
+
+            # ... investpy search_funds ...
+            search_res = investpy.search_funds(by='symbol', value=symbol)
+            if search_res is not None and not search_res.empty:
+                tr_funds = search_res[search_res['country'] == 'turkey']
+                if not tr_funds.empty:
+                    full_name = tr_funds.iloc[0]['name']
+                    if not start_date or not end_date:
+                        end_date = datetime.now().strftime(DATE_FMT_TR)
+                        start_date = (datetime.now() - timedelta(days=7)).strftime(DATE_FMT_TR)
+                    return investpy.get_fund_historical_data(fund=full_name, country='turkey', from_date=start_date, to_date=end_date)
+            
+        except Exception as e:
+            print(f"InvestPy/Total Failure ({symbol}): {e}")
+            
+        return None
+
+    def _get_tefas_data(self, symbol):
+        """TEFAS Fon Fiyatı Çekme (Robust)"""
+        # Sadece son 7 günü çekmek yeterli (Fiyat + Günlük Değişim için)
+        from datetime import datetime, timedelta
+        start_date_limit = (datetime.now() - timedelta(days=7)).strftime(DATE_FMT_TR)
+        
+        df = self._fetch_fund_from_investpy(symbol, start_date=start_date_limit)
+        
+        if df is not None and not df.empty:
+            last_row = df.iloc[-1]
+            ret_rate = 0.0
+            if len(df) >= 2:
+                prev_close = float(df.iloc[-2]['Close'])
+                last_close = float(df.iloc[-1]['Close'])
+                if prev_close > 0:
+                    ret_rate = ((last_close - prev_close) / prev_close) * 100
+            
+            return {
+                "code": symbol,
+                "symbol": symbol,
+                "title": f"{symbol} Yatırım Fonu",
+                "name": f"{symbol} Fonu",
+                "type": "Yatırım Fonu (TEFAS)",
+                "price": float(last_row['Close']),
+                "daily_return": round(ret_rate, 2),
+                "change_percent": round(ret_rate, 2),
+                "description": "TEFAS Yatırım Fonu",
+                "source": "Investpy/Robust"
+            }
+        return None
+
+    def _is_tefas_fund(self, symbol):
+        # Cache'de fon listesi yoksa yüklemeyi dene
+        cache_key = "tefas_fund_list"
+        cached_list = cache.get(cache_key)
+        
+        if not cached_list:
+            try:
+                import investpy
+                # Türkiye'deki tüm fonları çek
+                df_funds = investpy.get_funds(country='turkey')
+                if df_funds is not None and not df_funds.empty:
+                    cached_list = set(df_funds['symbol'].str.upper().tolist())
+                    cache.set(cache_key, cached_list, ttl_seconds=86400)
+            except Exception as e:
+                print(f"TEFAS List Load Error: {e}")
+                # Fallback: Hardcoded liste
+                cached_list = {
+                    "TCD", "AFT", "YAY", "TTE", "IPB", "AES", "IDH", "KZL", "IPJ", 
+                    "KUB", "TI3", "KRS", "PPF", "HKH", "AYA", "MAC", "GMR", "TCA", 
+                    "ZJ1", "ZJ2", "ZJ3", "ZJ4", "IIH", "BUY", "GSP", "HMB", "MPK"
+                }
+
+        if not cached_list:
+             return symbol in ["TCD", "AFT", "YAY", "TTE", "IPB", "AES"]
+
+        return symbol in cached_list
 
     def _get_yahoo_symbol(self, symbol):
         """Uygulama sembollerini Yahoo formatına çevirir."""
@@ -510,16 +745,43 @@ class MarketDataProvider:
     def get_stock_markets(self):
         """Popüler Hisse Senetlerini Getir (TradingView Source)"""
         from services.ta_service import ta_service
-        # Karma Liste: BIST + Global Tech
-        symbols = [
-            "THYAO.IS", "GARAN.IS", "AKBNK.IS", "EREGL.IS", "ASELS.IS", "BIMAS.IS",
-            "TUPRS.IS", "KCHOL.IS", "SISE.IS", "SAHOL.IS", "PETKM.IS",
-            "AAPL", "TSLA", "MSFT", "AMZN", "GOOGL", "NVDA", "META"
-        ]
+        # Bölgesel Listeler
+        tr_stocks = ["THYAO.IS", "GARAN.IS", "AKBNK.IS", "EREGL.IS", "ASELS.IS", "BIMAS.IS", 
+                     "TUPRS.IS", "KCHOL.IS", "SISE.IS", "SAHOL.IS", "PETKM.IS", "FROTO.IS", "TOASO.IS", "TCELL.IS"]
+        us_stocks = ["AAPL", "TSLA", "MSFT", "AMZN", "GOOGL", "NVDA", "META", "NFLX", "AMD", 
+                     "INTC", "KO", "PEP", "MCD", "V", "MA", "JPM", "DIS", "BRK.B"]
+        de_stocks = ["SAP", "SIE", "ALV", "DTE", "BMW", "VOW3", "BAS", "AIR", "DDAIF"]
+        uk_stocks = ["SHEL", "HSBA", "AZN", "ULVR", "BP.", "BARC", "VOD", "LLOY", "NG."]
+        
+        all_symbols = tr_stocks + us_stocks + de_stocks + uk_stocks
         
         # TA servisinden çek
-        ta_data = ta_service.get_multiple_analysis(symbols)
+        ta_data = ta_service.get_multiple_analysis(all_symbols)
         
+        # Ülke Bilgisi Ekle
+        if ta_data:
+            # Clean symbols map for robust matching
+            clean_tr = [s.replace(".IS", "") for s in tr_stocks]
+            
+            for item in ta_data:
+                sym = item.get("symbol")
+                # Basit eşleştirme (Clean symbol veya original)
+                
+                # TR Check
+                if sym in tr_stocks or sym in clean_tr: 
+                    item["country"] = "Turkey"
+                # US Check
+                elif sym in us_stocks: 
+                    item["country"] = "USA"
+                # DE Check
+                elif sym in de_stocks: 
+                    item["country"] = "Germany"
+                # UK Check
+                elif sym in uk_stocks: 
+                    item["country"] = "UK"
+                else: 
+                    item["country"] = "Global"
+                
         # Eğer TradingView boş dönerse (Çok nadir), FMP'ye fallback yapabiliriz
         if not ta_data:
             from services.fmp_service import fmp_service
@@ -530,7 +792,11 @@ class MarketDataProvider:
     def get_commodity_markets(self):
         """Emtia Piyasalarını Getir (TradingView Source)"""
         from services.ta_service import ta_service
-        symbols = ["GOLD", "SILVER", "BRENT"] 
+        symbols = [
+            "GOLD", "SILVER", "BRENT", "CRUDE_OIL", "PLATINUM", "PALLADIUM", 
+            "COPPER", "NATURAL_GAS", "CORN", "WHEAT", "SOYBEAN", 
+            "COFFEE", "SUGAR", "COTTON"
+        ] 
         return ta_service.get_multiple_analysis(symbols)
 
     def get_etf_markets(self):
@@ -546,16 +812,26 @@ class MarketDataProvider:
         return ta_service.get_multiple_analysis(symbols)
 
     def get_top_funds(self):
-        """Öne Çıkan Fonları Getir (Global/Dinamik)"""
-        from services.ta_service import ta_service
-        # Karma: Teknoloji, Sektörel ve Endeks Fonları
-        symbols = ["XLK", "XLV", "XLF", "XLY", "XLI", "VGT", "SMH"]
-        return ta_service.get_multiple_analysis(symbols)
+        """Öne Çıkan TEFAS Fonlarını Getir (Dinamik)"""
+        # OOM sorununu çözmek için listeyi en popüler 20 ile sınırlıyoruz.
+        symbols = [
+            # Popüler Değişken & Hisse
+            "TCD", "AFT", "YAY", "TTE", "IPB", "AES", "IDH", "KZL", 
+            "MAC", "GMR", "TCA", "ZJ1", "HMB", "MPK", "IIH", 
+            # Kıymetli Maden & Döviz
+            "KUB", "GSP", "HKH", "TI3", "DBH"
+        ]
+        
+        # Batch olarak detaylarını çek
+        results = self._fetch_batch_details(symbols)
+        return results if results else []
 
     def _fetch_batch_details(self, symbols):
-        """Yardımcı: Çoklu sembol verilerini paralel çek"""
+        """Yardımcı: Çoklu sembol verilerini paralel/seri çek"""
         results = []
-        with ThreadPoolExecutor(max_workers=5) as executor:
+        # OOM (Out Of Memory) riskini sıfıra indirmek için worker=1 (Sequential) yapıyoruz.
+        # Hız biraz düşecek ama sunucu kapanmayacak.
+        with ThreadPoolExecutor(max_workers=1) as executor:
             future_to_sym = {executor.submit(self.get_asset_detail, sym): sym for sym in symbols}
             for future in future_to_sym:
                 try:
