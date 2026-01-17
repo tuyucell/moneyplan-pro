@@ -31,6 +31,7 @@ class _CategoryPageState extends ConsumerState<CategoryPage>
   List<MarketItem> _filteredItems = [];
   List<ExchangeItem> _filteredExchanges = [];
   Map<String, dynamic>? _fearGreedData;
+  String? _selectedCountry;
 
   late TabController _tabController;
 
@@ -152,20 +153,19 @@ class _CategoryPageState extends ConsumerState<CategoryPage>
                   double.tryParse(stock['change_percent']?.toString() ?? '0') ??
                       0.0,
               imageUrl: null,
+              country: stock['country'],
             );
           }).toList();
           break;
 
+        // ... (rest of cases same but need default constructor update)
         case 'forex':
           final currencies = await InvestGuideApi.getCurrencies();
-          // Backend artık List<dynamic> döndürüyor: [{"symbol": "USD", "price": ...}, ...]
           items = currencies.map<MarketItem>((curr) {
             final code = curr['symbol'] ?? '';
             final name = curr['name'] ?? code;
             final price =
                 double.tryParse(curr['price']?.toString() ?? '0') ?? 0.0;
-
-            // Yahoo-style ID oluşturma (Grafik vb. için fallback gerekirse)
             var yahooSymbol = '$code/TRY';
             if (code == 'USD') {
               yahooSymbol = 'USDTRY=X';
@@ -180,7 +180,7 @@ class _CategoryPageState extends ConsumerState<CategoryPage>
               symbol: '$code/TRY',
               name: name,
               price: price,
-              change24h: 0.0, // TradingView listesinde change genelde 0 gelir
+              change24h: 0.0,
             );
           }).toList();
           break;
@@ -237,9 +237,8 @@ class _CategoryPageState extends ConsumerState<CategoryPage>
           _filteredItems = List.from(_items);
           _isLoading = false;
         });
-        if (_searchController.text.isNotEmpty) {
-          _onSearchChanged();
-        }
+        // Apply existing filters
+        _onSearchChanged();
       }
     } catch (e) {
       if (mounted) {
@@ -252,26 +251,53 @@ class _CategoryPageState extends ConsumerState<CategoryPage>
     }
   }
 
-  @override
-  void dispose() {
-    _tabController.dispose();
-    _searchController.dispose();
-    super.dispose();
-  }
-
   void _onSearchChanged() {
     final query = _searchController.text.toLowerCase();
     setState(() {
-      _filteredItems = _items
-          .where((item) =>
-              item.symbol.toLowerCase().contains(query) ||
-              item.name.toLowerCase().contains(query))
-          .toList();
+      _filteredItems = _items.where((item) {
+        final matchesQuery = item.symbol.toLowerCase().contains(query) ||
+            item.name.toLowerCase().contains(query);
+        final matchesCountry =
+            _selectedCountry == null || item.country == _selectedCountry;
+
+        return matchesQuery && matchesCountry;
+      }).toList();
 
       _filteredExchanges = _exchanges
           .where((ex) => ex.name.toLowerCase().contains(query))
           .toList();
     });
+  }
+
+  Widget _buildFilterChip(String label, String? countryCode) {
+    final isSelected = _selectedCountry == countryCode;
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: ChoiceChip(
+        label: Text(label),
+        selected: isSelected,
+        onSelected: (bool selected) {
+          setState(() {
+            _selectedCountry = selected ? countryCode : null;
+            if (countryCode == null) {
+              _selectedCountry = null; // Toggle off 'All' does nothing usually
+            }
+            _onSearchChanged();
+          });
+        },
+        selectedColor: AppColors.primary.withValues(alpha: 0.2),
+        labelStyle: TextStyle(
+          color:
+              isSelected ? AppColors.primary : AppColors.textSecondary(context),
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+          fontSize: 12,
+        ),
+        backgroundColor: AppColors.background(context),
+        side: BorderSide(
+          color: isSelected ? AppColors.primary : AppColors.border(context),
+        ),
+      ),
+    );
   }
 
   @override
@@ -282,6 +308,7 @@ class _CategoryPageState extends ConsumerState<CategoryPage>
     return Scaffold(
       backgroundColor: AppColors.background(context),
       appBar: AppBar(
+        // ... (AppBar same)
         backgroundColor: AppColors.surface(context),
         elevation: 0,
         title: Text(
@@ -313,45 +340,101 @@ class _CategoryPageState extends ConsumerState<CategoryPage>
       ),
       body: Column(
         children: [
+          // Search Box (same)
           Container(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             color: AppColors.surface(context),
             child: Container(
-              height: 40,
+              height: 46,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
                 color: AppColors.background(context),
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                    color: AppColors.border(context).withValues(alpha: 0.5)),
+                  color: AppColors.border(context).withValues(alpha: 0.15),
+                  width: 1,
+                ),
               ),
-              child: TextField(
-                controller: _searchController,
-                style: TextStyle(
-                    fontSize: 14, color: AppColors.textPrimary(context)),
-                decoration: InputDecoration(
-                    hintText: AppStrings.tr(AppStrings.searchHint, lc),
-                    hintStyle: TextStyle(
-                        fontSize: 13, color: AppColors.textSecondary(context)),
-                    border: InputBorder.none,
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                    prefixIcon: Icon(Icons.search,
-                        size: 18, color: AppColors.textSecondary(context)),
-                    suffixIcon: _searchController.text.isNotEmpty
-                        ? IconButton(
-                            padding: EdgeInsets.zero,
-                            icon: const Icon(Icons.clear, size: 18),
-                            onPressed: () {
-                              _searchController.clear();
-                              setState(() {});
-                            })
-                        : null),
-                onChanged: (val) => setState(() {}),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.search_rounded,
+                    size: 20,
+                    color:
+                        AppColors.textSecondary(context).withValues(alpha: 0.5),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: TextField(
+                      controller: _searchController,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: AppColors.textPrimary(context),
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: -0.1,
+                        height: 1.0,
+                      ),
+                      textAlignVertical: TextAlignVertical.center,
+                      decoration: InputDecoration(
+                        hintText: AppStrings.tr(AppStrings.searchHint, lc),
+                        hintStyle: TextStyle(
+                          fontSize: 14,
+                          color: AppColors.textSecondary(context)
+                              .withValues(alpha: 0.4),
+                          fontWeight: FontWeight.w500,
+                        ),
+                        filled: false,
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        isDense: true,
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                      onChanged: (val) =>
+                          setState(() {}), // Just rebuild to show clear button
+                    ),
+                  ),
+                  if (_searchController.text.isNotEmpty)
+                    GestureDetector(
+                      onTap: () {
+                        _searchController.clear();
+                        _onSearchChanged(); // Explicit call
+                      },
+                      child: Icon(
+                        Icons.close_rounded,
+                        size: 18,
+                        color: AppColors.textSecondary(context)
+                            .withValues(alpha: 0.4),
+                      ),
+                    ),
+                ],
               ),
             ),
           ),
+
+          // Fear Greed Display
           if (_fearGreedData != null && widget.categoryId == 'crypto')
             _buildFearGreedIndex(lc),
+
+          // Country Filters
+          if (widget.categoryId == 'stock' && !_isLoading && _items.isNotEmpty)
+            Container(
+              height: 50,
+              margin: const EdgeInsets.only(bottom: 8),
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                children: [
+                  _buildFilterChip('All', null),
+                  _buildFilterChip('Turkey', 'Turkey'),
+                  _buildFilterChip('USA', 'USA'),
+                  _buildFilterChip('Germany', 'Germany'),
+                  _buildFilterChip('UK', 'UK'),
+                ],
+              ),
+            ),
+
           Expanded(
             child: _isLoading
                 ? const Center(
@@ -373,16 +456,29 @@ class _CategoryPageState extends ConsumerState<CategoryPage>
                               : RefreshIndicator(
                                   onRefresh: _loadData,
                                   color: AppColors.primary,
-                                  child: ListView.separated(
+                                  child: ReorderableListView.builder(
                                     padding: const EdgeInsets.all(16),
                                     itemCount: _filteredItems.length,
-                                    separatorBuilder: (context, index) =>
-                                        const SizedBox(height: 12),
+                                    onReorder: (oldIndex, newIndex) {
+                                      setState(() {
+                                        if (newIndex > oldIndex) newIndex -= 1;
+                                        final item =
+                                            _filteredItems.removeAt(oldIndex);
+                                        _filteredItems.insert(newIndex, item);
+                                        // Also update main list to persist order during search
+                                        _items = List.from(_filteredItems);
+                                      });
+                                    },
                                     itemBuilder: (context, index) {
                                       final item = _filteredItems[index];
-                                      return _MarketItemCard(
-                                          item: item,
-                                          categoryId: widget.categoryId);
+                                      return Padding(
+                                        key: ValueKey(item.id),
+                                        padding:
+                                            const EdgeInsets.only(bottom: 12),
+                                        child: _MarketItemCard(
+                                            item: item,
+                                            categoryId: widget.categoryId),
+                                      );
                                     },
                                   ),
                                 ),
@@ -692,7 +788,9 @@ class MarketItem {
     this.marketCap,
     this.volume24h,
     this.imageUrl,
+    this.country,
   });
+  final String? country;
 }
 
 class ExchangeItem {
