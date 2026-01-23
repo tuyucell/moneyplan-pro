@@ -237,64 +237,96 @@ class MarketDataProvider:
             return self._generate_fallback_calendar(country_code)
 
     def _generate_fallback_calendar(self, country_code):
-        from datetime import datetime, timedelta
-        import random
-        
-        events = []
-        now = datetime.now()
-        months_tr = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", 
-                   "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"]
-        
-        # Olası Etkinlikler Havuzu
-        pool = [
-            {"title": "TCMB Faiz Kararı", "country_id": 63, "currency": "TRY", "impact": "High", "unit": "%"},
-            {"title": "TÜFE (Yıllık)", "country_id": 63, "currency": "TRY", "impact": "High", "unit": "%"},
-            {"title": "Tarım Dışı İstihdam", "country_id": 5, "currency": "USD", "impact": "High", "unit": "K"},
-            {"title": "İşsizlik Oranı", "country_id": 5, "currency": "USD", "impact": "High", "unit": "%"},
-            {"title": "Fed Faiz Kararı", "country_id": 5, "currency": "USD", "impact": "High", "unit": "%"},
-            {"title": "Ham Petrol Stokları", "country_id": 5, "currency": "USD", "impact": "Medium", "unit": "M"},
-            {"title": "ECB Faiz Kararı", "country_id": 72, "currency": "EUR", "impact": "High", "unit": "%"},
-            {"title": "GSYİH (Çeyreklik)", "country_id": 5, "currency": "USD", "impact": "High", "unit": "%"},
-            {"title": "Tüketici Güven Endeksi", "country_id": 5, "currency": "USD", "impact": "Medium", "unit": ""},
-            {"title": "Perakende Satışlar", "country_id": 5, "currency": "USD", "impact": "Medium", "unit": "%"},
-        ]
+        """
+        FXStreet API üzerinden gerçek verileri çeler.
+        Fallback olarak simülasyon yerine gerçek canlı veri kullanılır.
+        """
+        try:
+            from datetime import datetime, timedelta
+            import requests
 
-        flag_map = {5: "us", 63: "tr", 72: "eu", 12: "gb", 4: "de"}
-        
-        for i in range(14): # Gelecek 14 gün
-            day = now + timedelta(days=i)
-            # Her güne 1-3 rastgele etkinlik ekle
-            daily_count = random.randint(1, 3)
-            for _ in range(daily_count):
-                ev = random.choice(pool)
-                # Ülke filtresi
+            start_date = datetime.now()
+            end_date = start_date + timedelta(days=7)
+            
+            s_str = start_date.strftime("%Y-%m-%d")
+            e_str = end_date.strftime("%Y-%m-%d")
+            
+            url = f"https://calendar-api.fxstreet.com/en/api/v1/eventDates/{s_str}/{e_str}"
+            headers = {
+                "Accept": "application/json",
+                "Origin": "https://www.fxstreet.com",
+                "Referer": "https://www.fxstreet.com/",
+                "User-Agent": "Mozilla/5.0"
+            }
+            
+            resp = requests.get(url, headers=headers, timeout=10)
+            if resp.status_code != 200:
+                print(f"FXStreet API Error: {resp.status_code}")
+                return []
+                
+            data = resp.json()
+            events = []
+            
+            # Ülke Kodu Mapping (FXStreet -> Bizim ID'ler)
+            # 5: US, 63: TR, 72: EU, 12: GB, 4: DE, 6: CA, 37: JP, 7: AU
+            code_map = {
+                "US": 5, "TR": 63, "EU": 72, "EMU": 72, "GB": 12, "UK": 12, 
+                "DE": 4, "CA": 6, "JP": 37, "AU": 7, "CN": 51, "RU": 56
+            }
+            
+            months_tr = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", 
+                       "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"]
+
+            for item in data:
+                c_code = item.get("countryCode", "US")
+                
+                # Eğer belirli bir ülke filtrelemesi varsa ve eşleşmiyorsa atla
                 if country_code and country_code.upper() != "ALL":
-                    if country_code.upper() == "TR" and ev["country_id"] != 63: continue
-                    if country_code.upper() == "US" and ev["country_id"] != 5: continue
+                    if country_code.upper() == "TR" and c_code != "TR": continue
+                    if country_code.upper() == "US" and c_code != "US": continue
+
+                our_id = code_map.get(c_code, 0)
+                # Volatiliteye göre önem derecesi
+                vol = item.get("volatility", "LOW")
+                impact = "Low"
+                if vol == "HIGH": impact = "High"
+                elif vol == "MEDIUM": impact = "Medium"
                 
-                # Rastgele saat (09:00 - 18:00)
-                hour = random.randint(9, 17)
-                minute = random.choice([0, 15, 30, 45])
+                dt_str = item.get("dateUtc", "") # 2026-01-24T11:00:00Z
+                if not dt_str: continue
                 
-                formatted_date = f"{day.day} {months_tr[day.month-1]}"
-                flag_code = flag_map.get(ev["country_id"], "us")
-                
-                events.append({
-                    "id": f"sim_{day.strftime('%Y%m%d')}_{random.randint(1000,9999)}",
-                    "date": formatted_date,
-                    "time": f"{hour:02d}:{minute:02d}",
-                    "title": ev["title"],
-                    "impact": ev["impact"],
-                    "actual": "-",
-                    "forecast": f"{random.uniform(1, 10):.1f}",
-                    "previous": f"{random.uniform(1, 10):.1f}",
-                    "unit": ev["unit"],
-                    "country_id": ev["country_id"],
-                    "flag_url": f"https://flagcdn.com/w40/{flag_code}.png",
-                    "currency": ev["currency"]
-                })
-        
-        return events
+                try:
+                    # UTC'den parse et
+                    dt = datetime.strptime(dt_str, "%Y-%m-%dT%H:%M:%SZ")
+                    # Basitçe +3 saat ekle (TR saati için yaklaşık)
+                    dt = dt + timedelta(hours=3)
+                    
+                    formatted_date = f"{dt.day} {months_tr[dt.month-1]}"
+                    time_str = dt.strftime("%H:%M")
+                    
+                    flag_url = f"https://flagcdn.com/w40/{c_code.lower()}.png"
+                    
+                    events.append({
+                        "id": item.get("id"),
+                        "date": formatted_date,
+                        "time": time_str,
+                        "title": item.get("name"),
+                        "impact": impact,
+                        "actual": str(item.get("actual") or ""),
+                        "forecast": str(item.get("consensus") or ""),
+                        "previous": str(item.get("previous") or ""),
+                        "unit": item.get("unit", ""),
+                        "country_id": our_id,
+                        "flag_url": flag_url,
+                        "currency": item.get("currencyCode", "")
+                    })
+                except Exception: pass
+            
+            return events
+
+        except Exception as e:
+            print(f"FXStreet Integration Error: {e}")
+            return []
 
     def save_calendar_events(self, events: list):
         from database import get_db_connection
