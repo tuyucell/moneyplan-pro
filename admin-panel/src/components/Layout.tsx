@@ -18,6 +18,7 @@ import {
     DollarOutlined,
     BgColorsOutlined,
     BookOutlined,
+    DeleteOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
@@ -132,6 +133,12 @@ export default function Layout({ children }: LayoutProps) {
                     icon: <BookOutlined />,
                     label: 'Audit Logs',
                     onClick: () => { navigate('/system/audit-logs'); },
+                },
+                {
+                    key: '/system/kvkk',
+                    icon: <DeleteOutlined />,
+                    label: 'KVKK Silme Talepleri',
+                    onClick: () => { navigate('/system/kvkk'); },
                 },
             ],
         },

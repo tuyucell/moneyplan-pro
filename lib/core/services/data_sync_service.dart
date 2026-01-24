@@ -21,8 +21,9 @@ class DataSyncService {
 
   /// Sync all modules
   Future<void> syncAll() async {
-    if (kDebugMode)
+    if (kDebugMode) {
       debugPrint('🔄 Sync: Starting full sync for user $userId...');
+    }
 
     // Check connectivity
     final connectivityResult = await Connectivity().checkConnectivity();

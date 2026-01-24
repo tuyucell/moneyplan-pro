@@ -21,6 +21,7 @@ import UIManager from './pages/UIManager';
 import AdminGuide from './pages/AdminGuide';
 import PriceAlertsManager from './pages/PriceAlertsManager';
 import AuditLogs from './pages/AuditLogs';
+import DeletionRequests from './pages/DeletionRequests';
 import Layout from './components/Layout';
 import './App.css';
 
@@ -94,6 +95,7 @@ function App() {
                         <Route path="/system/ui" element={<UIManager />} />
                         <Route path="/system/alerts" element={<PriceAlertsManager />} />
                         <Route path="/system/audit-logs" element={<AuditLogs />} />
+                        <Route path="/system/kvkk" element={<DeletionRequests />} />
                         <Route path="/guide" element={<AdminGuide />} />
                         <Route path="*" element={<Navigate to="/" />} />
                       </Routes>

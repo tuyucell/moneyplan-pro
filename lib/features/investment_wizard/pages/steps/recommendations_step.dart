@@ -11,6 +11,7 @@ import '../../../watchlist/providers/watchlist_provider.dart';
 import '../../../watchlist/models/watchlist_item.dart';
 import '../../widgets/investment_wizard_widgets.dart';
 import 'package:invest_guide/features/search/presentation/pages/asset_detail_page.dart';
+import 'package:invest_guide/features/shared/services/export_service.dart';
 import 'package:invest_guide/core/i18n/app_strings.dart';
 import 'package:invest_guide/core/providers/language_provider.dart';
 
@@ -433,6 +434,27 @@ class _RecommendationsStepState extends ConsumerState<RecommendationsStep> {
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
                 ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () {
+                ExportService.exportInvestmentPlanToPdf(plan, results);
+              },
+              icon: const Icon(Icons.picture_as_pdf, color: AppColors.primary),
+              label: Text(
+                lc == 'tr' ? 'Planı PDF Olarak İndir' : 'Download Plan as PDF',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                side: const BorderSide(color: AppColors.primary, width: 1.5),
               ),
             ),
           ),

@@ -200,12 +200,7 @@ export default function Users() {
                 .limit(1000);
 
             if (error) throw error;
-
-            // Inject engagement scores for premium look
-            return data.map(u => ({
-                ...u,
-                engagement_score: Math.floor(Math.random() * 60) + (u.is_premium ? 40 : 10)
-            })) as User[];
+            return data as User[];
         },
     });
 

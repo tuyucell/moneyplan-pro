@@ -40,10 +40,8 @@ class BiometricService {
     required String localizedReason,
     bool stickyAuth = true,
     bool biometricOnly = true,
-    bool useErrorDialogs = true,
   }) async {
     try {
-      // Basic call is most compatible across version fragments
       final authenticated = await _auth.authenticate(
         localizedReason: localizedReason,
       );

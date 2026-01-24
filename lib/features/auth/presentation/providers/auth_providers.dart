@@ -84,6 +84,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       final userResult = await _repository.signInWithEmail(email, password);
       final user = _checkLocalCompletion(userResult);
       state = AuthAuthenticated(user);
+      await PushNotificationService().login(user.id);
     } catch (e) {
       state = AuthError(e.toString());
       rethrow;
@@ -103,6 +104,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       // but good practice to keep consistent if logic changes.
       final user = _checkLocalCompletion(userResult);
       state = AuthAuthenticated(user);
+      await PushNotificationService().login(user.id);
     } catch (e) {
       state = AuthError(e.toString());
       rethrow;
@@ -115,6 +117,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       final userResult = await _repository.signInWithGoogle();
       final user = _checkLocalCompletion(userResult);
       state = AuthAuthenticated(user);
+      await PushNotificationService().login(user.id);
     } catch (e) {
       state = AuthError(e.toString());
       rethrow;
