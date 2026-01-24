@@ -9,15 +9,21 @@ import 'package:invest_guide/features/wallet/models/transaction_category.dart';
 import 'package:invest_guide/core/services/currency_service.dart';
 import 'package:invest_guide/features/wallet/models/bank_account.dart';
 import 'package:invest_guide/features/wallet/providers/bank_account_provider.dart';
+import 'package:invest_guide/features/auth/presentation/providers/auth_providers.dart';
+import 'package:invest_guide/features/auth/data/models/user_model.dart';
 
 class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
-  static const String _boxName = 'wallet_transactions';
+  final String? userId;
+  String get _boxName => userId != null
+      ? 'wallet_transactions_$userId'
+      : 'wallet_transactions_guest';
+
   Box<Map>? _box;
   bool _isInitialized = false;
   final _initCompleter = Completer<void>();
   final CurrencyService _currencyService;
 
-  WalletNotifier(this._currencyService) : super([]) {
+  WalletNotifier(this._currencyService, this.userId) : super([]) {
     _initHive();
   }
 
@@ -376,7 +382,12 @@ class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
 final walletProvider =
     StateNotifierProvider<WalletNotifier, List<WalletTransaction>>((ref) {
   final currencyService = ref.watch(currencyServiceProvider);
-  return WalletNotifier(currencyService);
+  final authState = ref.watch(authNotifierProvider);
+  String? userId;
+  if (authState is AuthAuthenticated) {
+    userId = authState.user.id;
+  }
+  return WalletNotifier(currencyService, userId);
 });
 
 // Provider for current month summary

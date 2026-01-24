@@ -107,7 +107,7 @@ class MonthlySummary {
     double totalOverdraftLimit = 0;
     final monthStart = DateTime(year, month);
 
-    final Set<String> cashAccountIds = {};
+    final cashAccountIds = <String>{};
     if (bankAccountList != null) {
       debugPrint(
           '🏦 MonthlySummary: Analyzing ${bankAccountList.length} accounts for CASH flow');
@@ -187,7 +187,7 @@ class MonthlySummary {
     final overdueTransactions = <WalletTransaction>[];
     final pendingPaymentTransactions = <WalletTransaction>[];
 
-    final Map<String, BankAccount> bankAccountsMap =
+    final bankAccountsMap =
         bankAccountList != null ? {for (var a in bankAccountList) a.id: a} : {};
 
     for (final transaction in monthTransactions) {

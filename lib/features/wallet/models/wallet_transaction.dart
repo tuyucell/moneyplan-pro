@@ -24,6 +24,8 @@ class WalletTransaction {
   final String?
       linkedTransactionId; // Banka ekstresinden gelen işlem ile eşleşme
 
+  final String? documentPath; // Ek döküman/makbuz yolu
+
   WalletTransaction({
     required this.id,
     required this.categoryId,
@@ -42,6 +44,7 @@ class WalletTransaction {
     this.paymentMethod = PaymentMethod.cash,
     this.excludeFromBalance = false,
     this.linkedTransactionId,
+    this.documentPath,
   });
 
   TransactionCategory? get category => TransactionCategory.findById(categoryId);
@@ -75,6 +78,7 @@ class WalletTransaction {
       'paymentMethod': paymentMethod.name,
       'excludeFromBalance': excludeFromBalance,
       'linkedTransactionId': linkedTransactionId,
+      'documentPath': documentPath,
     };
   }
 
@@ -113,6 +117,7 @@ class WalletTransaction {
           : PaymentMethod.cash,
       excludeFromBalance: json['excludeFromBalance'] as bool? ?? false,
       linkedTransactionId: json['linkedTransactionId'] as String?,
+      documentPath: json['documentPath'] as String?,
     );
   }
 
@@ -134,6 +139,7 @@ class WalletTransaction {
     PaymentMethod? paymentMethod,
     bool? excludeFromBalance,
     String? linkedTransactionId,
+    String? documentPath,
   }) {
     return WalletTransaction(
       id: id ?? this.id,
@@ -153,6 +159,7 @@ class WalletTransaction {
       paymentMethod: paymentMethod ?? this.paymentMethod,
       excludeFromBalance: excludeFromBalance ?? this.excludeFromBalance,
       linkedTransactionId: linkedTransactionId ?? this.linkedTransactionId,
+      documentPath: documentPath ?? this.documentPath,
     );
   }
 }

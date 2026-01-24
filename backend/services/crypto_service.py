@@ -7,68 +7,47 @@ class CryptoService:
 
     def get_top_coins(self, limit=50):
         """
-        Binance API üzerinden tüm kripto verilerini çeker, hacme göre sıralar ve ilk N tanesini getirir.
-        API Key: Read-Only yetkili key kullanılıyor.
-        Cache: 600 saniye (10 dakika)
+        Binance API (US Kısıtlaması) yerine CoinGecko Markets API kullanılır.
         """
-        cache_key = f"crypto_binance_top_{limit}"
+        cache_key = f"crypto_gecko_top_{limit}"
         cached = cache.get(cache_key)
         if cached:
             return cached
 
         try:
             import requests
-            # Binance Ticker 24hr Endpoint (Tüm coinler için)
-            url = "https://api.binance.com/api/v3/ticker/24hr"
-            headers = {
-                "X-MBX-APIKEY": "r1JDHkU4IqRMvRhGKK9k5vIvu03MrrOwLQWxCpLnecjMpTwXAPE45xrd9q6tceHw"
+            # CoinGecko Markets (Resim, Fiyat, Değişim hepsi tek endpointte)
+            url = "https://api.coingecko.com/api/v3/coins/markets"
+            params = {
+                "vs_currency": "usd",
+                "order": "volume_desc", # Hacme göre sırala
+                "per_page": limit,
+                "page": 1,
+                "sparkline": "false"
             }
+            # Demo API (Rate limit: 30 calls/min)
+            resp = requests.get(url, params=params, timeout=10)
             
-            resp = requests.get(url, headers=headers, timeout=10)
             if resp.status_code == 200:
                 data = resp.json()
-                
-                # USDT paritelerini filtrele ve işle
-                usdt_pairs = []
+                results = []
                 for item in data:
-                    s = item['symbol']
-                    if s.endswith("USDT"):
-                        # Sembolü ayrıştır (BTCUSDT -> BTC)
-                        raw_symbol = s[:-4] 
-                        # Kaldıraçlı tokenları (UP/DOWN/BEAR/BULL) basitçe filtrele
-                        if "UP" in raw_symbol or "DOWN" in raw_symbol: continue
-                        
-                        try:
-                            # Quote Volume (Hacim) sıralaması için float'a çevir
-                            vol = float(item['quoteVolume'])
-                            price = float(item['lastPrice'])
-                            change = float(item['priceChangePercent'])
-                            
-                            usdt_pairs.append({
-                                "id": raw_symbol.lower(),
-                                "symbol": raw_symbol,
-                                "name": raw_symbol, # Tam isim API'de yok, sembol kullanıyoruz
-                                "price": price,
-                                "change_24h": change,
-                                "market_cap": 0, # Ticker endpointinde market cap yok
-                                "volume": vol,
-                                # Frontend'deki placeholder resim mantığı çalışacak
-                                "image": f"https://assets.coincap.io/assets/icons/{raw_symbol.lower()}@2x.png" # Deneme: Coincap ikonları
-                            })
-                        except: continue
+                    results.append({
+                        "id": item['id'],
+                        "symbol": item['symbol'].upper(),
+                        "name": item['name'],
+                        "price": float(item['current_price'] or 0),
+                        "change_24h": float(item['price_change_percentage_24h'] or 0),
+                        "market_cap": float(item['market_cap'] or 0),
+                        "volume": float(item['total_volume'] or 0),
+                        "image": item['image']
+                    })
+                
+                cache.set(cache_key, results, ttl_seconds=600)
+                return results
 
-                # Hacme göre azalan sırala (En popülerler)
-                usdt_pairs.sort(key=lambda x: x['volume'], reverse=True)
-                
-                # İstenen limit kadar al
-                result = usdt_pairs[:limit]
-                
-                # Cache'le (10 Dakika)
-                cache.set(cache_key, result, ttl_seconds=600)
-                return result
-                
         except Exception as e:
-            print(f"Binance API Error: {e}")
+            print(f"CoinGecko Error: {e}")
             
         return []
 

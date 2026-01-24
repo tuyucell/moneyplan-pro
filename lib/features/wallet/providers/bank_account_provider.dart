@@ -1,11 +1,15 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../models/bank_account.dart';
+import 'package:invest_guide/features/auth/presentation/providers/auth_providers.dart';
+import 'package:invest_guide/features/auth/data/models/user_model.dart';
 
 class BankAccountNotifier extends StateNotifier<List<BankAccount>> {
-  static const String _boxName = 'bank_accounts_box';
+  final String? userId;
+  String get _boxName =>
+      userId != null ? 'bank_accounts_box_$userId' : 'bank_accounts_box_guest';
 
-  BankAccountNotifier() : super(DefaultBankAccounts.accounts) {
+  BankAccountNotifier(this.userId) : super(DefaultBankAccounts.accounts) {
     _loadAccounts();
   }
 
@@ -55,5 +59,10 @@ class BankAccountNotifier extends StateNotifier<List<BankAccount>> {
 
 final bankAccountProvider =
     StateNotifierProvider<BankAccountNotifier, List<BankAccount>>((ref) {
-  return BankAccountNotifier();
+  final authState = ref.watch(authNotifierProvider);
+  String? userId;
+  if (authState is AuthAuthenticated) {
+    userId = authState.user.id;
+  }
+  return BankAccountNotifier(userId);
 });

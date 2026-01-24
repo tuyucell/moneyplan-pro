@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math'
     as math; // Use 'as math' to avoid conflict if 'pow' was custom
@@ -6,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/investment_plan_data.dart';
 import 'package:invest_guide/core/i18n/app_strings.dart';
+import 'package:invest_guide/features/wallet/services/ai_processing_service.dart';
 
 const String _planKey = 'investment_plan_data';
 
@@ -15,7 +17,7 @@ class InvestmentPlanNotifier extends StateNotifier<InvestmentPlanData> {
   bool _isInitialized = false;
 
   InvestmentPlanNotifier() : super(InvestmentPlanData()) {
-    _loadPlan();
+    unawaited(_loadPlan());
   }
 
   /// Get cached SharedPreferences instance or create new one
@@ -56,51 +58,74 @@ class InvestmentPlanNotifier extends StateNotifier<InvestmentPlanData> {
 
   void updateMonthlyIncome(double value) {
     state = state.copyWith(monthlyIncome: value);
-    _savePlan();
+    if (state.hasDebt) {
+      state = state.copyWith(monthlyDebtPayment: state.monthlyAvailable);
+    }
+    unawaited(_savePlan());
   }
 
   void updateMonthlyExpenses(double value) {
     state = state.copyWith(monthlyExpenses: value);
-    _savePlan();
+    if (state.hasDebt) {
+      state = state.copyWith(monthlyDebtPayment: state.monthlyAvailable);
+    }
+    unawaited(_savePlan());
   }
 
   void updateCurrencyCode(String code) {
     state = state.copyWith(currencyCode: code);
-    _savePlan();
+    unawaited(_savePlan());
   }
 
   void updateHasDebt(bool value) {
     state = state.copyWith(hasDebt: value);
-    if (!value) {
+    if (value) {
+      state = state.copyWith(monthlyDebtPayment: state.monthlyAvailable);
+    } else {
       // Reset debt values if no debt
       state = state.copyWith(debtAmount: 0, monthlyDebtPayment: 0);
     }
-    _savePlan();
+    unawaited(_savePlan());
   }
 
   void updateDebtAmount(double value) {
     state = state.copyWith(debtAmount: value);
-    _savePlan();
+    if (state.hasDebt) {
+      state = state.copyWith(monthlyDebtPayment: state.monthlyAvailable);
+    }
+    unawaited(_savePlan());
   }
 
   void updateMonthlyDebtPayment(double value) {
     state = state.copyWith(monthlyDebtPayment: value);
-    _savePlan();
+    unawaited(_savePlan());
   }
 
   void updateMonthlyInvestmentAmount(double value) {
-    state = state.copyWith(monthlyInvestmentAmount: value);
-    _savePlan();
+    var profile = 'muhafazakar';
+    if (value >= 5000 && value < 25000) {
+      profile = 'dengeli';
+    } else if (value >= 25000) {
+      profile = 'agresif';
+    }
+    state =
+        state.copyWith(monthlyInvestmentAmount: value, riskProfile: profile);
+    unawaited(_savePlan());
   }
 
   void completeWizard() {
     state = state.copyWith(isCompleted: true);
-    _savePlan();
+    unawaited(_savePlan());
+  }
+
+  void updateRiskProfile(String profile) {
+    state = state.copyWith(riskProfile: profile);
+    unawaited(_savePlan());
   }
 
   void reset() {
     state = InvestmentPlanData();
-    _savePlan();
+    unawaited(_savePlan());
   }
 
   // Investment calculation methods
@@ -142,12 +167,19 @@ class InvestmentPlanNotifier extends StateNotifier<InvestmentPlanData> {
       final totalMonths = totalYears * 12;
       double balance = 0;
 
+      // Realistic current investment is limited by actual cash left after debt
+      final cappedInitial =
+          math.max(0.0, math.min(initialMonthly, state.monthlyAfterDebt));
+
+      // Future monthly is the new investment amount after debt payoff,
+      // capped by the total available surplus (monthlyAvailable)
+      final cappedFuture = math.max(cappedInitial,
+          math.min(initialMonthly + boostAmount, state.monthlyAvailable));
+
       for (var i = 0; i < totalMonths; i++) {
-        // Apply monthly boost if current month is after debt payoff
-        var currentMonthly = initialMonthly;
-        if (state.hasDebt && i >= boostAfterMonths) {
-          currentMonthly += boostAmount;
-        }
+        var currentMonthly = (state.hasDebt && i >= boostAfterMonths)
+            ? cappedFuture
+            : cappedInitial;
 
         balance = (balance + currentMonthly) * (1 + monthlyRate);
       }
@@ -159,14 +191,20 @@ class InvestmentPlanNotifier extends StateNotifier<InvestmentPlanData> {
       final months = years * 12;
       final monthsToPayDebt = state.monthsToPayOffDebt;
 
-      // Total invested calculation: initial * N + (initial + boost) * (Total - N)
+      final cappedInitial = math.max(
+          0.0, math.min(state.monthlyInvestmentAmount, state.monthlyAfterDebt));
+      final cappedFuture = math.max(
+          cappedInitial,
+          math.min(state.monthlyInvestmentAmount + state.monthlyDebtPayment,
+              state.monthlyAvailable));
+
+      // Total invested calculation
       double totalInvested = 0;
       if (state.hasDebt && monthsToPayDebt < months) {
-        totalInvested = (state.monthlyInvestmentAmount * monthsToPayDebt) +
-            ((state.monthlyInvestmentAmount + state.monthlyDebtPayment) *
-                (months - monthsToPayDebt));
+        totalInvested = (cappedInitial * monthsToPayDebt) +
+            (cappedFuture * (months - monthsToPayDebt));
       } else {
-        totalInvested = state.monthlyInvestmentAmount * months;
+        totalInvested = cappedInitial * months;
       }
 
       return {
@@ -204,12 +242,48 @@ class InvestmentPlanNotifier extends StateNotifier<InvestmentPlanData> {
     };
   }
 
-  Map<String, dynamic> _getRecommendedAllocation() {
-    // Based on investment amount, recommend portfolio allocation
-    final monthlyInvestment = state.monthlyInvestmentAmount;
+  Future<void> generateAIRecommendations() async {
+    // Determine profile text for prompt
+    // Determine profile text for prompt based on user selection + amount
+    var currentProfile = 'Balanced';
+    final userProfile = state.riskProfile.toLowerCase();
 
-    if (monthlyInvestment < 5000) {
-      // Low investment: Focus on simplicity and accumulation
+    if (userProfile.contains('agresif') || userProfile.contains('aggressive')) {
+      currentProfile = 'Aggressive';
+    } else if (userProfile.contains('muhafazakar') ||
+        userProfile.contains('conservative')) {
+      currentProfile = 'Conservative';
+    } else if (state.monthlyInvestmentAmount >= 25000) {
+      currentProfile = 'Aggressive';
+    } else if (state.monthlyInvestmentAmount < 5000) {
+      currentProfile = 'Conservative';
+    }
+
+    final result = await AIProcessingService.getInvestmentRecommendations(
+      monthlyIncome: state.monthlyIncome,
+      monthlyExpenses: state.monthlyExpenses,
+      totalDebt: state.debtAmount,
+      monthlyInvestment: state.monthlyInvestmentAmount,
+      currentProfile: currentProfile,
+      currency: state.currencyCode,
+    );
+
+    if (result != null) {
+      state = state.copyWith(aiRecommendation: result);
+      await _savePlan();
+    }
+  }
+
+  Map<String, dynamic> _getRecommendedAllocation() {
+    // If AI recommendation exists, use it!
+    if (state.aiRecommendation != null) {
+      return state.aiRecommendation!;
+    }
+
+    // Based on user choice or default to investment amount
+    final profile = state.riskProfile;
+
+    if (profile == 'starter' || profile == 'muhafazakar') {
       return {
         'profile': AppStrings.profileStarter,
         'description': AppStrings.descStarter,
@@ -221,8 +295,7 @@ class InvestmentPlanNotifier extends StateNotifier<InvestmentPlanData> {
         },
         'suggestedAssets': ['GLDTR', 'PPF', 'TI3', 'KRS'],
       };
-    } else if (monthlyInvestment < 25000) {
-      // Medium investment: Balanced growth
+    } else if (profile == 'balanced' || profile == 'dengeli') {
       return {
         'profile': AppStrings.profileBalanced,
         'description': AppStrings.descBalanced,
@@ -236,7 +309,7 @@ class InvestmentPlanNotifier extends StateNotifier<InvestmentPlanData> {
         'suggestedAssets': ['AFT', 'IDH', 'KZL', 'IPJ', 'KUB'],
       };
     } else {
-      // High investment: Wealth preservation and aggressive growth
+      // Aggressive
       return {
         'profile': AppStrings.profileAggressive,
         'description': AppStrings.descAggressive,

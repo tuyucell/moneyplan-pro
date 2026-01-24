@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -6,6 +7,8 @@ import 'package:invest_guide/core/constants/colors.dart';
 import 'package:invest_guide/features/search/presentation/pages/markets_page.dart';
 import 'package:invest_guide/features/wallet/providers/wallet_provider.dart';
 import 'package:invest_guide/features/shared/services/widget_service.dart';
+import 'package:invest_guide/features/shared/services/export_service.dart';
+import 'package:invest_guide/features/monetization/services/ad_service.dart';
 
 import 'package:invest_guide/features/wallet/pages/add_transaction_page.dart';
 import 'package:invest_guide/features/wallet/models/transaction_category.dart';
@@ -34,8 +37,15 @@ import '../widgets/portfolio_view.dart';
 import 'package:invest_guide/features/wallet/widgets/ai_analyst_summary_widget.dart';
 import '../widgets/savings_goals_widget.dart';
 import 'package:invest_guide/features/alerts/presentation/pages/alerts_page.dart';
-import '../widgets/bes_summary_card.dart';
+import 'package:invest_guide/features/wallet/pages/import_statement_page.dart';
 import '../widgets/bank_accounts_card.dart';
+import 'package:invest_guide/features/subscription/presentation/providers/subscription_provider.dart';
+import 'package:invest_guide/features/subscription/presentation/widgets/pro_feature_gate.dart';
+import 'package:invest_guide/features/subscription/presentation/providers/feature_usage_provider.dart';
+import 'package:invest_guide/services/analytics/analytics_service.dart';
+import 'package:invest_guide/features/auth/presentation/providers/auth_providers.dart';
+import 'package:invest_guide/features/auth/data/models/user_model.dart';
+import 'package:invest_guide/features/auth/presentation/widgets/auth_prompt_dialog.dart';
 
 class WalletPage extends ConsumerStatefulWidget {
   const WalletPage({super.key});
@@ -62,7 +72,27 @@ class _WalletPageState extends ConsumerState<WalletPage>
     _tabController.addListener(() {
       if (!_tabController.indexIsChanging) {
         setState(() {});
+
+        // Analytics: Track tab switch
+        ref.read(analyticsServiceProvider).logEvent(
+              name: 'wallet_view_change',
+              category: 'navigation',
+              properties: {
+                'tab': _tabController.index == 0 ? 'finance' : 'investment'
+              },
+              screenName: 'WalletPage',
+            );
       }
+    });
+
+    // Analytics: Page entry
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(analyticsServiceProvider).logEvent(
+            name: 'screen_view',
+            category: 'navigation',
+            properties: {'screen': 'WalletPage'},
+            screenName: 'WalletPage',
+          );
     });
   }
 
@@ -127,9 +157,6 @@ class _WalletPageState extends ConsumerState<WalletPage>
           ],
         ),
         actions: [
-          // Dynamic Currency Toggle based on active tab
-          _buildContextualCurrencyToggle(ref, financeCurrency, investCurrency),
-
           IconButton(
             icon: Icon(
               ref.watch(balanceVisibilityProvider)
@@ -141,29 +168,61 @@ class _WalletPageState extends ConsumerState<WalletPage>
                 ref.read(balanceVisibilityProvider.notifier).toggle(),
           ),
           IconButton(
-            icon: Icon(
-              _showCalendar ? Icons.close : Icons.calendar_today,
-              color: AppColors.primary,
-            ),
-            onPressed: () {
-              setState(() {
-                _showCalendar = !_showCalendar;
-              });
-            },
-          ),
-          IconButton(
             icon: const Icon(Icons.notifications_outlined,
-                color: AppColors.grey900),
+                color: AppColors.primary),
             onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const AlertsPage()),
-              );
+              final authState = ref.read(authNotifierProvider);
+              if (authState is AuthAuthenticated) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const AlertsPage()),
+                );
+              } else {
+                showDialog(
+                  context: context,
+                  builder: (ctx) => AuthPromptDialog(
+                    title: lc == 'tr' ? 'Hesap Gerekli' : 'Account Required',
+                    description: lc == 'tr'
+                        ? 'Fiyat alarmlarınızı görmek için lütfen giriş yapın veya kayıt olun.'
+                        : 'Please login or sign up to see your price alerts.',
+                  ),
+                );
+              }
             },
           ),
-          IconButton(
-            icon: const Icon(Icons.delete_sweep, color: AppColors.error),
-            onPressed: () => _showClearAllDataDialog(lc),
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert, color: AppColors.primary),
+            onSelected: (value) {
+              if (value == 'export') {
+                _showExportOptions(lc);
+              } else if (value == 'delete') {
+                _showClearAllDataDialog(lc);
+              }
+            },
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                value: 'export',
+                child: Row(
+                  children: [
+                    const Icon(Icons.file_download_outlined, size: 20),
+                    const SizedBox(width: 12),
+                    Text(AppStrings.tr(AppStrings.dataOperations, lc)),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'delete',
+                child: Row(
+                  children: [
+                    const Icon(Icons.delete_sweep,
+                        color: AppColors.error, size: 20),
+                    const SizedBox(width: 12),
+                    Text(AppStrings.tr(AppStrings.clearAllData, lc),
+                        style: const TextStyle(color: AppColors.error)),
+                  ],
+                ),
+              ),
+            ],
           ),
           const SizedBox(width: 8),
         ],
@@ -193,15 +252,52 @@ class _WalletPageState extends ConsumerState<WalletPage>
                   ],
                 ),
                 const SizedBox(height: 16),
-                WalletSelector(
-                  selectedDate: _selectedDate,
-                  isYearlyView: _isYearlyView,
-                  onDateChanged: (date) {
-                    setState(() {
-                      _selectedDate = date;
-                      _focusedDay = date;
-                    });
-                  },
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      flex: 6, // Golden ratio approx (6:4)
+                      child: WalletSelector(
+                        selectedDate: _selectedDate,
+                        isYearlyView: _isYearlyView,
+                        onDateChanged: (date) {
+                          setState(() {
+                            _selectedDate = date;
+                            _focusedDay = date;
+                          });
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // Currency Toggle (Fixed width concept)
+                    _buildContextualCurrencyToggle(
+                        ref, financeCurrency, investCurrency),
+                    const SizedBox(width: 4),
+                    // Calendar Toggle
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: _showCalendar
+                            ? AppColors.primary
+                            : AppColors.primary.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: IconButton(
+                        icon: Icon(
+                          _showCalendar ? Icons.close : Icons.calendar_month,
+                          color:
+                              _showCalendar ? Colors.white : AppColors.primary,
+                          size: 18,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _showCalendar = !_showCalendar;
+                          });
+                        },
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 20),
                 if (_showCalendar && !_isYearlyView) ...[
@@ -243,10 +339,10 @@ class _WalletPageState extends ConsumerState<WalletPage>
                   onToggle: () => setState(() => _showSavings = !_showSavings),
                   child: const Column(
                     children: [
-                      BesSummaryCard(),
-                      SizedBox(height: 16),
-                      Divider(height: 1),
-                      SizedBox(height: 16),
+                      // BesSummaryCard(), // Hidden for now
+                      // SizedBox(height: 16),
+                      // Divider(height: 1),
+                      // SizedBox(height: 16),
                       SavingsGoalsWidget(),
                     ],
                   ),
@@ -298,36 +394,37 @@ class _WalletPageState extends ConsumerState<WalletPage>
         : financeDisplayCurrencyProvider;
     final currentValue = isInvestTab ? investCur : financeCur;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        decoration: BoxDecoration(
-          color: AppColors.primary.withValues(alpha: 0.1),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: DropdownButtonHideUnderline(
-          child: DropdownButton<String>(
-            value: currentValue,
-            icon: const Icon(Icons.keyboard_arrow_down,
-                size: 16, color: AppColors.primary),
-            style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                color: AppColors.primary,
-                fontSize: 13),
-            onChanged: (String? newValue) {
-              if (newValue != null) {
-                ref.read(currentProvider.notifier).state = newValue;
-              }
-            },
-            items: ['TRY', 'USD', 'EUR']
-                .map<DropdownMenuItem<String>>((String value) {
-              return DropdownMenuItem<String>(
-                value: value,
-                child: Text(value),
-              );
-            }).toList(),
-          ),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      height: 36, // Fixed height for consistency
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.1)),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String>(
+          value: currentValue,
+          icon: const Icon(Icons.keyboard_arrow_down,
+              size: 16, color: AppColors.primary),
+          style: const TextStyle(
+              fontWeight: FontWeight.w700,
+              color: AppColors.primary,
+              fontSize: 12),
+          borderRadius: BorderRadius.circular(12),
+          dropdownColor: AppColors.surface(context),
+          onChanged: (String? newValue) {
+            if (newValue != null) {
+              ref.read(currentProvider.notifier).state = newValue;
+            }
+          },
+          items: ['TRY', 'USD', 'EUR']
+              .map<DropdownMenuItem<String>>((String value) {
+            return DropdownMenuItem<String>(
+              value: value,
+              child: Text(value),
+            );
+          }).toList(),
         ),
       ),
     );
@@ -548,27 +645,28 @@ class _WalletPageState extends ConsumerState<WalletPage>
             ),
           ),
           const SizedBox(height: 12),
-          Row(
-            children: [
-              Icon(Icons.savings_outlined,
-                  color: Colors.white.withValues(alpha: 0.7), size: 16),
-              const SizedBox(width: 6),
-              Text(
-                '${AppStrings.tr(AppStrings.totalBES, lc)}: ${currencyFormat.format(currencyService.convertFromTRY(summary.totalBES, displayCurrency))}',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.white.withValues(alpha: 0.9),
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
+          // Row(
+          //   children: [
+          //     Icon(Icons.savings_outlined,
+          //         color: Colors.white.withValues(alpha: 0.7), size: 16),
+          //     const SizedBox(width: 6),
+          //     Text(
+          //       '${AppStrings.tr(AppStrings.totalBES, lc)}: ${currencyFormat.format(currencyService.convertFromTRY(summary.totalBES, displayCurrency))}',
+          //       style: TextStyle(
+          //         fontSize: 13,
+          //         color: Colors.white.withValues(alpha: 0.9),
+          //         fontWeight: FontWeight.w600,
+          //       ),
+          //     ),
+          //   ],
+          // ),
         ],
       ),
     );
   }
 
   Future<void> _showClearAllDataDialog(String lc) async {
+    final messenger = ScaffoldMessenger.of(context);
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -595,15 +693,264 @@ class _WalletPageState extends ConsumerState<WalletPage>
             .read(walletProvider.notifier)
             .deleteTransaction(transaction.id);
       }
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(AppStrings.tr(AppStrings.allDataDeleted, lc)),
-            backgroundColor: AppColors.success,
-          ),
-        );
-      }
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(AppStrings.tr(AppStrings.allDataDeleted, lc)),
+          backgroundColor: AppColors.success,
+        ),
+      );
     }
+  }
+
+  void _showExportOptions(String lc) {
+    final isPro = ref.read(subscriptionProvider) == SubscriptionTier.pro;
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              AppStrings.tr(AppStrings.dataOperations, lc),
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 24),
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.auto_awesome, color: AppColors.primary),
+              ),
+              title: Row(
+                children: [
+                  Text(AppStrings.tr(AppStrings.importStatementAi, lc)),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.amber,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Text('PRO',
+                        style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black)),
+                  ),
+                ],
+              ),
+              subtitle:
+                  Text(AppStrings.tr(AppStrings.importStatementAiDesc, lc)),
+              onTap: () async {
+                final isPro = ref.read(isProUserProvider);
+                const featureKey = 'import_statement_ai';
+                final hasUsage = await ref
+                    .read(featureUsageProvider)
+                    .hasFreeUsageRemaining(featureKey);
+
+                if (isPro || hasUsage) {
+                  if (!isPro) {
+                    await ref.read(featureUsageProvider).trackUsage(featureKey);
+                    // Analytics: Free use
+                    await ref.read(analyticsServiceProvider).logEvent(
+                          name: 'pro_feature_free_use',
+                          category: 'monetization',
+                          properties: {'feature': featureKey},
+                          screenName: 'WalletPage',
+                        );
+                  }
+
+                  if (context.mounted) {
+                    Navigator.pop(context);
+                    unawaited(Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) => const ImportStatementPage()),
+                    ));
+                  }
+                } else {
+                  if (context.mounted) {
+                    Navigator.pop(context);
+                    _showProUpsellDialog(context, lc);
+                  }
+                }
+              },
+            ),
+            const Divider(),
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.green.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.table_view, color: Colors.green),
+              ),
+              title: Text(AppStrings.tr(AppStrings.exportAsCsv, lc)),
+              subtitle: !isPro
+                  ? const Text(
+                      'Reklam sonrası indirebilirsin',
+                      style: TextStyle(fontSize: 11, color: Colors.grey),
+                    )
+                  : null,
+              onTap: () async {
+                final isPro = ref.read(isProUserProvider);
+                const featureKey = 'export_csv';
+                final hasUsage = await ref
+                    .read(featureUsageProvider)
+                    .hasFreeUsageRemaining(featureKey);
+
+                if (!isPro && !hasUsage) {
+                  if (context.mounted) {
+                    Navigator.pop(context);
+                    _showProUpsellDialog(context, lc);
+                  }
+                  return;
+                }
+
+                if (context.mounted) {
+                  Navigator.pop(context);
+                }
+
+                if (!context.mounted) return;
+                final messenger = ScaffoldMessenger.of(context);
+                final transactions = ref.read(walletProvider);
+
+                // Track and show ad for free users
+                if (!isPro) {
+                  await ref.read(featureUsageProvider).trackUsage(featureKey);
+                  // Analytics: Free use
+                  await ref.read(analyticsServiceProvider).logEvent(
+                        name: 'pro_feature_free_use',
+                        category: 'monetization',
+                        properties: {'feature': featureKey},
+                        screenName: 'WalletPage',
+                      );
+
+                  if (context.mounted) {
+                    await ref
+                        .read(adServiceProvider.notifier)
+                        .showInterstitialAd(context, force: true);
+                  }
+                }
+
+                messenger.showSnackBar(
+                  const SnackBar(
+                    content: Text('Dosya hazırlanıyor...'),
+                    backgroundColor: AppColors.primary,
+                    duration: Duration(seconds: 1),
+                  ),
+                );
+
+                try {
+                  await ExportService.exportToCsv(transactions);
+                } catch (e) {
+                  if (messenger.mounted) {
+                    messenger.showSnackBar(
+                      SnackBar(
+                        content:
+                            Text(AppStrings.tr(AppStrings.exportError, lc)),
+                        backgroundColor: AppColors.error,
+                      ),
+                    );
+                  }
+                }
+              },
+            ),
+            const SizedBox(height: 8),
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.red.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.picture_as_pdf, color: Colors.red),
+              ),
+              title: Text(AppStrings.tr(AppStrings.exportAsPdf, lc)),
+              subtitle: !isPro
+                  ? const Text(
+                      'Reklam sonrası indirebilirsin',
+                      style: TextStyle(fontSize: 11, color: Colors.grey),
+                    )
+                  : null,
+              onTap: () async {
+                final isPro = ref.read(isProUserProvider);
+                const featureKey = 'export_pdf';
+                final hasUsage = await ref
+                    .read(featureUsageProvider)
+                    .hasFreeUsageRemaining(featureKey);
+
+                if (!isPro && !hasUsage) {
+                  if (context.mounted) {
+                    Navigator.pop(context);
+                    _showProUpsellDialog(context, lc);
+                  }
+                  return;
+                }
+
+                if (context.mounted) {
+                  Navigator.pop(context);
+                }
+
+                if (!context.mounted) return;
+                final messenger = ScaffoldMessenger.of(context);
+                final transactions = ref.read(walletProvider);
+
+                // Track and show ad for free users
+                if (!isPro) {
+                  await ref.read(featureUsageProvider).trackUsage(featureKey);
+                  // Analytics: Free use
+                  await ref.read(analyticsServiceProvider).logEvent(
+                        name: 'pro_feature_free_use',
+                        category: 'monetization',
+                        properties: {'feature': featureKey},
+                        screenName: 'WalletPage',
+                      );
+
+                  if (context.mounted) {
+                    await ref
+                        .read(adServiceProvider.notifier)
+                        .showInterstitialAd(context, force: true);
+                  }
+                }
+
+                messenger.showSnackBar(
+                  const SnackBar(
+                    content: Text('Dosya hazırlanıyor...'),
+                    backgroundColor: AppColors.primary,
+                    duration: Duration(seconds: 1),
+                  ),
+                );
+
+                try {
+                  await ExportService.exportToPdf(transactions);
+                } catch (e) {
+                  if (messenger.mounted) {
+                    messenger.showSnackBar(
+                      SnackBar(
+                        content:
+                            Text(AppStrings.tr(AppStrings.exportError, lc)),
+                        backgroundColor: AppColors.error,
+                      ),
+                    );
+                  }
+                }
+              },
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildCollapsibleSection({
@@ -1166,5 +1513,10 @@ class _WalletPageState extends ConsumerState<WalletPage>
 
   String _getMonthName(int month, String lc) {
     return AppStrings.getMonthName(month, lc);
+  }
+
+  void _showProUpsellDialog(BuildContext context, String lc) {
+    ProFeatureGate.showUpsell(
+        context, AppStrings.tr(AppStrings.importStatementAi, lc));
   }
 }

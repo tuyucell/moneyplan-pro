@@ -14,6 +14,23 @@ class InvestmentPlanData {
   // Status
   bool isCompleted;
   String currencyCode;
+  String riskProfile;
+  Map<String, dynamic>? aiRecommendation;
+
+  String get currencyDisplay {
+    switch (currencyCode) {
+      case 'TRY':
+        return '₺';
+      case 'USD':
+        return '\$';
+      case 'EUR':
+        return '€';
+      case 'GBP':
+        return '£';
+      default:
+        return currencyCode;
+    }
+  }
 
   // Calculated fields
   double get monthlyAvailable => monthlyIncome - monthlyExpenses;
@@ -43,6 +60,8 @@ class InvestmentPlanData {
     this.monthlyInvestmentAmount = 0,
     this.isCompleted = false,
     this.currencyCode = 'TRY',
+    this.riskProfile = 'muhafazakar',
+    this.aiRecommendation,
   });
 
   InvestmentPlanData copyWith({
@@ -54,6 +73,8 @@ class InvestmentPlanData {
     double? monthlyInvestmentAmount,
     bool? isCompleted,
     String? currencyCode,
+    String? riskProfile,
+    Map<String, dynamic>? aiRecommendation,
   }) {
     return InvestmentPlanData(
       monthlyIncome: monthlyIncome ?? this.monthlyIncome,
@@ -65,6 +86,8 @@ class InvestmentPlanData {
           monthlyInvestmentAmount ?? this.monthlyInvestmentAmount,
       isCompleted: isCompleted ?? this.isCompleted,
       currencyCode: currencyCode ?? this.currencyCode,
+      riskProfile: riskProfile ?? this.riskProfile,
+      aiRecommendation: aiRecommendation ?? this.aiRecommendation,
     );
   }
 
@@ -78,6 +101,8 @@ class InvestmentPlanData {
       'monthlyInvestmentAmount': monthlyInvestmentAmount,
       'isCompleted': isCompleted,
       'currencyCode': currencyCode,
+      'riskProfile': riskProfile,
+      'aiRecommendation': aiRecommendation,
     };
   }
 
@@ -92,6 +117,10 @@ class InvestmentPlanData {
           (json['monthlyInvestmentAmount'] as num?)?.toDouble() ?? 0,
       isCompleted: json['isCompleted'] as bool? ?? false,
       currencyCode: json['currencyCode'] as String? ?? 'TRY',
+      riskProfile: json['riskProfile'] as String? ?? 'muhafazakar',
+      aiRecommendation: json['aiRecommendation'] != null
+          ? Map<String, dynamic>.from(json['aiRecommendation'])
+          : null,
     );
   }
 }

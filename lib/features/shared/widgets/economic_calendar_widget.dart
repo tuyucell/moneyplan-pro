@@ -29,8 +29,8 @@ class EconomicCalendarWidget extends ConsumerWidget {
               Text(
                 AppStrings.tr(AppStrings.economicCalendar, lc),
                 style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
                   color: AppColors.textPrimary(context),
                   letterSpacing: -0.5,
                 ),
@@ -64,6 +64,10 @@ class EconomicCalendarWidget extends ConsumerWidget {
           child: calendarAsync.when(
             data: (events) {
               if (events.isEmpty) {
+                // If we are currently fetching new data, show loading instead of empty message
+                if (calendarAsync.isLoading) {
+                  return const Center(child: CircularProgressIndicator());
+                }
                 return Center(
                   child: Text(
                     AppStrings.tr(AppStrings.insufficientData, lc),
@@ -86,6 +90,10 @@ class EconomicCalendarWidget extends ConsumerWidget {
                         _getLocalizedImpact(data['impact'] ?? 'Medium', lc),
                     currency: data['currency'] ?? 'USD',
                     flagUrl: data['flag_url'],
+                    actual: data['actual'] ?? '',
+                    forecast: data['forecast'] ?? '',
+                    previous: data['previous'] ?? '',
+                    unit: data['unit'] ?? '',
                   );
                   return _buildEventCard(context, event);
                 },
@@ -132,7 +140,7 @@ class EconomicCalendarWidget extends ConsumerWidget {
     }
 
     return Container(
-      width: 200,
+      width: 220,
       margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -200,7 +208,7 @@ class EconomicCalendarWidget extends ConsumerWidget {
           Text(
             event.title,
             style: TextStyle(
-              fontSize: 14,
+              fontSize: 13,
               fontWeight: FontWeight.bold,
               color: AppColors.textPrimary(context),
               height: 1.2,
@@ -208,23 +216,56 @@ class EconomicCalendarWidget extends ConsumerWidget {
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
-          Row(
-            children: [
-              Icon(Icons.access_time,
-                  size: 12, color: AppColors.textSecondary(context)),
-              const SizedBox(width: 4),
-              Text(
-                '${event.date}${event.date.isNotEmpty ? ' • ' : ''}${event.time}',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: AppColors.textSecondary(context),
-                  fontWeight: FontWeight.w500,
+          if (event.actual.isNotEmpty || event.forecast.isNotEmpty)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                if (event.actual.isNotEmpty && event.actual != 'null')
+                  _buildDataField(
+                      context, 'Act', '${event.actual}${event.unit}'),
+                if (event.forecast.isNotEmpty && event.forecast != 'null')
+                  _buildDataField(
+                      context, 'Frc', '${event.forecast}${event.unit}'),
+              ],
+            )
+          else
+            Row(
+              children: [
+                Icon(Icons.access_time,
+                    size: 12, color: AppColors.textSecondary(context)),
+                const SizedBox(width: 4),
+                Text(
+                  '${event.date} • ${event.time}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary(context),
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
         ],
       ),
+    );
+  }
+
+  Widget _buildDataField(BuildContext context, String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style:
+              TextStyle(fontSize: 9, color: AppColors.textSecondary(context)),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary(context)),
+        ),
+      ],
     );
   }
 }
@@ -237,6 +278,10 @@ class _Event {
   final String impactLabel;
   final String currency;
   final String? flagUrl;
+  final String actual;
+  final String forecast;
+  final String previous;
+  final String unit;
 
   _Event({
     required this.date,
@@ -246,5 +291,9 @@ class _Event {
     required this.impactLabel,
     required this.currency,
     this.flagUrl,
+    this.actual = '',
+    this.forecast = '',
+    this.previous = '',
+    this.unit = '',
   });
 }

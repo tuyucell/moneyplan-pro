@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:invest_guide/features/monetization/services/ad_service.dart';
 import 'package:invest_guide/core/i18n/app_strings.dart';
 import 'package:invest_guide/core/providers/language_provider.dart';
+import 'package:invest_guide/features/shared/widgets/notification_badge_icon.dart';
 
 class NewsListPage extends ConsumerStatefulWidget {
   const NewsListPage({super.key});
@@ -79,7 +80,11 @@ class _NewsListPageState extends ConsumerState<NewsListPage> {
         backgroundColor: AppColors.surface(context),
         foregroundColor: AppColors.textPrimary(context),
         elevation: 0,
-        centerTitle: true,
+        centerTitle: false,
+        actions: const [
+          NotificationBadgeIcon(),
+          SizedBox(width: 8),
+        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())

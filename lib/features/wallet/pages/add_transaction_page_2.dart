@@ -752,7 +752,13 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage>
 
     return InkWell(
       onTap: () {
-        setState(() => _recurrence = type);
+        setState(() {
+          _recurrence = type;
+          if (type != RecurrenceType.none && _recurrenceEndDate == null) {
+            final now = DateTime.now();
+            _recurrenceEndDate = DateTime(now.year, 12, 31);
+          }
+        });
         Navigator.pop(context);
       },
       borderRadius: BorderRadius.circular(12),
@@ -964,10 +970,11 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage>
       recurrenceEndDate: _recurrenceEndDate,
     );
 
+    final messenger = ScaffoldMessenger.of(context);
     await ref.read(walletProvider.notifier).addTransaction(transaction);
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         SnackBar(
           content: const Row(
             children: [

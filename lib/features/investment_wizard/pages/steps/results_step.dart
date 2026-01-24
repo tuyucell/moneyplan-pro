@@ -25,7 +25,7 @@ class ResultsStep extends ConsumerWidget {
     final notifier = ref.read(investmentPlanProvider.notifier);
     final results = notifier.calculateInvestmentPlan();
     final numberFormat = NumberFormat('#,##0', lc == 'tr' ? 'tr_TR' : 'en_US');
-    final currencySymbol = plan.currencyCode;
+    final currencySymbol = plan.currencyDisplay;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
@@ -86,14 +86,25 @@ class ResultsStep extends ConsumerWidget {
                           ),
                         ),
                         if (plan.hasDebt && plan.monthlyDebtPayment > 0)
-                          Text(
-                            lc == 'tr'
-                                ? '(${plan.monthsToPayOffDebt} ay sonra ${numberFormat.format(plan.potentialInvestmentAmount)} $currencySymbol)'
-                                : '(after ${plan.monthsToPayOffDebt} months ${numberFormat.format(plan.potentialInvestmentAmount)} $currencySymbol)',
-                            style: const TextStyle(
-                              color: Colors.white70,
-                              fontSize: 12,
-                              fontStyle: FontStyle.italic,
+                          Container(
+                            margin: const EdgeInsets.only(top: 6),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.3)),
+                            ),
+                            child: Text(
+                              lc == 'tr'
+                                  ? '(${plan.monthsToPayOffDebt} ay sonra başlayacak)'
+                                  : '(Starts in ${plan.monthsToPayOffDebt} months)',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                           ),
                       ],
@@ -148,6 +159,12 @@ class ResultsStep extends ConsumerWidget {
             values: results['projections']['5_years'],
             numberFormat: numberFormat,
             currencySymbol: currencySymbol,
+            selectedProfile: plan.riskProfile,
+            onProfileSelected: (profile) {
+              ref
+                  .read(investmentPlanProvider.notifier)
+                  .updateRiskProfile(profile);
+            },
           ),
           const SizedBox(height: 12),
           InvestmentProjectionCard(
@@ -155,6 +172,12 @@ class ResultsStep extends ConsumerWidget {
             values: results['projections']['10_years'],
             numberFormat: numberFormat,
             currencySymbol: currencySymbol,
+            selectedProfile: plan.riskProfile,
+            onProfileSelected: (profile) {
+              ref
+                  .read(investmentPlanProvider.notifier)
+                  .updateRiskProfile(profile);
+            },
           ),
           const SizedBox(height: 24),
 

@@ -1,6 +1,7 @@
 import os
 import requests
 import json
+import time
 from utils.cache import cache
 from dotenv import load_dotenv
 
@@ -10,7 +11,7 @@ class TwelveDataService:
     def __init__(self):
         self.api_key = os.getenv("TWELVEAPI_TOKEN")
         self.base_url = "https://api.twelvedata.com"
-        self.TTL = 60 # 1 dakika cache
+        self.TTL = 60 # 1 minute cache for individual symbols
         self.master_list_path = "backend/data/twelve_symbols.json"
         
         # Ensure data directory exists
@@ -18,13 +19,11 @@ class TwelveDataService:
 
     def sync_symbols(self):
         """
-        Günde bir kez veya manuel tetiklendiğinde sembol listelerini (BIST, US, Forex, Commodity) 
-        Twelve Data'dan çekip yerele kaydeder.
+        Sync symbols from Twelve Data once a day.
         """
         if not self.api_key: return False
         
         try:
-            # 1. Stocks (Turkey & US & Europe)
             symbols_data = {}
             countries = ["Turkey", "United States", "Germany", "United Kingdom"]
             
@@ -44,7 +43,6 @@ class TwelveDataService:
                             "type": item["type"]
                         }
 
-            # 2. Forex Pairs
             print("Fetching Forex pairs...")
             url = f"{self.base_url}/forex_pairs?apikey={self.api_key}"
             res = requests.get(url, timeout=60).json()
@@ -57,7 +55,6 @@ class TwelveDataService:
                         "type": "Forex"
                     }
 
-            # 3. Commodities
             print("Fetching Commodities...")
             url = f"{self.base_url}/commodities?apikey={self.api_key}"
             res = requests.get(url, timeout=60).json()
@@ -81,17 +78,32 @@ class TwelveDataService:
     def get_quotes(self, symbols: list):
         if not self.api_key: return {}
 
-        # Sembolleri standart Twelve formatına çevir
-        formatted_symbols = []
+        results = {}
+        to_fetch = []
         sym_map = {}
-        
-        # Yerel master listeyi yükle
+
+        # 1. Check Cache first
+        for s in symbols:
+            cache_key = f"td_quote_{s.upper()}"
+            cached_val = cache.get(cache_key)
+            if cached_val:
+                results[s] = cached_val
+            else:
+                to_fetch.append(s)
+
+        if not to_fetch:
+            return results
+
+        # 2. Prepare symbols for API
+        formatted_symbols = []
         master = {}
         if os.path.exists(self.master_list_path):
-            with open(self.master_list_path, "r", encoding="utf-8") as f:
-                master = json.load(f)
+            try:
+                with open(self.master_list_path, "r", encoding="utf-8") as f:
+                    master = json.load(f)
+            except: pass
 
-        for s in symbols:
+        for s in to_fetch:
             orig = s.upper().strip()
             target = orig
             
@@ -101,12 +113,11 @@ class TwelveDataService:
                     target = f"{orig}:{m['mic_code']}"
                 elif m.get("type") == "Forex" and "/" not in orig:
                     target = f"{orig}/TRY"
-            else:
-                if orig in ["USD", "EUR", "GBP", "CHF", "JPY", "CAD", "AUD", "DKK", "SEK", "NOK", "SAR"]:
-                    target = f"{orig}/TRY"
+            elif orig in ["USD", "EUR", "GBP", "CHF", "JPY", "CAD", "AUD", "DKK", "SEK", "NOK", "SAR"]:
+                target = f"{orig}/TRY"
             
             formatted_symbols.append(target)
-            sym_map[target] = orig
+            sym_map[target] = s
 
         try:
             sym_str = ",".join(formatted_symbols)
@@ -116,20 +127,27 @@ class TwelveDataService:
             
             if "status" in data and data["status"] == "error":
                 print(f"Twelve Data API Error: {data}")
-                return {}
+                return results # Return whatever we have from cache
 
-            results = {}
             if isinstance(data, dict):
                 if "symbol" in data:
-                    results[sym_map.get(formatted_symbols[0], symbols[0])] = self._parse_quote(data)
+                    item_data = self._parse_quote(data)
+                    if item_data:
+                        orig_sym = sym_map.get(formatted_symbols[0], symbols[0])
+                        results[orig_sym] = item_data
+                        cache.set(f"td_quote_{orig_sym.upper()}", item_data, ttl_seconds=self.TTL)
                 else:
                     for s_target, quote_data in data.items():
                         if isinstance(quote_data, dict) and quote_data.get("status") != "error":
-                            results[sym_map.get(s_target, s_target)] = self._parse_quote(quote_data)
+                            item_data = self._parse_quote(quote_data)
+                            if item_data:
+                                orig_sym = sym_map.get(s_target, s_target)
+                                results[orig_sym] = item_data
+                                cache.set(f"td_quote_{orig_sym.upper()}", item_data, ttl_seconds=self.TTL)
             return results
         except Exception as e:
             print(f"Twelve Data API Exception: {e}")
-            return {}
+            return results
 
     def _parse_quote(self, q):
         try:

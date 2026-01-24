@@ -58,6 +58,205 @@ class AIProcessingService {
   // AI Studio API Key
   static const String _apiKey = 'AIzaSyBARohwGZof8T3cfNhA75p0HfWr5sT7Iwg';
 
+  // Helper method to get the model
+  static GenerativeModel _getModel() {
+    return GenerativeModel(
+      model: 'gemini-2.0-flash',
+      apiKey: _apiKey,
+    );
+  }
+
+  static Future<String?> getPersonalizedAnalysis({
+    required double monthlyIncome,
+    required double monthlyExpenses,
+    required double remainingBalance,
+    required List portfolio,
+    required List bankAccounts,
+    required String currency,
+  }) async {
+    try {
+      final model = _getModel();
+      final prompt = '''
+Sen uzman bir finansal analistsin. Aşağıdaki kullanıcı verilerini incele ve kullanıcıya ÖZEL, AKSİYON ALINABİLİR ve MOTİVE EDİCİ bir finansal analiz raporu hazırla.
+
+Kullanıcı Verileri:
+- Aylık Gelir: $monthlyIncome $currency
+- Aylık Gider: $monthlyExpenses $currency
+- Kalan Bakiye: $remainingBalance $currency
+- Portföydeki Varlık Sayısı: ${portfolio.length}
+- Banka Hesap Sayısı: ${bankAccounts.length}
+
+Görev:
+1. Gelir/Gider dengesini yorumla (Bütçe açığı varsa acil önlemler öner).
+2. Portföy çeşitliliği hakkında görüş bildir.
+3. Finansal özgürlük yolunda bir sonraki hedef ne olmalı? (Örn: Acil durum fonu oluşturmak, borç kapatmak, yatırımı artırmak).
+4. Analizi 4-5 kısa paragraf veya madde işaretiyle sun.
+5. Samimi ama profesyonel bir dil kullan.
+
+Analizi doğrudan metin olarak döndür.
+''';
+
+      final content = [Content.text(prompt)];
+      final response = await model.generateContent(content);
+      return response.text;
+    } catch (e) {
+      debugPrint('AI Personalized Analysis Error: $e');
+      return null;
+    }
+  }
+
+  static Future<Map<String, dynamic>?> getInvestmentRecommendations({
+    required double monthlyIncome,
+    required double monthlyExpenses,
+    required double totalDebt,
+    required double monthlyInvestment,
+    required String currentProfile,
+    required String currency,
+  }) async {
+    try {
+      final model = _getModel();
+      final prompt = '''
+      Act as an expert financial advisor. Analyze the following user profile and return a JSON configuration for their investment plan.
+      
+      User Profile:
+      - Monthly Income: $monthlyIncome $currency
+      - Monthly Expenses: $monthlyExpenses $currency
+      - Total Debt: $totalDebt $currency
+      - Planned Investment: $monthlyInvestment $currency
+      - Calculated Risk Profile: $currentProfile
+
+      Task:
+      1. Determine the exact Risk Profile (Starter/Conservative, Balanced, or Aggressive) based on their financial capacity vs debt.
+      2. Provide a short, motivating description string (max 2 sentences).
+      3. Suggest an Asset Allocation (percentage split, total 100%). Keys MUST be these exact strings:
+         - 'Yabancı Hisseler' (Foreign Stocks)
+         - 'BIST 100' or 'BIST Popüler' (Turkish Stocks)
+         - 'Altın/Emtia' (Gold/Commodities)
+         - 'Eurobond' (Bonds)
+         - 'Para Piyasası' (Liquid Funds)
+         - 'Girişim Sermayesi' (Venture Capital - only for aggressive)
+      4. Suggest 5-6 valid ticker symbols (Assets) that fit this profile. 
+         - Use REAL and POPULAR symbols available in Turkey or US markets.
+         - Examples: THYAO, GARAN, ASELS, AAPL, TSLA, GLDTR, TCD, AFT, YAY, AFA.
+         - Mix of Funds (TEFAS codes like TCD, AFT, MAC) and Stocks.
+
+      Return ONLY valid JSON:
+      {
+        "profile": "Dengeli",
+        "description": "...",
+        "allocation": { "Yabancı Hisseler": 30, "BIST 100": 20, ... },
+        "suggestedAssets": ["AFT", "TCD", "THYAO", "GOLDT"]
+      }
+      ''';
+
+      final content = [Content.text(prompt)];
+      final response = await model.generateContent(content);
+      final text = response.text;
+
+      if (text != null) {
+        var jsonStr = text;
+        if (text.contains('```')) {
+          final match =
+              RegExp(r'```(?:json)?\s*(\{[\s\S]*?\})\s*```').firstMatch(text);
+          if (match != null) jsonStr = match.group(1)!;
+        }
+        return jsonDecode(jsonStr.trim());
+      }
+    } catch (e) {
+      debugPrint('AI Investment Rec Error: $e');
+    }
+    return null;
+  }
+
+  static Future<List<ProcessedDocument>?> processStatementContent({
+    required String text,
+    String? bankId,
+  }) async {
+    if (_apiKey == 'YOUR_GEMINI_API_KEY') return null;
+
+    final truncatedText = text.length > 15000 ? text.substring(0, 15000) : text;
+    final model = _getModel();
+
+    final prompt = '''
+Aşağıdaki metin bir banka hesap ekstresi veya kredi kartı borç detaylarıdır. Bu metinden TÜM harcamaları ve gelen paraları (işlemleri) ayıkla.
+
+Ekstre Metni:
+$truncatedText
+
+İnstructions:
+1. Her bir işlemi ayrı bir obje olarak bir liste içinde döndür.
+2. Sadece harcama ve gelirleri al (Bakiye bilgisi, limit bilgisi gibi şeyleri alma).
+3. 'amount': Sayısal değer. (Negatif ise gider, pozitif ise gelir olarak değerlendir ama JSON'da mutlak değer yaz, 'type' ile ayır).
+4. 'type': 'expense' veya 'income'.
+5. 'date': İşlem tarihi (YYYY-MM-DD).
+6. 'description': İşlem açıklaması.
+7. 'category': Aşağıdaki kategorilerden en uygun olanı seç:
+   - food_drink (Yemek/İçecek)
+   - shopping (Alışveriş)
+   - transportation (Ulaşım/Yakıt)
+   - bills (Faturalar)
+   - health (Sağlık)
+   - entertainment (Eğlence)
+   - salary (Maaş)
+   - transfer (Para Transferi)
+   - other_expense (Diğer)
+8. 'currency': TRY, USD, EUR vb.
+
+Döndüreceğin JSON formatı şöyle olsun:
+{
+  "transactions": [
+    {
+      "amount": 250.0,
+      "currency": "TRY",
+      "date": "2026-02-10",
+      "type": "expense",
+      "description": "STARBUCKS",
+      "category": "food_drink"
+    },
+    ...
+  ]
+}
+
+Sadece JSON döndür.
+''';
+
+    try {
+      final content = [Content.text(prompt)];
+      final response = await model
+          .generateContent(content)
+          .timeout(const Duration(seconds: 45));
+      final textResponse = response.text;
+
+      if (textResponse == null) return null;
+
+      var jsonStr = textResponse;
+      if (textResponse.contains('```')) {
+        final match = RegExp(r'```(?:json)?\s*(\{[\s\S]*?\})\s*```')
+            .firstMatch(textResponse);
+        if (match != null) jsonStr = match.group(1)!;
+      }
+
+      final data = jsonDecode(jsonStr.trim());
+      final List<dynamic> jsonList = data['transactions'] ?? [];
+
+      return jsonList.map((item) {
+        return ProcessedDocument(
+          amount: (item['amount'] as num).toDouble(),
+          currencyCode: item['currency'] ?? 'TRY',
+          date:
+              DateTime.parse(item['date'] ?? DateTime.now().toIso8601String()),
+          description: item['description'] ?? 'İşlem',
+          categoryId: item['category'] ?? 'other_expense',
+          hasData: true,
+          bankId: bankId,
+        );
+      }).toList();
+    } catch (e) {
+      debugPrint('AI Statement Processing Error: $e');
+      return null;
+    }
+  }
+
   static Future<ProcessedDocument?> processEmailContent({
     required String subject,
     required String body,
@@ -84,10 +283,7 @@ class AIProcessingService {
 
     // Use Gemini 2.0 or 2.5 models available in 2026
     var modelName = 'gemini-2.0-flash';
-    var model = GenerativeModel(
-      model: modelName,
-      apiKey: _apiKey,
-    );
+    var model = _getModel();
 
     final prompt = '''
 Aşağıdaki e-posta içeriği bir finansal işlem (ekstre, fatura, alım-satım) mi yoksa sadece bilgilendirme (uygulamadan bakın, mobil şubeye girin vb.) mi kontrol et ve verileri ayıkla.

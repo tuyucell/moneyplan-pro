@@ -158,6 +158,29 @@ class AppStrings {
   static const String deleteAllRecurrences = 'delete_all_recurrences';
   static const String transactionsCount = 'transactions_count';
   static const String noTransactionsFound = 'no_transactions_found';
+  static const String exportData = 'export_data';
+  static const String exportAsCsv = 'export_as_csv';
+  static const String exportAsPdf = 'export_as_pdf';
+  static const String exportSuccess = 'export_success';
+  static const String exportError = 'export_error';
+  static const String dataOperations = 'data_operations';
+  static const String importStatementAi = 'import_statement_ai';
+  static const String importStatementAiDesc = 'import_statement_ai_desc';
+  static const String parsingPdfError = 'parsing_pdf_error';
+  static const String transactionsAddedSuccessfully =
+      'transactions_added_successfully';
+  static const String analyzingAi = 'analyzing_ai';
+  static const String saveTransactions = 'save_transactions';
+  static const String uploadBankStatement = 'upload_bank_statement';
+  static const String uploadBankStatementDesc = 'upload_bank_statement_desc';
+  static const String selectPdfFile = 'select_pdf_file';
+  static const String aiAnalyst = 'ai_analyst';
+  static const String waitingForAnalysis = 'waiting_for_analysis';
+  static const String budgetDeficit = 'budget_deficit';
+  static const String balancedHealthy = 'balanced_healthy';
+  static const String askAi = 'ask_ai';
+  static const String aiAnalysis = 'ai_analysis';
+  static const String gotIt = 'got_it';
   static const String budgetGoalForMonth = 'budget_goal_for_month';
   static const String monthlyLimit = 'monthly_limit';
   static const String enterAmount = 'enter_amount';
@@ -325,6 +348,8 @@ class AppStrings {
   static const String signUp = 'sign_up';
   static const String signUpSoon = 'sign_up_soon';
   static const String priceAlertsTitle = 'price_alerts_title';
+  static const String activeAlerts = 'active_alerts';
+  static const String pastAlerts = 'past_alerts';
   static const String noAlertsYet = 'no_alerts_yet';
   static const String noAlertsDesc = 'no_alerts_desc';
   static const String alertDeleted = 'alert_deleted';
@@ -504,6 +529,7 @@ class AppStrings {
   static const String addedToWatchlistMsg = 'added_to_watchlist_msg';
   static const String returnHomeBtn = 'return_home_btn';
   static const String createNewPlanBtn = 'create_new_plan_btn';
+  static const String completeBtn = 'complete_btn';
   static const String welcomeInvestTitle = 'welcome_invest_title';
   static const String welcomeInvestDesc = 'welcome_invest_desc';
   static const String whyInvestTitle = 'why_invest_title';
@@ -565,8 +591,49 @@ class AppStrings {
   static const String daySat = 'day_sat';
   static const String daySun = 'day_sun';
 
+  // User Demographics
+  static const String birthYear = 'birth_year';
+  static const String gender = 'gender';
+  static const String occupation = 'occupation';
+  static const String financialGoalLabel = 'financial_goal_label';
+  static const String riskToleranceLabel = 'risk_tolerance_label';
+  static const String onboardingFinishTitle = 'onboarding_finish_title';
+  static const String onboardingFinishDesc = 'onboarding_finish_desc';
+  static const String genderMale = 'gender_male';
+  static const String genderFemale = 'gender_female';
+  static const String genderOther = 'gender_other';
+  static const String goalSavings = 'goal_savings';
+  static const String goalInvestment = 'goal_investment';
+  static const String goalRetirement = 'goal_retirement';
+  static const String goalDebt = 'goal_debt';
+  static const String riskLow = 'risk_low';
+  static const String riskMedium = 'risk_medium';
+  static const String riskHigh = 'risk_high';
+  static const String saveProfile = 'save_profile';
+  static const String selectOne = 'select_one';
+
   static const Map<String, Map<String, String>> _localizedValues = {
     'tr': {
+      birthYear: 'Doğum Yılı',
+      gender: 'Cinsiyet',
+      occupation: 'Meslek',
+      financialGoalLabel: 'Finansal Hedef',
+      riskToleranceLabel: 'Risk Toleransı',
+      onboardingFinishTitle: 'Sizi Daha İyi Tanıyalım',
+      onboardingFinishDesc:
+          'Size özel bir deneyim sunabilmemiz için lütfen aşağıdaki bilgileri doldurun.',
+      genderMale: 'Erkek',
+      genderFemale: 'Kadın',
+      genderOther: 'Diğer',
+      goalSavings: 'Birikim Yapmak',
+      goalInvestment: 'Yatırım Getirisi',
+      goalRetirement: 'Emeklilik Planı',
+      goalDebt: 'Borç Ödemek',
+      riskLow: 'Düşük (Korumacı)',
+      riskMedium: 'Orta (Dengeli)',
+      riskHigh: 'Yüksek (Büyüme)',
+      saveProfile: 'Profili Tamamla',
+      selectOne: 'Seçiniz',
       add: 'Ekle',
       watchlistTitle: 'İZLEME LİSTEM',
       emptyListTitle: 'Liste Boş',
@@ -725,6 +792,29 @@ class AppStrings {
       deleteAllRecurrences: 'Tüm Tekrarlamaları Sil',
       transactionsCount: 'İşlem',
       noTransactionsFound: 'İşlem bulunamadı',
+      exportData: 'Verileri Dışa Aktar',
+      exportAsCsv: 'CSV (Excel) Olarak İndir',
+      exportAsPdf: 'PDF Olarak İndir',
+      exportSuccess: 'Veriler başarıyla kaydedildi',
+      exportError: 'Dışa aktarma sırasında bir hata oluştu',
+      dataOperations: 'Veri İşlemleri',
+      importStatementAi: 'Ekstre İçe Aktar (AI)',
+      importStatementAiDesc: 'Banka PDF ekstrenizden işlemleri ayıklar',
+      parsingPdfError: 'Hata: PDF işlenemedi',
+      transactionsAddedSuccessfully: 'işlem başarıyla eklendi',
+      analyzingAi: 'AI İşlemleri Ayıklıyor...',
+      saveTransactions: 'İşlemleri Kaydet',
+      uploadBankStatement: 'Banka Ekstrenizi Yükleyin',
+      uploadBankStatementDesc:
+          'PDF formatındaki ekstrenizdeki tüm harcamalar AI tarafından otomatik olarak ayıklanacaktır.',
+      selectPdfFile: 'Dosya Seç (PDF)',
+      aiAnalyst: 'AI Finansal Danışman',
+      waitingForAnalysis: 'Analiz Bekliyor',
+      budgetDeficit: 'Bütçe Açığı Var',
+      balancedHealthy: 'Dengeli & Sağlıklı',
+      askAi: 'Sor',
+      aiAnalysis: 'Yapay Zeka Analizi',
+      gotIt: 'Anladım',
       budgetGoalForMonth: 'Bütçe Hedefi Koy',
       monthlyLimit: 'Aylık Limit',
       enterAmount: 'Miktar Girin',
@@ -901,6 +991,8 @@ class AppStrings {
       signUp: 'Kayıt Ol',
       signUpSoon: 'Kayıt olma özelliği yakında!',
       priceAlertsTitle: 'Fiyat Alarmları',
+      activeAlerts: 'Aktif Alarmlar',
+      pastAlerts: 'Geçmiş Alarmlar',
       noAlertsYet: 'Henüz hiç alarmın yok',
       noAlertsDesc: 'Varlık detaylarına giderek yeni alarm ekleyebilirsin.',
       alertDeleted: 'Alarm silindi',
@@ -1095,6 +1187,7 @@ class AppStrings {
       addedToWatchlistMsg: 'izleme listesine eklendi',
       returnHomeBtn: 'Ana Sayfaya Dön',
       createNewPlanBtn: 'Yeni Plan Oluştur',
+      completeBtn: 'Tamamla',
       welcomeInvestTitle: 'Yatırıma Hoş Geldiniz!',
       welcomeInvestDesc:
           'Birkaç basit adımda size özel yatırım planınızı oluşturalım.',
@@ -1163,6 +1256,26 @@ class AppStrings {
       select: 'Seçiniz',
     },
     'en': {
+      birthYear: 'Birth Year',
+      gender: 'Gender',
+      occupation: 'Occupation',
+      financialGoalLabel: 'Financial Goal',
+      riskToleranceLabel: 'Risk Tolerance',
+      onboardingFinishTitle: 'Let Us Get to Know You',
+      onboardingFinishDesc:
+          'Please fill in the information below so we can provide a personalized experience.',
+      genderMale: 'Male',
+      genderFemale: 'Female',
+      genderOther: 'Other',
+      goalSavings: 'Saving Money',
+      goalInvestment: 'Investment Returns',
+      goalRetirement: 'Retirement Plan',
+      goalDebt: 'Paying Debt',
+      riskLow: 'Low (Conservative)',
+      riskMedium: 'Medium (Balanced)',
+      riskHigh: 'High (Growth)',
+      saveProfile: 'Complete Profile',
+      selectOne: 'Select One',
       add: 'Add',
       navMarkets: 'Markets',
       navWallet: 'Wallet',
@@ -1319,8 +1432,30 @@ class AppStrings {
       markAsPaid: 'Mark as Paid',
       deleteThisMonthOnly: 'Delete This Month Only',
       deleteAllRecurrences: 'Delete All Recurrences',
-      transactionsCount: 'Transactions',
-      noTransactionsFound: 'No transactions found',
+      exportData: 'Export Data',
+      exportAsCsv: 'Download as CSV (Excel)',
+      exportAsPdf: 'Download as PDF',
+      exportSuccess: 'Data exported successfully',
+      exportError: 'An error occurred during export',
+      dataOperations: 'Data Operations',
+      importStatementAi: 'Import Statement (AI)',
+      importStatementAiDesc:
+          'Extracts transactions from your bank PDF statement',
+      parsingPdfError: 'Error: Failed to process PDF',
+      transactionsAddedSuccessfully: 'transactions added successfully',
+      analyzingAi: 'AI is extracting transactions...',
+      saveTransactions: 'Save Transactions',
+      uploadBankStatement: 'Upload Bank Statement',
+      uploadBankStatementDesc:
+          'All expenses in your PDF statement will be automatically extracted by AI.',
+      selectPdfFile: 'Select File (PDF)',
+      aiAnalyst: 'AI Financial Advisor',
+      waitingForAnalysis: 'Waiting for Analysis',
+      budgetDeficit: 'Budget Deficit Found',
+      balancedHealthy: 'Balanced & Healthy',
+      askAi: 'Ask',
+      aiAnalysis: 'AI Analysis',
+      gotIt: 'Got it',
       budgetGoalForMonth: 'Set Budget Goal',
       monthlyLimit: 'Monthly Limit',
       enterAmount: 'Enter Amount',
@@ -1498,6 +1633,8 @@ class AppStrings {
       signUp: 'Sign Up',
       signUpSoon: 'Sign up feature coming soon!',
       priceAlertsTitle: 'Price Alerts',
+      activeAlerts: 'Active Alerts',
+      pastAlerts: 'Alert History',
       noAlertsYet: 'You have no alerts yet',
       noAlertsDesc: 'You can add new alerts by going to asset details.',
       alertDeleted: 'Alert removed',
@@ -1692,6 +1829,7 @@ class AppStrings {
       addedToWatchlistMsg: 'added to watchlist',
       returnHomeBtn: 'Return to Home',
       createNewPlanBtn: 'Create New Plan',
+      completeBtn: 'Complete',
       welcomeInvestTitle: 'Welcome to Investing!',
       welcomeInvestDesc:
           'Let\'s create your personalized investment plan in a few simple steps.',

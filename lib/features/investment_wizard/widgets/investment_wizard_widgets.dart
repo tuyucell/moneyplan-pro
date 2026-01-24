@@ -192,12 +192,17 @@ class InvestmentProjectionCard extends ConsumerWidget {
   final NumberFormat numberFormat;
   final String currencySymbol;
 
+  final String selectedProfile;
+  final Function(String) onProfileSelected;
+
   const InvestmentProjectionCard({
     super.key,
     required this.period,
     required this.values,
     required this.numberFormat,
-    this.currencySymbol = '₺', // Default for now, but should be passed
+    required this.selectedProfile,
+    required this.onProfileSelected,
+    this.currencySymbol = '₺',
   });
 
   String _formatCurrency(double amount) {
@@ -258,6 +263,9 @@ class InvestmentProjectionCard extends ConsumerWidget {
             color: AppColors.success,
             formatter: _formatCurrency,
             currencySymbol: currencySymbol,
+            isSelected: selectedProfile == 'muhafazakar' ||
+                selectedProfile == 'starter',
+            onTap: () => onProfileSelected('muhafazakar'),
           ),
           const SizedBox(height: 12),
           _ProjectionRow(
@@ -268,6 +276,9 @@ class InvestmentProjectionCard extends ConsumerWidget {
             color: AppColors.warning,
             formatter: _formatCurrency,
             currencySymbol: currencySymbol,
+            isSelected:
+                selectedProfile == 'dengeli' || selectedProfile == 'balanced',
+            onTap: () => onProfileSelected('dengeli'),
           ),
           const SizedBox(height: 12),
           _ProjectionRow(
@@ -278,6 +289,9 @@ class InvestmentProjectionCard extends ConsumerWidget {
             color: AppColors.error,
             formatter: _formatCurrency,
             currencySymbol: currencySymbol,
+            isSelected:
+                selectedProfile == 'agresif' || selectedProfile == 'aggressive',
+            onTap: () => onProfileSelected('agresif'),
           ),
         ],
       ),
@@ -292,6 +306,8 @@ class _ProjectionRow extends StatelessWidget {
   final Color color;
   final String Function(double) formatter;
   final String currencySymbol;
+  final bool isSelected;
+  final VoidCallback onTap;
 
   const _ProjectionRow({
     required this.label,
@@ -300,54 +316,74 @@ class _ProjectionRow extends StatelessWidget {
     required this.color,
     required this.formatter,
     required this.currencySymbol,
+    required this.isSelected,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final profit = value - totalInvested;
-    // ignore: unused_local_variable
-    final isPositive = profit >= 0;
 
-    return Row(
-      children: [
-        Expanded(
-          flex: 4,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 13,
-                  color: AppColors.textSecondary(context),
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                '+${formatter(profit)} $currencySymbol',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: color,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: isSelected ? color.withValues(alpha: 0.1) : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color:
+                isSelected ? color.withValues(alpha: 0.3) : Colors.transparent,
+            width: 1,
           ),
         ),
-        Expanded(
-          flex: 3,
-          child: Text(
-            '${formatter(value)} $currencySymbol',
-            textAlign: TextAlign.end,
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary(context),
+        child: Row(
+          children: [
+            Expanded(
+              flex: 4,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: isSelected
+                          ? AppColors.textPrimary(context)
+                          : AppColors.textSecondary(context),
+                      fontWeight:
+                          isSelected ? FontWeight.bold : FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '+${formatter(profit)} $currencySymbol',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: color,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
+            Expanded(
+              flex: 3,
+              child: Text(
+                '${formatter(value)} $currencySymbol',
+                textAlign: TextAlign.end,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary(context),
+                ),
+              ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }

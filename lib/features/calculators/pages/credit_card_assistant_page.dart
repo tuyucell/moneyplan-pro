@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:invest_guide/core/constants/colors.dart';
 import 'package:invest_guide/core/i18n/app_strings.dart';
 import 'package:invest_guide/core/providers/language_provider.dart';
+import 'package:invest_guide/services/analytics/analytics_service.dart';
 
 class CreditCardAssistantPage extends ConsumerStatefulWidget {
   const CreditCardAssistantPage({super.key});
@@ -23,6 +24,16 @@ class _CreditCardAssistantPageState
   void initState() {
     super.initState();
     _calculate();
+
+    // Analytics: Track tool usage
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(analyticsServiceProvider).logEvent(
+            name: 'tool_usage',
+            category: 'feature_usage',
+            properties: {'tool': 'credit_card_assistant'},
+            screenName: 'CreditCardAssistantPage',
+          );
+    });
   }
 
   void _calculate() {

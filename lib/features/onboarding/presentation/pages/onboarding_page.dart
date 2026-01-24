@@ -6,6 +6,8 @@ import 'package:invest_guide/core/router/app_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:invest_guide/core/i18n/app_strings.dart';
 import 'package:invest_guide/core/providers/language_provider.dart';
+import 'package:invest_guide/features/auth/presentation/providers/auth_providers.dart';
+import 'package:invest_guide/features/auth/data/models/user_model.dart';
 
 class OnboardingPage extends ConsumerStatefulWidget {
   const OnboardingPage({super.key});
@@ -61,8 +63,14 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
   Future<void> _finishOnboarding() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('has_seen_onboarding', true);
+
     if (mounted) {
-      context.go(AppRouter.home);
+      final authState = ref.read(authNotifierProvider);
+      if (authState is AuthAuthenticated) {
+        context.go(AppRouter.userDetails);
+      } else {
+        context.go(AppRouter.home);
+      }
     }
   }
 
@@ -81,7 +89,9 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
               alignment: Alignment.topRight,
               child: TextButton(
                 onPressed: _finishOnboarding,
-                child: Text(AppStrings.tr(AppStrings.btnSkip, lc), style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
+                child: Text(AppStrings.tr(AppStrings.btnSkip, lc),
+                    style: const TextStyle(
+                        color: Colors.grey, fontWeight: FontWeight.bold)),
               ),
             ),
             Expanded(
@@ -140,46 +150,52 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
               flex: 1,
               child: Column(
                 children: [
-                   Row(
-                     mainAxisAlignment: MainAxisAlignment.center,
-                     children: List.generate(
-                       items.length,
-                       (index) => AnimatedContainer(
-                         duration: const Duration(milliseconds: 300),
-                         margin: const EdgeInsets.symmetric(horizontal: 4),
-                         height: 8,
-                         width: _currentPage == index ? 24 : 8,
-                         decoration: BoxDecoration(
-                           color: _currentPage == index ? AppColors.primary : AppColors.grey300,
-                           borderRadius: BorderRadius.circular(4),
-                         ),
-                       ),
-                     ),
-                   ),
-                   const Spacer(),
-                   Padding(
-                     padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-                     child: SizedBox(
-                       width: double.infinity,
-                       height: 56,
-                       child: ElevatedButton(
-                         onPressed: () => _onNext(items.length),
-                         style: ElevatedButton.styleFrom(
-                           backgroundColor: AppColors.primary,
-                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                           elevation: 0,
-                         ),
-                         child: Text(
-                           _currentPage == items.length - 1 ? AppStrings.tr(AppStrings.btnStart, lc) : AppStrings.tr(AppStrings.btnContinue, lc),
-                           style: const TextStyle(
-                             fontSize: 18,
-                             fontWeight: FontWeight.bold,
-                             color: Colors.white,
-                           ),
-                         ),
-                       ),
-                     ),
-                   ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(
+                      items.length,
+                      (index) => AnimatedContainer(
+                        duration: const Duration(milliseconds: 300),
+                        margin: const EdgeInsets.symmetric(horizontal: 4),
+                        height: 8,
+                        width: _currentPage == index ? 24 : 8,
+                        decoration: BoxDecoration(
+                          color: _currentPage == index
+                              ? AppColors.primary
+                              : AppColors.grey300,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 24, vertical: 32),
+                    child: SizedBox(
+                      width: double.infinity,
+                      height: 56,
+                      child: ElevatedButton(
+                        onPressed: () => _onNext(items.length),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16)),
+                          elevation: 0,
+                        ),
+                        child: Text(
+                          _currentPage == items.length - 1
+                              ? AppStrings.tr(AppStrings.btnStart, lc)
+                              : AppStrings.tr(AppStrings.btnContinue, lc),
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -196,5 +212,9 @@ class _OnboardingItem {
   final IconData icon;
   final Color color;
 
-  _OnboardingItem({required this.title, required this.description, required this.icon, required this.color});
+  _OnboardingItem(
+      {required this.title,
+      required this.description,
+      required this.icon,
+      required this.color});
 }

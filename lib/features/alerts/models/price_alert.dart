@@ -1,13 +1,14 @@
-
 class PriceAlert {
   final String id;
   final String assetId;
   final String symbol;
   final String name;
   final double targetPrice;
-  final bool isAbove; // true: alert when price goes *above* target. false: when *below*.
+  final bool
+      isAbove; // true: alert when price goes *above* target. false: when *below*.
   final bool isActive;
   final DateTime createdAt;
+  final DateTime? lastTriggeredAt;
 
   PriceAlert({
     required this.id,
@@ -18,6 +19,7 @@ class PriceAlert {
     required this.isAbove,
     this.isActive = true,
     DateTime? createdAt,
+    this.lastTriggeredAt,
   }) : createdAt = createdAt ?? DateTime.now();
 
   PriceAlert copyWith({
@@ -29,6 +31,7 @@ class PriceAlert {
     bool? isAbove,
     bool? isActive,
     DateTime? createdAt,
+    DateTime? lastTriggeredAt,
   }) {
     return PriceAlert(
       id: id ?? this.id,
@@ -39,6 +42,7 @@ class PriceAlert {
       isAbove: isAbove ?? this.isAbove,
       isActive: isActive ?? this.isActive,
       createdAt: createdAt ?? this.createdAt,
+      lastTriggeredAt: lastTriggeredAt ?? this.lastTriggeredAt,
     );
   }
 
@@ -52,6 +56,7 @@ class PriceAlert {
       'isAbove': isAbove,
       'isActive': isActive,
       'createdAt': createdAt.toIso8601String(),
+      'lastTriggeredAt': lastTriggeredAt?.toIso8601String(),
     };
   }
 
@@ -62,9 +67,12 @@ class PriceAlert {
       symbol: json['symbol'],
       name: json['name'],
       targetPrice: (json['targetPrice'] as num).toDouble(),
-      isAbove: json['isAbove'],
-      isActive: json['isActive'],
+      isAbove: json['isAbove'] ?? true,
+      isActive: json['isActive'] ?? true,
       createdAt: DateTime.parse(json['createdAt']),
+      lastTriggeredAt: json['lastTriggeredAt'] != null
+          ? DateTime.parse(json['lastTriggeredAt'])
+          : null,
     );
   }
 }

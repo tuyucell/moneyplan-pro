@@ -30,7 +30,8 @@ class _AddAlertDialogState extends ConsumerState<AddAlertDialog> {
   @override
   void initState() {
     super.initState();
-    _priceController = TextEditingController(text: widget.currentPrice.toString());
+    _priceController =
+        TextEditingController(text: widget.currentPrice.toString());
   }
 
   @override
@@ -49,12 +50,14 @@ class _AddAlertDialogState extends ConsumerState<AddAlertDialog> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       title: Row(
         children: [
-          const Icon(Icons.notifications_active_outlined, color: AppColors.primary),
+          const Icon(Icons.notifications_active_outlined,
+              color: AppColors.primary),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               '${widget.symbol} ${AppStrings.tr(AppStrings.symbolAlertTitle, lc)}',
-              style: TextStyle(color: AppColors.textPrimary(context), fontSize: 18),
+              style: TextStyle(
+                  color: AppColors.textPrimary(context), fontSize: 18),
             ),
           ),
         ],
@@ -64,17 +67,17 @@ class _AddAlertDialogState extends ConsumerState<AddAlertDialog> {
         children: [
           Text(
             AppStrings.tr(AppStrings.notifyWhenPriceReaches, lc),
-            style: TextStyle(color: AppColors.textSecondary(context), fontSize: 14),
+            style: TextStyle(
+                color: AppColors.textSecondary(context), fontSize: 14),
           ),
           const SizedBox(height: 16),
           TextField(
             controller: _priceController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             style: TextStyle(
-              fontSize: 24, 
-              fontWeight: FontWeight.bold, 
-              color: AppColors.textPrimary(context)
-            ),
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary(context)),
             textAlign: TextAlign.center,
             decoration: InputDecoration(
               prefixText: '\$ ',
@@ -86,70 +89,100 @@ class _AddAlertDialogState extends ConsumerState<AddAlertDialog> {
               ),
             ),
             onChanged: (val) {
-               setState(() {}); 
+              setState(() {});
             },
           ),
           const SizedBox(height: 12),
-          
           Row(
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              InkWell(
-                onTap: () => setState(() => _isAbove = false),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: !_isAbove ? AppColors.error.withValues(alpha: 0.1) : Colors.transparent,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: !_isAbove ? AppColors.error : AppColors.border(context)),
-                  ),
-                  child: Row(
-                    children: [
-                       Icon(Icons.trending_down, size: 16, color: !_isAbove ? AppColors.error : AppColors.textSecondary(context)),
-                       const SizedBox(width: 4),
-                       Text(
-                         AppStrings.tr(AppStrings.whenPriceDropsBelow, lc), 
-                         style: TextStyle(
-                           color: !_isAbove ? AppColors.error : AppColors.textSecondary(context), 
-                           fontWeight: FontWeight.bold, 
-                           fontSize: 12
-                         )
-                       ),
-                    ],
+              Expanded(
+                child: InkWell(
+                  onTap: () => setState(() => _isAbove = false),
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: !_isAbove
+                          ? AppColors.error.withValues(alpha: 0.1)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                          color: !_isAbove
+                              ? AppColors.error
+                              : AppColors.border(context)),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.trending_down,
+                            size: 16,
+                            color: !_isAbove
+                                ? AppColors.error
+                                : AppColors.textSecondary(context)),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(
+                            AppStrings.tr(AppStrings.whenPriceDropsBelow, lc),
+                            style: TextStyle(
+                                color: !_isAbove
+                                    ? AppColors.error
+                                    : AppColors.textSecondary(context),
+                                fontWeight: FontWeight.bold,
+                                fontSize: 11),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
-              InkWell(
-                onTap: () => setState(() => _isAbove = true),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: _isAbove ? AppColors.success.withValues(alpha: 0.1) : Colors.transparent,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: _isAbove ? AppColors.success : AppColors.border(context)),
-                  ),
-                  child: Row(
-                    children: [
-                       Icon(Icons.trending_up, size: 16, color: _isAbove ? AppColors.success : AppColors.textSecondary(context)),
-                       const SizedBox(width: 4),
-                       Text(
-                         AppStrings.tr(AppStrings.whenPriceRisesAbove, lc), 
-                         style: TextStyle(
-                           color: _isAbove ? AppColors.success : AppColors.textSecondary(context), 
-                           fontWeight: FontWeight.bold, 
-                           fontSize: 12
-                         )
-                       ),
-                    ],
+              const SizedBox(width: 8),
+              Expanded(
+                child: InkWell(
+                  onTap: () => setState(() => _isAbove = true),
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: _isAbove
+                          ? AppColors.success.withValues(alpha: 0.1)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                          color: _isAbove
+                              ? AppColors.success
+                              : AppColors.border(context)),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.trending_up,
+                            size: 16,
+                            color: _isAbove
+                                ? AppColors.success
+                                : AppColors.textSecondary(context)),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(
+                            AppStrings.tr(AppStrings.whenPriceRisesAbove, lc),
+                            style: TextStyle(
+                                color: _isAbove
+                                    ? AppColors.success
+                                    : AppColors.textSecondary(context),
+                                fontWeight: FontWeight.bold,
+                                fontSize: 11),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
             ],
           ),
-          
           const SizedBox(height: 12),
-
           Container(
             padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
             decoration: BoxDecoration(
@@ -157,40 +190,46 @@ class _AddAlertDialogState extends ConsumerState<AddAlertDialog> {
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
-               _isAbove 
-                 ? AppStrings.tr(AppStrings.alertSetupInfoAbove, lc).replaceFirst('{}', _priceController.text) 
-                 : AppStrings.tr(AppStrings.alertSetupInfoBelow, lc).replaceFirst('{}', _priceController.text),
-               textAlign: TextAlign.center,
-               style: TextStyle(fontSize: 12, color: AppColors.textSecondary(context)),
+              _isAbove
+                  ? AppStrings.tr(AppStrings.alertSetupInfoAbove, lc)
+                      .replaceFirst('{}', _priceController.text)
+                  : AppStrings.tr(AppStrings.alertSetupInfoBelow, lc)
+                      .replaceFirst('{}', _priceController.text),
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                  fontSize: 12, color: AppColors.textSecondary(context)),
             ),
           ),
           const SizedBox(height: 8),
-           Text(
+          Text(
             '${AppStrings.tr(AppStrings.currentPriceShort, lc)}: \$${widget.currentPrice}',
-            style: TextStyle(color: AppColors.textTertiary(context), fontSize: 12),
+            style:
+                TextStyle(color: AppColors.textTertiary(context), fontSize: 12),
           ),
         ],
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: Text(AppStrings.tr(AppStrings.cancel, lc), style: TextStyle(color: AppColors.textSecondary(context))),
+          child: Text(AppStrings.tr(AppStrings.cancel, lc),
+              style: TextStyle(color: AppColors.textSecondary(context))),
         ),
         ElevatedButton(
           onPressed: () {
             final target = double.tryParse(_priceController.text);
             if (target != null && target > 0) {
               ref.read(alertsProvider.notifier).addAlert(
-                assetId: widget.assetId,
-                symbol: widget.symbol,
-                name: widget.name,
-                targetPrice: target,
-                isAbove: _isAbove,
-              );
+                    assetId: widget.assetId,
+                    symbol: widget.symbol,
+                    name: widget.name,
+                    targetPrice: target,
+                    isAbove: _isAbove,
+                  );
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('${widget.symbol} ${AppStrings.tr(AppStrings.alertSetSuccess, lc)}'),
+                  content: Text(
+                      '${widget.symbol} ${AppStrings.tr(AppStrings.alertSetSuccess, lc)}'),
                   backgroundColor: AppColors.primary,
                 ),
               );
@@ -198,9 +237,11 @@ class _AddAlertDialogState extends ConsumerState<AddAlertDialog> {
           },
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.primary,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
-          child: Text(AppStrings.tr(AppStrings.createAlertBtn, lc), style: const TextStyle(color: Colors.white)),
+          child: Text(AppStrings.tr(AppStrings.createAlertBtn, lc),
+              style: const TextStyle(color: Colors.white)),
         ),
       ],
     );

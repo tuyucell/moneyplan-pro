@@ -145,6 +145,7 @@ class _EmailSyncPageState extends ConsumerState<EmailSyncPage>
   }
 
   Future<void> _clearHistory() async {
+    final messenger = ScaffoldMessenger.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -172,11 +173,9 @@ class _EmailSyncPageState extends ConsumerState<EmailSyncPage>
         setState(() {
           _processedHistory = [];
         });
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Tarama geçmişi temizlendi.')),
-          );
-        }
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Tarama geçmişi temizlendi.')),
+        );
       } catch (e) {
         debugPrint('Clear History Error: $e');
       }
@@ -184,6 +183,7 @@ class _EmailSyncPageState extends ConsumerState<EmailSyncPage>
   }
 
   Future<void> _handleGmailSignIn() async {
+    final messenger = ScaffoldMessenger.of(context);
     final user = await GmailSyncService.signIn();
     if (!mounted) return;
     setState(() {
@@ -193,8 +193,7 @@ class _EmailSyncPageState extends ConsumerState<EmailSyncPage>
       // Sync with integration provider
       await ref.read(emailIntegrationProvider.notifier).setGmailConnected(true);
 
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         SnackBar(
             content: Text(
                 'Hoş geldin ${user.displayName}! Gmail bağlantısı başarılı.')),
@@ -218,6 +217,7 @@ class _EmailSyncPageState extends ConsumerState<EmailSyncPage>
     setState(() => _isScanning = true);
 
     try {
+      final messenger = ScaffoldMessenger.of(context);
       final messages = await GmailSyncService.searchFinancialEmails(
         startDate: _scanStartDate,
         customKeywords: _keywords,
@@ -256,7 +256,7 @@ class _EmailSyncPageState extends ConsumerState<EmailSyncPage>
         _foundEmails = details;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         SnackBar(
             content: Text(
                 '${messages.length} ileti bulundu. ${_foundEmails.length} tanesi listelendi.')),
@@ -273,6 +273,7 @@ class _EmailSyncPageState extends ConsumerState<EmailSyncPage>
   }
 
   Future<void> _processSelected() async {
+    final messenger = ScaffoldMessenger.of(context);
     final approvedList =
         _foundEmails.where((e) => e['approved'] == true).toList();
     if (approvedList.isEmpty) return;
@@ -389,7 +390,7 @@ class _EmailSyncPageState extends ConsumerState<EmailSyncPage>
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           SnackBar(content: Text('Hata: $e')),
         );
       }

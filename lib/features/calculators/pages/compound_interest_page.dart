@@ -8,6 +8,7 @@ import 'package:invest_guide/core/utils/currency_input_formatter.dart';
 import 'package:intl/intl.dart';
 import 'package:invest_guide/core/i18n/app_strings.dart';
 import 'package:invest_guide/core/providers/language_provider.dart';
+import 'package:invest_guide/services/analytics/analytics_service.dart';
 
 class CompoundInterestPage extends ConsumerStatefulWidget {
   const CompoundInterestPage({super.key});
@@ -21,7 +22,7 @@ class _CompoundInterestPageState extends ConsumerState<CompoundInterestPage> {
   final _initialAmountController = TextEditingController(text: '10000');
   final _monthlyContributionController = TextEditingController(text: '1000');
   final _interestRateController = TextEditingController(text: '10');
-  final _yearsController = TextEditingController(text: '10');
+  final _monthsController = TextEditingController(text: '120');
   final _inflationController = TextEditingController(text: '0');
   final _contributionIncreaseController = TextEditingController(text: '0');
 
@@ -36,7 +37,16 @@ class _CompoundInterestPageState extends ConsumerState<CompoundInterestPage> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _calculate());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _calculate();
+      // Analytics: Track tool usage
+      ref.read(analyticsServiceProvider).logEvent(
+            name: 'tool_usage',
+            category: 'feature_usage',
+            properties: {'tool': 'compound_interest'},
+            screenName: 'CompoundInterestPage',
+          );
+    });
   }
 
   @override
@@ -44,7 +54,7 @@ class _CompoundInterestPageState extends ConsumerState<CompoundInterestPage> {
     _initialAmountController.dispose();
     _monthlyContributionController.dispose();
     _interestRateController.dispose();
-    _yearsController.dispose();
+    _monthsController.dispose();
     _inflationController.dispose();
     _contributionIncreaseController.dispose();
     super.dispose();
@@ -64,32 +74,40 @@ class _CompoundInterestPageState extends ConsumerState<CompoundInterestPage> {
         0;
     final rate =
         double.tryParse(_interestRateController.text.replaceAll(',', '.')) ?? 0;
-    final years = int.tryParse(_yearsController.text) ?? 0;
+    final totalMonthsCount = int.tryParse(_monthsController.text) ?? 0;
 
     final inflation = parseRate(_inflationController.text);
     final contributionIncrease =
         parseRate(_contributionIncreaseController.text);
 
-    if (years <= 0) return;
+    if (totalMonthsCount <= 0) return;
 
     var currentVal = principal;
     var totalContributed = principal;
     var spots = <FlSpot>[FlSpot(0, principal)];
 
-    for (var i = 1; i <= years; i++) {
-      for (var m = 0; m < 12; m++) {
-        currentVal += monthly;
-        totalContributed += monthly;
-        currentVal *= (1 + (rate / 100) / 12);
-      }
-      spots.add(FlSpot(i.toDouble(), currentVal));
+    // We still want yearly spots for the chart
+    final totalYears = totalMonthsCount / 12;
 
-      if (contributionIncrease > 0) {
+    for (var i = 1; i <= totalMonthsCount; i++) {
+      currentVal += monthly;
+      totalContributed += monthly;
+      currentVal *= (1 + (rate / 100) / 12);
+
+      // Add spot every 12 months (each year) or at the very end
+      if (i % 12 == 0) {
+        spots.add(FlSpot((i / 12).toDouble(), currentVal));
+      } else if (i == totalMonthsCount) {
+        spots.add(FlSpot((i / 12).toDouble(), currentVal));
+      }
+
+      // Handle annual contribution increase every 12 months
+      if (contributionIncrease > 0 && i % 12 == 0) {
         monthly = monthly * (1 + contributionIncrease / 100);
       }
     }
 
-    var realVal = currentVal / pow(1 + inflation / 100, years);
+    var realVal = currentVal / pow(1 + inflation / 100, totalYears);
 
     setState(() {
       _totalValue = currentVal;
@@ -216,8 +234,10 @@ class _CompoundInterestPageState extends ConsumerState<CompoundInterestPage> {
                       suffix: currencySymbol),
                   const SizedBox(height: 16),
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
+                        flex: 1,
                         child: _buildInputField(context,
                             controller: _interestRateController,
                             label: AppStrings.tr(AppStrings.annualReturns, lc),
@@ -227,11 +247,13 @@ class _CompoundInterestPageState extends ConsumerState<CompoundInterestPage> {
                       ),
                       const SizedBox(width: 16),
                       Expanded(
+                        flex: 1,
                         child: _buildInputField(context,
-                            controller: _yearsController,
-                            label: AppStrings.tr(AppStrings.durationYears, lc),
-                            icon: Icons.timelapse,
-                            suffix: AppStrings.tr(AppStrings.years, lc)),
+                            controller: _monthsController,
+                            label:
+                                lc == 'tr' ? 'Süre (Ay)' : 'Duration (Months)',
+                            icon: Icons.timer_outlined,
+                            suffix: lc == 'tr' ? 'Ay' : 'Mo'),
                       ),
                     ],
                   ),
@@ -463,10 +485,20 @@ class _CompoundInterestPageState extends ConsumerState<CompoundInterestPage> {
                               ? (_chartSpots.length / 5).floorToDouble()
                               : 1,
                           getTitlesWidget: (value, meta) {
+                            final monthVal = value.toInt();
+                            if (monthVal == 0) return const SizedBox.shrink();
+
+                            String title;
+                            if (monthVal % 12 == 0) {
+                              title =
+                                  '${monthVal ~/ 12} ${AppStrings.tr(AppStrings.years, lc)}';
+                            } else {
+                              title = '$monthVal ${lc == 'tr' ? 'Ay' : 'Mo'}';
+                            }
+
                             return Padding(
                               padding: const EdgeInsets.only(top: 8.0),
-                              child: Text(
-                                  '${value.toInt()}. ${AppStrings.tr(AppStrings.years, lc)}',
+                              child: Text(title,
                                   style: const TextStyle(
                                       fontSize: 10, color: Colors.grey)),
                             );
@@ -541,21 +573,23 @@ class _CompoundInterestPageState extends ConsumerState<CompoundInterestPage> {
             ]
           ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 14),
           decoration: BoxDecoration(
-            color: AppColors.background(context),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.border(context)),
+            color: AppColors.surface(context).withValues(alpha: 0.5),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+                color: AppColors.border(context).withValues(alpha: 0.8)),
           ),
           child: Row(
             children: [
-              Icon(icon, color: AppColors.primary, size: 20),
-              const SizedBox(width: 12),
+              Icon(icon, color: AppColors.primary, size: 18),
+              const SizedBox(width: 10),
               Expanded(
                 child: TextField(
                   controller: controller,
+                  onChanged: (_) => _calculate(),
                   keyboardType: isDecimal
                       ? const TextInputType.numberWithOptions(decimal: true)
                       : TextInputType.number,
@@ -567,13 +601,15 @@ class _CompoundInterestPageState extends ConsumerState<CompoundInterestPage> {
                       FilteringTextInputFormatter.digitsOnly,
                   ],
                   style: TextStyle(
-                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
                       color: AppColors.textPrimary(context)),
                   decoration: InputDecoration(
                     border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 14),
                     suffixText: suffix,
                     suffixStyle: TextStyle(
+                        fontSize: 12,
                         fontWeight: FontWeight.bold,
                         color: AppColors.textSecondary(context)),
                   ),

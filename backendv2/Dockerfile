@@ -1,19 +1,15 @@
 FROM python:3.11-slim
 
-# Sistem bağımlılıkları (bazı kütüphaneler için gerekebilir)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    && rm -rf /var/lib/apt/lists/*
+RUN useradd -m -u 1000 user
+USER user
+ENV PATH="/home/user/.local/bin:$PATH"
 
 WORKDIR /app
 
-# Bağımlılıkları kopyala ve kur
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-RUN pip install --no-cache-dir uvicorn
+COPY --chown=user ./requirements.txt requirements.txt
+RUN pip install --no-cache-dir --upgrade -r requirements.txt
 
-# Uygulama kodunu kopyala
-COPY . .
+COPY --chown=user . /app
 
 # Portu belirle (Hugging Face Spaces default port: 7860)
 EXPOSE 7860

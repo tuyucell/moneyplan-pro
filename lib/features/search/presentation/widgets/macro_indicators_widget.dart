@@ -5,7 +5,8 @@ import 'package:invest_guide/features/search/services/macro_service.dart';
 
 final macroServiceProvider = Provider((ref) => MacroService());
 
-final macroDataProvider = FutureProvider.family<Map<String, dynamic>?, String>((ref, countryCode) async {
+final macroDataProvider = FutureProvider.family<Map<String, dynamic>?, String>(
+    (ref, countryCode) async {
   final service = ref.watch(macroServiceProvider);
   return service.getMacroIndicators(countryCode);
 });
@@ -14,7 +15,8 @@ class MacroIndicatorsWidget extends ConsumerStatefulWidget {
   const MacroIndicatorsWidget({super.key});
 
   @override
-  ConsumerState<MacroIndicatorsWidget> createState() => _MacroIndicatorsWidgetState();
+  ConsumerState<MacroIndicatorsWidget> createState() =>
+      _MacroIndicatorsWidgetState();
 }
 
 class _MacroIndicatorsWidgetState extends ConsumerState<MacroIndicatorsWidget> {
@@ -47,8 +49,8 @@ class _MacroIndicatorsWidgetState extends ConsumerState<MacroIndicatorsWidget> {
               Text(
                 'Makro Göstergeler',
                 style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
                   color: AppColors.textPrimary(context),
                   letterSpacing: -0.5,
                 ),
@@ -57,14 +59,29 @@ class _MacroIndicatorsWidgetState extends ConsumerState<MacroIndicatorsWidget> {
             ],
           ),
         ),
-        
+
         // Data Cards
         SizedBox(
           height: 140,
           child: macroDataAsync.when(
-            data: (data) => _buildDataContent(context, data),
+            data: (data) {
+              if (data == null ||
+                  data['data'] == null ||
+                  (data['data'] as Map).isEmpty) {
+                if (macroDataAsync.isLoading) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                return Center(
+                    child: Text('Veri bulunamadı',
+                        style: TextStyle(
+                            color: AppColors.textSecondary(context))));
+              }
+              return _buildDataContent(context, data);
+            },
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (err, stack) => Center(child: Text('Veri alınamadı', style: TextStyle(color: AppColors.textSecondary(context)))),
+            error: (err, stack) => Center(
+                child: Text('Veri alınamadı',
+                    style: TextStyle(color: AppColors.textSecondary(context)))),
           ),
         ),
       ],
@@ -82,12 +99,12 @@ class _MacroIndicatorsWidgetState extends ConsumerState<MacroIndicatorsWidget> {
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
           value: _selectedCountry,
-          icon: Icon(Icons.keyboard_arrow_down, color: AppColors.textSecondary(context)),
+          icon: Icon(Icons.keyboard_arrow_down,
+              color: AppColors.textSecondary(context)),
           style: TextStyle(
-            color: AppColors.textPrimary(context),
-            fontWeight: FontWeight.w600,
-            fontSize: 14
-          ),
+              color: AppColors.textPrimary(context),
+              fontWeight: FontWeight.w600,
+              fontSize: 14),
           dropdownColor: AppColors.surface(context),
           items: _countries.entries.map((entry) {
             return DropdownMenuItem<String>(
@@ -109,7 +126,9 @@ class _MacroIndicatorsWidgetState extends ConsumerState<MacroIndicatorsWidget> {
 
   Widget _buildDataContent(BuildContext context, Map<String, dynamic>? data) {
     if (data == null || data['data'] == null) {
-      return Center(child: Text('Veri bulunamadı', style: TextStyle(color: AppColors.textSecondary(context))));
+      return Center(
+          child: Text('Veri bulunamadı',
+              style: TextStyle(color: AppColors.textSecondary(context))));
     }
 
     final indicators = data['data'];
@@ -138,7 +157,7 @@ class _MacroIndicatorsWidgetState extends ConsumerState<MacroIndicatorsWidget> {
           icon: Icons.trending_up,
           color: AppColors.success,
         ),
-         _buildIndicatorCard(
+        _buildIndicatorCard(
           context,
           title: 'İşsizlik',
           value: unemployment != null ? '%${unemployment['value']}' : '-',
@@ -147,7 +166,7 @@ class _MacroIndicatorsWidgetState extends ConsumerState<MacroIndicatorsWidget> {
           color: Colors.orange,
         ),
         if (interest != null && interest['value'] != null)
-           _buildIndicatorCard(
+          _buildIndicatorCard(
             context,
             title: 'Reel Faiz',
             value: '%${interest['value']}',
@@ -189,7 +208,8 @@ class _MacroIndicatorsWidgetState extends ConsumerState<MacroIndicatorsWidget> {
                 child: Align(
                   alignment: Alignment.centerRight,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
                       color: AppColors.surfaceAlt(context),
                       borderRadius: BorderRadius.circular(8),
@@ -197,10 +217,9 @@ class _MacroIndicatorsWidgetState extends ConsumerState<MacroIndicatorsWidget> {
                     child: Text(
                       date,
                       style: TextStyle(
-                        fontSize: 9, 
-                        color: AppColors.textSecondary(context), 
-                        fontWeight: FontWeight.bold
-                      ),
+                          fontSize: 9,
+                          color: AppColors.textSecondary(context),
+                          fontWeight: FontWeight.bold),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -212,7 +231,7 @@ class _MacroIndicatorsWidgetState extends ConsumerState<MacroIndicatorsWidget> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-               Text(
+              Text(
                 value,
                 style: TextStyle(
                   fontSize: 20,

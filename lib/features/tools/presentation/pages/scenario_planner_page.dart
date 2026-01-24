@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:invest_guide/core/constants/colors.dart';
 import 'package:invest_guide/features/wallet/providers/wallet_provider.dart';
+import 'package:invest_guide/features/subscription/presentation/widgets/pro_feature_gate.dart';
 import 'dart:math';
 import 'package:invest_guide/core/i18n/app_strings.dart';
 import 'package:invest_guide/core/providers/language_provider.dart';
+import 'package:invest_guide/services/analytics/analytics_service.dart';
 
 class ScenarioPlannerPage extends ConsumerStatefulWidget {
   const ScenarioPlannerPage({super.key});
@@ -23,6 +25,19 @@ class _ScenarioPlannerPageState extends ConsumerState<ScenarioPlannerPage> {
   int _years = 10;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(analyticsServiceProvider).logEvent(
+            name: 'tool_usage',
+            category: 'feature_usage',
+            properties: {'tool': 'scenario_planner'},
+            screenName: 'ScenarioPlannerPage',
+          );
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final language = ref.watch(languageProvider);
     final lc = language.code;
@@ -34,134 +49,138 @@ class _ScenarioPlannerPageState extends ConsumerState<ScenarioPlannerPage> {
         .where((t) => t.category?.isSaving == true)
         .fold(0.0, (sum, t) => sum + t.amount);
 
-    return Scaffold(
-      backgroundColor: AppColors.background(context),
-      appBar: AppBar(
-        title: Text(AppStrings.tr(AppStrings.scenarioPlannerTitle, lc),
-            style: const TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: AppColors.surface(context),
-        foregroundColor: AppColors.textPrimary(context),
-        elevation: 0,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header / Intro
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.indigo.shade900,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.1),
-                      shape: BoxShape.circle,
+    return ProFeatureGate(
+      featureName: AppStrings.tr(AppStrings.scenarioPlannerTitle, lc),
+      isFullPage: true,
+      child: Scaffold(
+        backgroundColor: AppColors.background(context),
+        appBar: AppBar(
+          title: Text(AppStrings.tr(AppStrings.scenarioPlannerTitle, lc),
+              style: const TextStyle(fontWeight: FontWeight.bold)),
+          backgroundColor: AppColors.surface(context),
+          foregroundColor: AppColors.textPrimary(context),
+          elevation: 0,
+        ),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header / Intro
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.indigo.shade900,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.auto_graph,
+                          color: Colors.white, size: 32),
                     ),
-                    child: const Icon(Icons.auto_graph,
-                        color: Colors.white, size: 32),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          AppStrings.tr(AppStrings.financialTwin, lc),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 18,
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            AppStrings.tr(AppStrings.financialTwin, lc),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          AppStrings.tr(AppStrings.financialTwinDesc, lc),
-                          style: const TextStyle(
-                              color: Colors.white70, fontSize: 13),
-                        ),
-                      ],
+                          const SizedBox(height: 4),
+                          Text(
+                            AppStrings.tr(AppStrings.financialTwinDesc, lc),
+                            style: const TextStyle(
+                                color: Colors.white70, fontSize: 13),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 24),
+              const SizedBox(height: 24),
 
-            // Chart Section
-            Container(
-              height: 300,
-              padding: const EdgeInsets.only(right: 16, top: 16, bottom: 8),
-              decoration: BoxDecoration(
-                color: AppColors.surface(context),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.border(context)),
+              // Chart Section
+              Container(
+                height: 300,
+                padding: const EdgeInsets.only(right: 16, top: 16, bottom: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.surface(context),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.border(context)),
+                ),
+                child: _buildChart(currentBalance, lc),
               ),
-              child: _buildChart(currentBalance, lc),
-            ),
 
-            const SizedBox(height: 24),
+              const SizedBox(height: 24),
 
-            // Controls
-            Text(
-              AppStrings.tr(AppStrings.scenarioParameters, lc),
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary(context),
+              // Controls
+              Text(
+                AppStrings.tr(AppStrings.scenarioParameters, lc),
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary(context),
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
+              const SizedBox(height: 16),
 
-            _buildSlider(
-              context,
-              label: AppStrings.tr(AppStrings.monthlyExtraInvestment, lc),
-              value: _monthlyContribution,
-              min: 0,
-              max: 50000,
-              divisions: 100,
-              valueLabel: '${_monthlyContribution.toStringAsFixed(0)} ₺',
-              onChanged: (v) => setState(() => _monthlyContribution = v),
-            ),
-            _buildSlider(
-              context,
-              label: AppStrings.tr(AppStrings.annualReturnExpectation, lc),
-              value: _annualReturn,
-              min: 0,
-              max: 100,
-              divisions: 100,
-              valueLabel: '%${_annualReturn.toStringAsFixed(1)}',
-              onChanged: (v) => setState(() => _annualReturn = v),
-            ),
-            _buildSlider(
-              context,
-              label: AppStrings.tr(AppStrings.expectedInflation, lc),
-              value: _inflation,
-              min: 0,
-              max: 100,
-              divisions: 100,
-              valueLabel: '%${_inflation.toStringAsFixed(1)}',
-              onChanged: (v) => setState(() => _inflation = v),
-            ),
-            _buildSlider(
-              context,
-              label: AppStrings.tr(AppStrings.durationYears, lc),
-              value: _years.toDouble(),
-              min: 1,
-              max: 30,
-              divisions: 29,
-              valueLabel: '$_years ${AppStrings.tr(AppStrings.years, lc)}',
-              onChanged: (v) => setState(() => _years = v.toInt()),
-            ),
+              _buildSlider(
+                context,
+                label: AppStrings.tr(AppStrings.monthlyExtraInvestment, lc),
+                value: _monthlyContribution,
+                min: 0,
+                max: 50000,
+                divisions: 100,
+                valueLabel: '${_monthlyContribution.toStringAsFixed(0)} ₺',
+                onChanged: (v) => setState(() => _monthlyContribution = v),
+              ),
+              _buildSlider(
+                context,
+                label: AppStrings.tr(AppStrings.annualReturnExpectation, lc),
+                value: _annualReturn,
+                min: 0,
+                max: 100,
+                divisions: 100,
+                valueLabel: '%${_annualReturn.toStringAsFixed(1)}',
+                onChanged: (v) => setState(() => _annualReturn = v),
+              ),
+              _buildSlider(
+                context,
+                label: AppStrings.tr(AppStrings.expectedInflation, lc),
+                value: _inflation,
+                min: 0,
+                max: 100,
+                divisions: 100,
+                valueLabel: '%${_inflation.toStringAsFixed(1)}',
+                onChanged: (v) => setState(() => _inflation = v),
+              ),
+              _buildSlider(
+                context,
+                label: AppStrings.tr(AppStrings.durationYears, lc),
+                value: _years.toDouble(),
+                min: 1,
+                max: 30,
+                divisions: 29,
+                valueLabel: '$_years ${AppStrings.tr(AppStrings.years, lc)}',
+                onChanged: (v) => setState(() => _years = v.toInt()),
+              ),
 
-            const SizedBox(height: 24),
-            _buildResultSummary(currentBalance, lc),
-          ],
+              const SizedBox(height: 24),
+              _buildResultSummary(currentBalance, lc),
+            ],
+          ),
         ),
       ),
     );

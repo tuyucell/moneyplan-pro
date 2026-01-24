@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import '../../../../core/constants/colors.dart';
 import '../../providers/investment_plan_provider.dart';
 import '../../widgets/investment_wizard_widgets.dart';
@@ -8,14 +9,12 @@ import 'package:invest_guide/core/providers/language_provider.dart';
 
 class DebtStep extends ConsumerWidget {
   final TextEditingController debtAmountController;
-  final TextEditingController debtPaymentController;
   final VoidCallback onNext;
   final VoidCallback onPrevious;
 
   const DebtStep({
     super.key,
     required this.debtAmountController,
-    required this.debtPaymentController,
     required this.onNext,
     required this.onPrevious,
   });
@@ -69,7 +68,6 @@ class DebtStep extends ConsumerWidget {
                         .read(investmentPlanProvider.notifier)
                         .updateHasDebt(false);
                     debtAmountController.clear();
-                    debtPaymentController.clear();
                   },
                 ),
               ),
@@ -95,7 +93,7 @@ class DebtStep extends ConsumerWidget {
                   .replaceAll(RegExp(r'\s*\(.*\)\s*'), ''),
               hint: AppStrings.tr(AppStrings.hintAmount, lc),
               icon: Icons.credit_card,
-              suffix: plan.currencyCode,
+              suffix: plan.currencyDisplay,
               onChanged: (value) {
                 final amount = double.tryParse(value) ?? 0;
                 ref
@@ -104,19 +102,33 @@ class DebtStep extends ConsumerWidget {
               },
             ),
             const SizedBox(height: 20),
-            InvestmentInputField(
-              controller: debtPaymentController,
-              label: AppStrings.tr(AppStrings.monthlyDebtPaymentLabel, lc)
-                  .replaceAll(RegExp(r'\s*\(.*\)\s*'), ''),
-              hint: AppStrings.tr(AppStrings.hintAmount, lc),
-              icon: Icons.payment,
-              suffix: plan.currencyCode,
-              onChanged: (value) {
-                final amount = double.tryParse(value) ?? 0;
-                ref
-                    .read(investmentPlanProvider.notifier)
-                    .updateMonthlyDebtPayment(amount);
-              },
+            // Information about how we calculate debt payoff
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(12),
+                border:
+                    Border.all(color: AppColors.primary.withValues(alpha: 0.1)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.flash_on,
+                      color: AppColors.primary, size: 20),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      lc == 'tr'
+                          ? 'Mevcut gelir ve giderlerine göre tüm nakit fazlan (${NumberFormat('#,##0', 'tr_TR').format(plan.monthlyAvailable)} ${plan.currencyDisplay}) borç kapatmaya ayrılacak.'
+                          : 'Based on your income and expenses, all your surplus (${NumberFormat('#,##0', 'en_US').format(plan.monthlyAvailable)} ${plan.currencyDisplay}) will be used to pay off debt.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary(context),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
             if (plan.monthsToPayOffDebt > 0) ...[
               const SizedBox(height: 24),

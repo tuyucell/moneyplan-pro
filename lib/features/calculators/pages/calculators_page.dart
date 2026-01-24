@@ -59,7 +59,8 @@ class CalculatorsPage extends ConsumerWidget {
             _buildCalculatorCard(
               context,
               title: AppStrings.tr(AppStrings.investmentReturnsSim, lc),
-              description: AppStrings.tr(AppStrings.investmentReturnsSimDesc, lc),
+              description:
+                  AppStrings.tr(AppStrings.investmentReturnsSimDesc, lc),
               icon: Icons.trending_up,
               color: AppColors.success,
               onTap: () {
@@ -77,7 +78,8 @@ class CalculatorsPage extends ConsumerWidget {
             _buildCalculatorCard(
               context,
               title: AppStrings.tr(AppStrings.realEstateCalculator, lc),
-              description: AppStrings.tr(AppStrings.realEstateCalculatorDesc, lc),
+              description:
+                  AppStrings.tr(AppStrings.realEstateCalculatorDesc, lc),
               icon: Icons.home_work_outlined,
               color: const Color(0xFF8B5CF6),
               onTap: () {
@@ -97,24 +99,20 @@ class CalculatorsPage extends ConsumerWidget {
               lockedChild: _buildCalculatorCard(
                 context,
                 title: AppStrings.tr(AppStrings.investmentComparison, lc),
-                description: AppStrings.tr(AppStrings.investmentComparisonDesc, lc),
+                description:
+                    AppStrings.tr(AppStrings.investmentComparisonDesc, lc),
                 icon: Icons.lock_outline,
                 color: Colors.grey,
                 onTap: () {
-                   showDialog(
-                      context: context,
-                      builder: (ctx) => AlertDialog(
-                        title: Text(AppStrings.tr(AppStrings.upgradeToProTitle, lc)),
-                        content: Text(AppStrings.tr(AppStrings.upgradeToProContent, lc)),
-                        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: Text(AppStrings.tr(AppStrings.close, lc)))],
-                      ),
-                   );
+                  ProFeatureGate.showUpsell(context,
+                      AppStrings.tr(AppStrings.investmentComparison, lc));
                 },
               ),
               child: _buildCalculatorCard(
                 context,
                 title: AppStrings.tr(AppStrings.investmentComparison, lc),
-                description: AppStrings.tr(AppStrings.investmentComparisonDesc, lc),
+                description:
+                    AppStrings.tr(AppStrings.investmentComparisonDesc, lc),
                 icon: Icons.history_edu,
                 color: AppColors.primary,
                 onTap: () {
@@ -231,7 +229,7 @@ class CalculatorsPage extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                   Text(
+                  Text(
                     title,
                     style: TextStyle(
                       fontSize: 16,

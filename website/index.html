@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MoneyPlan Pro | Elite Financial Intelligence</title>
+    <meta name="description"
+        content="Redefine your wealth management with MoneyPlan Pro. The next-generation fintech experience.">
+    <link rel="stylesheet" href="index.css">
+</head>
+
+<body>
+    <nav>
+        <div class="container nav-content">
+            <a href="index.html" class="logo-link">
+                <img src="assets/images/logo_flat.png" alt="MoneyPlan Pro" class="logo-img">
+                <span class="brand-name">MoneyPlan Pro</span>
+            </a>
+
+            <ul class="nav-links">
+                <li><a href="#features" data-en="Features" data-tr="Özellikler">Features</a></li>
+                <li><a href="privacy.html" data-en="Privacy" data-tr="Gizlilik">Privacy</a></li>
+                <li><a href="terms.html" data-en="Terms" data-tr="Koşullar">Terms</a></li>
+            </ul>
+
+            <div class="nav-actions">
+                <button class="action-btn" onclick="toggleTheme()" id="theme-btn">🌙</button>
+                <button class="action-btn" onclick="toggleLanguage()" id="lang-btn">TR</button>
+            </div>
+        </div>
+    </nav>
+
+    <section class="hero">
+        <div class="container hero-grid">
+            <div class="hero-text">
+                <span class="hero-tag" data-en="Next-Gen Architecture" data-tr="Yeni Nesil Mimari">Next-Gen
+                    Architecture</span>
+                <h1 data-en="Wealth Mastery" data-tr="Varlık Yönetimi">Wealth Mastery</h1>
+                <p class="hero-desc"
+                    data-en="Seamlessly track your global assets, crypto holdings, and daily cash flow with precision. Experience the elite standard of personal finance."
+                    data-tr="Küresel varlıklarınızı, kripto yatırımlarınızı ve günlük nakit akışınızı kusursuz bir hassasiyetle takip edin. Kişisel finansın elit standardını deneyimleyin.">
+                    Seamlessly track your global assets, crypto holdings, and daily cash flow with precision. Experience
+                    the elite standard of personal finance.
+                </p>
+
+                <div class="store-container">
+                    <span class="store-label" data-en="Coming Soon to Ecosystem" data-tr="Ekosisteme Çok Yakında">Coming
+                        Soon to Ecosystem</span>
+                    <div class="store-flex">
+                        <img src="assets/images/app_store.png" alt="App Store" class="store-btn-img">
+                        <img src="assets/images/google_play.png" alt="Google Play" class="store-btn-img">
+                    </div>
+                </div>
+            </div>
+
+            <div class="hero-visual">
+                <div class="mockup-container">
+                    <img src="assets/images/mockup_new.png" alt="MoneyPlan Pro iPhone 17 Pro Max Orange"
+                        class="app-mockup">
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="features" class="features">
+        <div class="container">
+            <div class="feat-header">
+                <h2 data-en="Professional Intelligence" data-tr="Profesyonel Zeka">Professional Intelligence</h2>
+                <p style="color:var(--text-dim);" data-en="Every tool you need, unified in one powerful interface."
+                    data-tr="İhtiyacınız olan her araç, tek bir güçlü arayüzde birleşti.">Every tool you need, unified
+                    in one powerful interface.</p>
+            </div>
+
+            <div class="feat-grid">
+                <div class="feat-card">
+                    <div class="feat-icon">⚡</div>
+                    <h3 data-en="Real-Time Sync" data-tr="Anlık Senkronizasyon">Real-Time Sync</h3>
+                    <p data-en="Global market data and your personal transactions are updated in sub-second precision."
+                        data-tr="Küresel piyasa verileri ve kişisel işlemleriniz saniyenin altında bir hassasiyetle güncellenir.">
+                        Global market data and your personal transactions are updated in sub-second precision.
+                    </p>
+                </div>
+                <div class="feat-card">
+                    <div class="feat-icon">🛡️</div>
+                    <h3 data-en="Stealth Security" data-tr="Üst Düzey Güvenlik">Stealth Security</h3>
+                    <p data-en="Biometric-grade encryption ensuring your financial sovereignty remains absolute."
+                        data-tr="Finansal egemenliğinizin mutlak kalmasını sağlayan biyometrik düzeyde şifreleme.">
+                        Biometric-grade encryption ensuring your financial sovereignty remains absolute.
+                    </p>
+                </div>
+                <div class="feat-card">
+                    <div class="feat-icon">💎</div>
+                    <h3 data-en="Elite Analytics" data-tr="Elit Analizler">Elite Analytics</h3>
+                    <p data-en="Deep insights into your net worth velocity and portfolio health."
+                        data-tr="Net değer hızınız ve portföy sağlığınız hakkında derinlemesine analizler.">
+                        Deep insights into your net worth velocity and portfolio health.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <script>
+        function toggleLanguage() {
+            const body = document.body;
+            const currentLang = body.dataset.lang || 'en';
+            const newLang = currentLang === 'en' ? 'tr' : 'en';
+
+            body.dataset.lang = newLang;
+            document.getElementById('lang-btn').innerText = newLang === 'en' ? 'TR' : 'EN';
+
+            document.querySelectorAll('[data-en]').forEach(el => {
+                el.innerText = el.dataset[newLang];
+            });
+        }
+
+        function toggleTheme() {
+            const html = document.documentElement;
+            const currentTheme = html.dataset.theme;
+            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+
+            html.dataset.theme = newTheme;
+            document.getElementById('theme-btn').innerText = newTheme === 'light' ? '🌙' : '☀️';
+
+            localStorage.setItem('theme', newTheme);
+        }
+
+        // Initialize Dark Theme by default
+        const savedTheme = localStorage.getItem('theme') || 'dark';
+        document.documentElement.dataset.theme = savedTheme;
+        document.getElementById('theme-btn').innerText = savedTheme === 'light' ? '🌙' : '☀️';
+    </script>
+</body>
+
+</html>

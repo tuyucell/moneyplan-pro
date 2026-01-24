@@ -7,13 +7,11 @@ class TradingViewService:
         self.TTL = 900 
 
     def get_multiple_analysis(self, symbols):
-        """Çoklu Sembol Analizi (Liste Görünümü İçin)"""
-    def get_multiple_analysis(self, symbols):
         """
         Optimize Edilmiş Çoklu Analiz (Batch Request)
         Sembolleri screener'larına göre gruplayıp kütüphanenin 'get_multiple_analysis' fonksiyonunu kullanır.
         """
-        from tradingview_ta import get_multiple_analysis
+        from tradingview_ta import get_multiple_analysis as tv_batch_get
         
         # 1. Sembolleri Grupla
         groups = {
@@ -26,18 +24,13 @@ class TradingViewService:
             "uk": []
         }
         
-        # Orijinal sembol eşleşmesi için (Clean -> Original)
         symbol_map = {} 
         
         for sym in symbols:
-            # Temizleme ve Sınıflandırma
             clean, screener, exchange = self._classify_symbol(sym)
             if screener in groups:
-                # Kütüphane EXCHANGE:SYMBOL formatı istiyor (örn: NASDAQ:AAPL)
                 formatted_sym = f"{exchange}:{clean}"
                 groups[screener].append(formatted_sym)
-                
-                # Geri dönüş map'i: Gelen "NASDAQ:AAPL" anahtarını orijinal "AAPL" e çevirecek
                 symbol_map[formatted_sym] = sym 
         
         results = []
@@ -47,15 +40,12 @@ class TradingViewService:
             if not sym_list: continue
             
             try:
-                # Kütüphanenin toplu çekme fonksiyonu
-                # Not: Exchange parametresi toplu çekimde opsiyoneldir veya screener yeterlidir.
-                batch_res = get_multiple_analysis(
+                batch_res = tv_batch_get(
                     screener=screener,
                     interval=Interval.INTERVAL_1_DAY,
                     symbols=sym_list
                 )
                 
-                # batch_res bir dictionary döner: {'THYAO': Analysis, 'GARAN': Analysis}
                 if batch_res:
                     for clean_sym, analysis in batch_res.items():
                         orig_sym = symbol_map.get(clean_sym, clean_sym)
@@ -63,7 +53,6 @@ class TradingViewService:
                             formatted = self._format_analysis(orig_sym, analysis)
                             if formatted: results.append(formatted)
                         else:
-                            # Fallback if analysis is empty
                             results.append({
                                 "symbol": orig_sym,
                                 "name": orig_sym,
@@ -78,72 +67,69 @@ class TradingViewService:
             except Exception as e:
                 print(f"TA Batch Error ({screener}): {e}")
 
-        # 3. Sıralama (Hacim)
-        # Volume bazen None olabilir, güvenli sıralama
         results.sort(key=lambda x: x.get("volume", 0) or 0, reverse=True)
         return results
 
     def _classify_symbol(self, symbol):
         """Sembolü analiz eder: (CleanSymbol, Screener, Exchange)"""
-        clean = symbol.replace(".IS", "").replace("USDT", "")
-        screener = "turkey"
-        exchange = "BIST"
+        s = symbol.upper().strip()
+        # Temiz sembol (Mapping için)
+        c = s.replace(".IS", "").replace("USDT", "").replace("/TRY", "").replace("TRY", "")
         
-        if "BTC" in symbol or "ETH" in symbol or "USDT" in symbol:
-            screener = "crypto"
-            exchange = "BINANCE"
-            if not symbol.endswith("USDT") and symbol not in ["USDT"]:
-                clean = f"{clean}USDT"
-            else:
-                clean = symbol
+        # 1. CRYPTO
+        crypto_list = ["BTC", "ETH", "SOL", "BNB", "XRP", "ADA", "DOGE", "DOT", "LINK", "MATIC"]
+        if c in crypto_list or "USDT" in s:
+            return (s if s.endswith("USDT") else f"{c}USDT"), "crypto", "BINANCE"
+            
+        # 2. BIST (Turkey)
+        if s.endswith(".IS") or s in ["XU100", "XU030", "GARAN", "THYAO", "ASELS", "EREGL", "SISE"]:
+            return c, "turkey", "BIST"
+            
+        # 3. FOREX (Pairs like USD/TRY or USD)
+        fx_list = ["USD", "EUR", "GBP", "CHF", "JPY", "CAD", "AUD", "DKK", "SEK", "NOK", "SAR"]
+        if c in fx_list or "TRY" in s:
+            return (f"{c}TRY" if "TRY" not in s else s), "forex", "FX_IDC"
+
+        # 4. COMMODITIES / CFD (Special handling for metals and energy)
+        # We use FX_IDC for XAU/XAG and common CFD names for others.
+        commodities = {
+            "XAU/USD": ("XAUUSD", "forex", "FX_IDC"),
+            "XAG/USD": ("XAGUSD", "forex", "FX_IDC"),
+            "LCO/USD": ("UKOIL", "cfd", "TVC"),
+            "WTI/USD": ("USOIL", "cfd", "TVC"),
+            "PLATINUM": ("PLATINUM", "cfd", "TVC"),
+            "PALLADIUM": ("PALLADIUM", "cfd", "TVC"),
+            "COPPER": ("COPPER", "cfd", "TVC"),
+            "NATURAL_GAS": ("NATGAS", "cfd", "TVC"),
+            "CORN": ("CORN", "cfd", "TVC"),
+            "WHEAT": ("WHEAT", "cfd", "TVC"),
+            "SOYBEAN": ("SOYBEAN", "cfd", "TVC"),
+            "COFFEE": ("COFFEE", "cfd", "TVC"),
+            "SUGAR": ("SUGAR", "cfd", "TVC"),
+            "COTTON": ("COTTON", "cfd", "TVC"),
+            "GOLD": ("GOLD", "cfd", "TVC"),
+            "SILVER": ("SILVER", "cfd", "TVC")
+        }
         
-        elif symbol in ["AAPL", "TSLA", "MSFT", "AMZN", "GOOGL", "NVDA", "META", "NFLX", "AMD", 
-                     "INTC", "KO", "PEP", "MCD", "V", "MA", "JPM", "DIS", "BRK.B"]:
-            screener = "america"
-            exchange = "NASDAQ"
-            if symbol in ["KO", "PEP", "MCD", "V", "MA", "JPM", "DIS", "BRK.B"]:
-                 exchange = "NYSE"
+        if s in commodities:
+            return commodities[s]
+        if c in commodities:
+            return commodities[c]
             
-        elif symbol in ["USD", "EUR", "GBP", "CHF", "JPY", "CAD", "AUD", "DKK", "SEK", "NOK", "SAR"]:
-            screener = "forex" 
-            exchange = "FX_IDC"
-            clean = f"{symbol}TRY" # USD -> USDTRY, JPY -> JPYTRY
+        # 5. GERMANY
+        if s in ["SAP", "SIE", "ALV", "DTE", "BMW", "VOW3", "BAS", "AIR", "DDAIF"]:
+            return s, "germany", "XETR"
             
-        elif symbol in ["GOLD", "SILVER", "BRENT", "UKOIL", "USOIL", "CRUDE_OIL", "PLATINUM", "PALLADIUM", "COPPER", "NATURAL_GAS", "NG1!", "CORN", "WHEAT", "SOYBEAN", "COFFEE", "SUGAR", "COTTON", "GC=F", "SI=F"]:
-             screener = "cfd" 
-             exchange = "TVC"
-             
-             # Metals & Energy (TVC/CFD)
-             if symbol in ["GOLD", "GC=F"]: clean = "GOLD"
-             elif symbol in ["SILVER", "SI=F"]: clean = "SILVER"
-             elif symbol in ["BRENT", "UKOIL"]: clean = "UKOIL"
-             elif symbol in ["CRUDE_OIL", "USOIL"]: clean = "USOIL"
-             elif symbol == "PLATINUM": clean = "PLATINUM"
-             elif symbol == "PALLADIUM": clean = "PALLADIUM"
-             
-             # Softs & Grains (Switched to TVC CFDs for reliability)
-             elif symbol in ["NATURAL_GAS", "NG1!"]: clean = "NATURALGAS"
-             elif symbol == "COPPER": clean = "COPPER"
-             elif symbol == "CORN": clean = "CORN"
-             elif symbol == "WHEAT": clean = "WHEAT"
-             elif symbol == "SOYBEAN": clean = "SOYBEAN"
-             elif symbol == "COFFEE": clean = "COFFEE"
-             elif symbol == "SUGAR": clean = "SUGAR"
-             elif symbol == "COTTON": clean = "COTTON"
-
-        elif symbol in ["SAP", "SIE", "ALV", "DTE", "BMW", "VOW3", "BAS", "AIR", "DDAIF"]:
-             screener = "germany"
-             exchange = "XETR"
-             clean = symbol
-
-        elif symbol in ["SHEL", "HSBA", "AZN", "ULVR", "BP.", "BARC", "VOD", "LLOY", "NG."]:
-             screener = "uk"
-             exchange = "LSE"
-             if symbol == "BP.": clean = "BP."
-             elif symbol == "NG.": clean = "NG."
-             else: clean = symbol
-
-        return clean, screener, exchange
+        # 6. UK
+        if s in ["SHEL", "HSBA", "AZN", "ULVR", "BP.", "BARC", "VOD", "LLOY", "NG."]:
+            return s, "uk", "LSE"
+            
+        # 7. AMERICA (Stocks, ETFs, Bonds)
+        nyse_list = ["KO", "PEP", "MCD", "V", "MA", "JPM", "DIS", "BRK.B", "SPY", "VOO", 
+                     "GLD", "SLV", "VTI", "IVV", "AGG", "LQD", "HYG"]
+        
+        exchange = "NYSE" if s in nyse_list else "NASDAQ"
+        return s, "america", exchange
 
     def _format_analysis(self, symbol, analysis):
         """Analysis objesini dict'e çevirir"""
@@ -152,9 +138,6 @@ class TradingViewService:
             indicators = analysis.indicators
             price = float(indicators.get("close") or 0.0)
             change = float(indicators.get("change") or 0.0)
-            
-            # Simple heuristic for change_percent if not directly available as "change_abs"
-            # TradingView 'change' is usually the percentage change in many screeners
             
             return {
                 "symbol": symbol,
@@ -167,7 +150,6 @@ class TradingViewService:
                 "logo_url": f"https://s3-symbol-logo.tradingview.com/{symbol.lower()}.svg" 
             }
         except Exception:
-            # print(f"Format Error: {e}")
             return None
 
     def get_analysis(self, symbol):
@@ -214,7 +196,6 @@ class TradingViewService:
             return result
 
         except Exception:
-            # print(f"Tv Analysis Error ({symbol}): {e}") # Log kirliliği yapmasın
             return None
 
 ta_service = TradingViewService()

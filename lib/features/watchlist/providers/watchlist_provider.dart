@@ -4,16 +4,20 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/watchlist_item.dart';
-
-const String _watchlistKey = 'watchlist_items';
+import 'package:invest_guide/features/auth/presentation/providers/auth_providers.dart';
+import 'package:invest_guide/features/auth/data/models/user_model.dart';
 
 class WatchlistNotifier extends StateNotifier<List<WatchlistItem>> {
+  final String? userId;
+  String get _watchlistKey =>
+      userId != null ? 'watchlist_items_$userId' : 'watchlist_items_guest';
+
   // Cache SharedPreferences instance to avoid repeated getInstance() calls
   SharedPreferences? _prefsCache;
   bool _isInitialized = false;
   final _initCompleter = Completer<void>();
 
-  WatchlistNotifier() : super([]) {
+  WatchlistNotifier(this.userId) : super([]) {
     _loadWatchlist();
   }
 
@@ -67,8 +71,7 @@ class WatchlistNotifier extends StateNotifier<List<WatchlistItem>> {
       await _initCompleter.future;
 
       final prefs = await _prefs;
-      final jsonList =
-          state.map((item) => item.toJson()).toList();
+      final jsonList = state.map((item) => item.toJson()).toList();
       final jsonString = jsonEncode(jsonList);
       final success = await prefs.setString(_watchlistKey, jsonString);
 
@@ -132,6 +135,18 @@ class WatchlistNotifier extends StateNotifier<List<WatchlistItem>> {
     return state;
   }
 
+  /// Update item order in watchlist
+  Future<void> reorder(int oldIndex, int newIndex) async {
+    final items = List<WatchlistItem>.from(state);
+    if (newIndex > oldIndex) {
+      newIndex -= 1;
+    }
+    final item = items.removeAt(oldIndex);
+    items.insert(newIndex, item);
+    state = items;
+    await _saveWatchlist();
+  }
+
   /// Force reload from disk (useful for debugging or sync)
   Future<void> reload() async {
     _isInitialized = false;
@@ -139,6 +154,12 @@ class WatchlistNotifier extends StateNotifier<List<WatchlistItem>> {
   }
 }
 
-final watchlistProvider = StateNotifierProvider<WatchlistNotifier, List<WatchlistItem>>((ref) {
-  return WatchlistNotifier();
+final watchlistProvider =
+    StateNotifierProvider<WatchlistNotifier, List<WatchlistItem>>((ref) {
+  final authState = ref.watch(authNotifierProvider);
+  String? userId;
+  if (authState is AuthAuthenticated) {
+    userId = authState.user.id;
+  }
+  return WatchlistNotifier(userId);
 });

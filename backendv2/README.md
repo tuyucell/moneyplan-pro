@@ -1,3 +1,12 @@
+---
+title: MoneyPlanPro
+emoji: 💰
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+pinned: false
+---
+
 # InvestGuide Backend API
 
 Bu proje, Flutter uygulaması için bir aracı (middleware) API sunar. Yahoo Finance, TEFAS ve TCMB gibi kaynaklardan veri çekip REST API olarak sunar.

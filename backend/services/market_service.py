@@ -50,46 +50,56 @@ class MarketDataProvider:
         res = {k: v.copy() for k, v in FALLBACK_DATA.items()}
         
         try:
-            # Tüm verileri tek bir Mynet isteği ile çekmeye çalış (En verimli yol)
-            mynet_data = self._fetch_all_from_mynet()
-            if mynet_data:
-                for k in mynet_data:
-                    if mynet_data[k]["price"] > 0:
-                        res[k] = mynet_data[k]
-            
-            # Eğer bazı veriler hala 0 veya güncellenmemişse global olanları Yahoo'dan dene
-            symbols_to_check = []
-            if res["bitcoin"]["price"] == FALLBACK_DATA["bitcoin"]["price"]: symbols_to_check.append(("bitcoin", "BTC-USD"))
-            if res["ons_altin"]["price"] == FALLBACK_DATA["ons_altin"]["price"]: symbols_to_check.append(("ons_altin", "GC=F"))
-            
-            if symbols_to_check:
-                with ThreadPoolExecutor(max_workers=2) as executor:
-                    futures = {executor.submit(self._fetch_yahoo, sym): key for key, sym in symbols_to_check}
-                    for future in futures:
-                        key = futures[future]
-                        try:
-                            val = future.result()
-                            if val and val["price"] > 0:
-                                res[key] = val
-                        except Exception:
-                            pass
-
-            # Gram Altın anlık hesaplama (Eğer Mynet'ten gelmediyse)
-            if res["gram_altin"]["price"] == FALLBACK_DATA["gram_altin"]["price"]:
-                u_p = res["dolar"]["price"]
-                o_p = res["ons_altin"]["price"]
-                if u_p > 0 and o_p > 0:
-                    res["gram_altin"] = {
-                        "price": round((o_p / 31.1035) * u_p, 2),
-                        "change_percent": res["ons_altin"]["change_percent"]
-                    }
-
+            self._update_from_mynet(res)
+            self._update_from_yahoo_if_needed(res)
+            self._calculate_gram_gold_if_needed(res)
         except Exception as e:
             print(f"Error in get_market_summary: {e}")
 
         # Cache'le ve döndür
         cache.set(cache_key, res, ttl_seconds=TTL_MARKET)
         return res
+
+    def _update_from_mynet(self, res):
+        """Mynet verilerini al ve sonuç kümesini güncelle."""
+        mynet_data = self._fetch_all_from_mynet()
+        if mynet_data:
+            for k, val in mynet_data.items():
+                if val["price"] > 0:
+                    res[k] = val
+
+    def _update_from_yahoo_if_needed(self, res):
+        """Global varlıklar için Yahoo fallback kontrolü yap."""
+        symbols_to_check = []
+        if res["bitcoin"]["price"] == FALLBACK_DATA["bitcoin"]["price"]:
+            symbols_to_check.append(("bitcoin", "BTC-USD"))
+        if res["ons_altin"]["price"] == FALLBACK_DATA["ons_altin"]["price"]:
+            symbols_to_check.append(("ons_altin", "GC=F"))
+        
+        if not symbols_to_check:
+            return
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            futures = {executor.submit(self._fetch_yahoo, sym): key for key, sym in symbols_to_check}
+            for future in futures:
+                key = futures[future]
+                try:
+                    val = future.result()
+                    if val and val["price"] > 0:
+                        res[key] = val
+                except Exception:
+                    pass
+
+    def _calculate_gram_gold_if_needed(self, res):
+        """Gram Altın anlık hesaplamasını yap (Eğer Mynet'ten gelmediyse)."""
+        if res["gram_altin"]["price"] == FALLBACK_DATA["gram_altin"]["price"]:
+            u_p = res["dolar"]["price"]
+            o_p = res["ons_altin"]["price"]
+            if u_p > 0 and o_p > 0:
+                res["gram_altin"] = {
+                    "price": round((o_p / 31.1035) * u_p, 2),
+                    "change_percent": res["ons_altin"]["change_percent"]
+                }
 
     def _fetch_all_from_mynet(self):
         """Mynet ana sayfasındaki tüm verileri tek regex taramasıyla alır."""
@@ -159,82 +169,104 @@ class MarketDataProvider:
 
     def get_calendar(self, country_code: str = "ALL"):
         from database import get_db_connection
-        from datetime import datetime, timezone, timedelta
+        from datetime import datetime
         
         try:
             conn = get_db_connection()
             cursor = conn.cursor()
             
-            tz_tr = timezone(timedelta(hours=3))
-            now_tr = datetime.now(tz_tr)
-            start_of_day = now_tr.replace(hour=0, minute=0, second=0, microsecond=0)
-            now_str = start_of_day.strftime('%Y-%m-%d %H:%M:%S')
-            
-            query = "SELECT * FROM calendar_events WHERE date_time >= ?"
-            params = [now_str]
-
-            if country_code and country_code.upper() != "ALL":
-                id_map = {
-                    "TR": [63, 32], "US": [5], "USA": [5], "EU": [72], "GBP": [12],
-                    "GB": [12], "DE": [4, 17], "CA": [6], "JP": [37], "AU": [7, 25],
-                    "NZ": [35], "CH": [110, 39, 36]
-                }
-                target_ids = id_map.get(country_code.upper())
-                if target_ids:
-                    placeholders = ",".join(["?"] * len(target_ids))
-                    query += f" AND country_id IN ({placeholders})"
-                    params.extend(target_ids)
-            
-            query += " ORDER BY date_time ASC LIMIT 100"
+            query, params = self._build_calendar_query(country_code)
             cursor.execute(query, tuple(params))
             rows = cursor.fetchall()
             conn.close()
             
-            formatted = []
-            months_tr = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", 
-                       "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"]
-            
-            flag_map = {
-                5: "us", 63: "tr", 32: "tr", 72: "eu", 12: "gb", 4: "de", 6: "ca",
-                37: "jp", 7: "au", 35: "nz", 110: "ch", 39: "ch", 36: "ch", 51: "cn",
-                160: "in", 14: "in", 17: "de", 25: "au", 10: "it", 22: "fr", 26: "es",
-                21: "nl", 56: "ru"
-            }
-
-            if rows:
-                for row in rows:
-                    dt = datetime.fromisoformat(row["date_time"])
-                    formatted_date = f"{dt.day} {months_tr[dt.month-1]}"
-                    
-                    c_id = row["country_id"]
-                    flag_code = flag_map.get(c_id, "us")
-                    flag_url = f"https://flagcdn.com/w40/{flag_code}.png"
-
-                    formatted.append({
-                        "id": row["id"],
-                        "date": formatted_date,
-                        "time": dt.strftime('%H:%M'),
-                        "title": row["title"],
-                        "impact": row["impact"],
-                        "actual": row["actual"],
-                        "forecast": row["forecast"],
-                        "previous": row["previous"],
-                        "unit": row["unit"],
-                        "country_id": c_id,
-                        "flag_url": flag_url,
-                        "currency": row["currency"]
-                    })
+            formatted = self._format_calendar_rows(rows)
             
             # Fallback: Eğer veri yoksa veya çok azsa simülasyon verisi üret
             if len(formatted) < 5:
-                formatted.extend(self._generate_fallback_calendar(country_code))
-                # Tarihe göre sırala
-                formatted.sort(key=lambda x: datetime.strptime(f"{datetime.now().year} {x['date']} {x['time']}", "%Y %d %B %H:%M") if " " in x['date'] else datetime.now())
+                formatted = self._apply_calendar_fallback(formatted, country_code)
 
             return formatted
         except Exception as e:
             print(f"Calendar DB Error: {e}")
             return self._generate_fallback_calendar(country_code)
+
+    def _build_calendar_query(self, country_code):
+        """Takvim sorgusunu ülke koduna göre inşa eder."""
+        from datetime import datetime, timezone, timedelta
+        tz_tr = timezone(timedelta(hours=3))
+        now_tr = datetime.now(tz_tr)
+        start_of_day = now_tr.replace(hour=0, minute=0, second=0, microsecond=0)
+        now_str = start_of_day.strftime('%Y-%m-%d %H:%M:%S')
+        
+        query = "SELECT * FROM calendar_events WHERE date_time >= ?"
+        params = [now_str]
+
+        if country_code and country_code.upper() != "ALL":
+            id_map = {
+                "TR": [63, 32], "US": [5], "USA": [5], "EU": [72], "GBP": [12],
+                "GB": [12], "DE": [4, 17], "CA": [6], "JP": [37], "AU": [7, 25],
+                "NZ": [35], "CH": [110, 39, 36]
+            }
+            target_ids = id_map.get(country_code.upper())
+            if target_ids:
+                placeholders = ",".join(["?"] * len(target_ids))
+                query += f" AND country_id IN ({placeholders})"
+                params.extend(target_ids)
+        
+        query += " ORDER BY date_time ASC LIMIT 100"
+        return query, params
+
+    def _format_calendar_rows(self, rows):
+        """Veritabanı satırlarını API formatına dönüştürür."""
+        from datetime import datetime
+        formatted = []
+        months_tr = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", 
+                   "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"]
+        
+        flag_map = {
+            5: "us", 63: "tr", 32: "tr", 72: "eu", 12: "gb", 4: "de", 6: "ca",
+            37: "jp", 7: "au", 35: "nz", 110: "ch", 39: "ch", 36: "ch", 51: "cn",
+            160: "in", 14: "in", 17: "de", 25: "au", 10: "it", 22: "fr", 26: "es",
+            21: "nl", 56: "ru"
+        }
+
+        for row in rows:
+            dt = datetime.fromisoformat(row["date_time"])
+            formatted_date = f"{dt.day} {months_tr[dt.month-1]}"
+            
+            flag_code = flag_map.get(row["country_id"], "us")
+            flag_url = f"https://flagcdn.com/w40/{flag_code}.png"
+
+            formatted.append({
+                "id": row["id"],
+                "date": formatted_date,
+                "time": dt.strftime('%H:%M'),
+                "title": row["title"],
+                "impact": row["impact"],
+                "actual": row["actual"],
+                "forecast": row["forecast"],
+                "previous": row["previous"],
+                "unit": row["unit"],
+                "country_id": row["country_id"],
+                "flag_url": flag_url,
+                "currency": row["currency"]
+            })
+        return formatted
+
+    def _apply_calendar_fallback(self, formatted, country_code):
+        """Eksik takvim verileri için fallback işletir ve sıralar."""
+        from datetime import datetime
+        formatted.extend(self._generate_fallback_calendar(country_code))
+        # Tarihe göre sırala
+        def sort_key(x):
+            try:
+                return datetime.strptime(f"{datetime.now().year} {x['date']} {x['time']}", "%Y %d %B %H:%M")
+            except Exception:
+                return datetime.now()
+        
+        formatted.sort(key=sort_key)
+        return formatted
 
     def _generate_fallback_calendar(self, country_code):
         """
@@ -248,10 +280,7 @@ class MarketDataProvider:
             start_date = datetime.now()
             end_date = start_date + timedelta(days=7)
             
-            s_str = start_date.strftime("%Y-%m-%d")
-            e_str = end_date.strftime("%Y-%m-%d")
-            
-            url = f"https://calendar-api.fxstreet.com/en/api/v1/eventDates/{s_str}/{e_str}"
+            url = f"https://calendar-api.fxstreet.com/en/api/v1/eventDates/{start_date.strftime('%Y-%m-%d')}/{end_date.strftime('%Y-%m-%d')}"
             headers = {
                 "Accept": "application/json",
                 "Origin": "https://www.fxstreet.com",
@@ -267,66 +296,62 @@ class MarketDataProvider:
             data = resp.json()
             events = []
             
-            # Ülke Kodu Mapping (FXStreet -> Bizim ID'ler)
-            # 5: US, 63: TR, 72: EU, 12: GB, 4: DE, 6: CA, 37: JP, 7: AU
-            code_map = {
-                "US": 5, "TR": 63, "EU": 72, "EMU": 72, "GB": 12, "UK": 12, 
-                "DE": 4, "CA": 6, "JP": 37, "AU": 7, "CN": 51, "RU": 56
-            }
-            
-            months_tr = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", 
-                       "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"]
-
             for item in data:
-                c_code = item.get("countryCode", "US")
-                
-                # Eğer belirli bir ülke filtrelemesi varsa ve eşleşmiyorsa atla
-                if country_code and country_code.upper() != "ALL":
-                    if country_code.upper() == "TR" and c_code != "TR": continue
-                    if country_code.upper() == "US" and c_code != "US": continue
-
-                our_id = code_map.get(c_code, 0)
-                # Volatiliteye göre önem derecesi
-                vol = item.get("volatility", "LOW")
-                impact = "Low"
-                if vol == "HIGH": impact = "High"
-                elif vol == "MEDIUM": impact = "Medium"
-                
-                dt_str = item.get("dateUtc", "") # 2026-01-24T11:00:00Z
-                if not dt_str: continue
-                
-                try:
-                    # UTC'den parse et
-                    dt = datetime.strptime(dt_str, "%Y-%m-%dT%H:%M:%SZ")
-                    # Basitçe +3 saat ekle (TR saati için yaklaşık)
-                    dt = dt + timedelta(hours=3)
-                    
-                    formatted_date = f"{dt.day} {months_tr[dt.month-1]}"
-                    time_str = dt.strftime("%H:%M")
-                    
-                    flag_url = f"https://flagcdn.com/w40/{c_code.lower()}.png"
-                    
-                    events.append({
-                        "id": item.get("id"),
-                        "date": formatted_date,
-                        "time": time_str,
-                        "title": item.get("name"),
-                        "impact": impact,
-                        "actual": str(item.get("actual") or ""),
-                        "forecast": str(item.get("consensus") or ""),
-                        "previous": str(item.get("previous") or ""),
-                        "unit": item.get("unit", ""),
-                        "country_id": our_id,
-                        "flag_url": flag_url,
-                        "currency": item.get("currencyCode", "")
-                    })
-                except Exception: pass
+                event = self._parse_fxstreet_event(item, country_code)
+                if event:
+                    events.append(event)
             
             return events
 
         except Exception as e:
             print(f"FXStreet Integration Error: {e}")
             return []
+
+    def _parse_fxstreet_event(self, item, filter_country):
+        """Tek bir FXStreet event objesini parse eder."""
+        from datetime import datetime, timedelta
+        
+        c_code = item.get("countryCode", "US")
+        if filter_country and filter_country.upper() != "ALL":
+            if filter_country.upper() != c_code:
+                return None
+
+        code_map = {
+            "US": 5, "TR": 63, "EU": 72, "EMU": 72, "GB": 12, "UK": 12, 
+            "DE": 4, "CA": 6, "JP": 37, "AU": 7, "CN": 51, "RU": 56
+        }
+        months_tr = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", 
+                   "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"]
+        
+        dt_str = item.get("dateUtc", "")
+        if not dt_str: return None
+
+        try:
+            dt = datetime.strptime(dt_str, "%Y-%m-%dT%H:%M:%SZ") + timedelta(hours=3)
+            vol = item.get("volatility", "LOW")
+            if vol == "HIGH":
+                impact = "High"
+            elif vol == "MEDIUM":
+                impact = "Medium"
+            else:
+                impact = "Low"
+            
+            return {
+                "id": item.get("id"),
+                "date": f"{dt.day} {months_tr[dt.month-1]}",
+                "time": dt.strftime("%H:%M"),
+                "title": item.get("name"),
+                "impact": impact,
+                "actual": str(item.get("actual") or ""),
+                "forecast": str(item.get("consensus") or ""),
+                "previous": str(item.get("previous") or ""),
+                "unit": item.get("unit", ""),
+                "country_id": code_map.get(c_code, 0),
+                "flag_url": f"https://flagcdn.com/w40/{c_code.lower()}.png",
+                "currency": item.get("currencyCode", "")
+            }
+        except Exception:
+            return None
 
     def save_calendar_events(self, events: list):
         from database import get_db_connection

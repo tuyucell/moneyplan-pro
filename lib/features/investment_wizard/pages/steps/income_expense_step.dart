@@ -106,7 +106,7 @@ class IncomeExpenseStep extends ConsumerWidget {
                 .replaceAll(RegExp(r'\s*\(.*\)\s*'), ''),
             hint: AppStrings.tr(AppStrings.hintAmount, lc),
             icon: Icons.attach_money,
-            suffix: plan.currencyCode,
+            suffix: plan.currencyDisplay,
             onChanged: (value) {
               final amount = double.tryParse(value) ?? 0;
               ref
@@ -121,7 +121,7 @@ class IncomeExpenseStep extends ConsumerWidget {
                 .replaceAll(RegExp(r'\s*\(.*\)\s*'), ''),
             hint: AppStrings.tr(AppStrings.hintAmount, lc),
             icon: Icons.shopping_cart,
-            suffix: plan.currencyCode,
+            suffix: plan.currencyDisplay,
             onChanged: (value) {
               final amount = double.tryParse(value) ?? 0;
               ref
@@ -144,7 +144,7 @@ class IncomeExpenseStep extends ConsumerWidget {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      '${AppStrings.tr(AppStrings.monthlyAvailableLabel, lc).replaceAll(RegExp(r'[:₺\$]'), '')}: ${numberFormat.format(available)} ${plan.currencyCode}',
+                      '${AppStrings.tr(AppStrings.monthlyAvailableLabel, lc).replaceAll(RegExp(r'[:₺\$]'), '')}: ${numberFormat.format(available)} ${plan.currencyDisplay}',
                       style: const TextStyle(
                         color: AppColors.success,
                         fontWeight: FontWeight.bold,
@@ -168,7 +168,7 @@ class IncomeExpenseStep extends ConsumerWidget {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      '${lc == 'tr' ? 'Aylık bütçe açığınız' : 'Monthly budget deficit'}: ${numberFormat.format(available.abs())} ${plan.currencyCode}',
+                      '${lc == 'tr' ? 'Aylık bütçe açığınız' : 'Monthly budget deficit'}: ${numberFormat.format(available.abs())} ${plan.currencyDisplay}',
                       style: const TextStyle(
                         color: AppColors.error,
                         fontWeight: FontWeight.bold,

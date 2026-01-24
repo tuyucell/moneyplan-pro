@@ -56,6 +56,7 @@ class EnhancedMarketItemCard extends ConsumerWidget {
                   name: name,
                   currentPrice: price,
                   priceChange24h: change24h,
+                  categoryId: categoryId,
                 ),
               ),
             );

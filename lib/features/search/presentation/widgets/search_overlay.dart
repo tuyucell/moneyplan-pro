@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:invest_guide/core/constants/colors.dart';
 import 'package:invest_guide/core/i18n/app_strings.dart';
 import 'package:invest_guide/services/api/invest_guide_api.dart';
+import 'package:invest_guide/features/search/presentation/widgets/animated_search_hint.dart';
 
 class SearchOverlay extends ConsumerStatefulWidget {
   final String languageCode;
@@ -52,8 +53,14 @@ class _SearchOverlayState extends ConsumerState<SearchOverlay> {
               constraints: const BoxConstraints(maxHeight: 400),
               decoration: BoxDecoration(
                 color: AppColors.surface(context),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.border(context)),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.1),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
               ),
               child: _isLoading
                   ? const Center(
@@ -216,13 +223,10 @@ class _SearchOverlayState extends ConsumerState<SearchOverlay> {
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: 6),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(10),
-          color: AppColors.background(context),
-          border: Border.all(
-            color: AppColors.border(context).withValues(alpha: 0.3),
-          ),
+          borderRadius: BorderRadius.circular(12),
+          color: AppColors.surface(context),
         ),
         child: Row(
           children: [
@@ -304,88 +308,111 @@ class _SearchOverlayState extends ConsumerState<SearchOverlay> {
     return CompositedTransformTarget(
       link: _layerLink,
       child: Container(
-        height: 42,
-        padding: const EdgeInsets.symmetric(horizontal: 14),
+        height: 46, // Reduced by 4px for golden ratio balance in header
+        padding: const EdgeInsets.symmetric(horizontal: 16),
         decoration: BoxDecoration(
           color: AppColors.surface(context),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: _focusNode.hasFocus
-                ? AppColors.primary
-                : AppColors.border(context).withValues(alpha: 0.5),
-            width: _focusNode.hasFocus ? 1.5 : 1,
+                ? AppColors.primary.withValues(alpha: 0.5)
+                : AppColors.border(context)
+                    .withValues(alpha: 0.25), // Softer border
+            width: 1,
           ),
           boxShadow: _focusNode.hasFocus
               ? [
                   BoxShadow(
-                    color: AppColors.primary.withValues(alpha: 0.1),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
+                    color: AppColors.primary.withValues(alpha: 0.06),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
                   ),
                 ]
-              : null,
+              : [],
         ),
         child: Row(
+          crossAxisAlignment:
+              CrossAxisAlignment.center, // Center items row-wise
           children: [
             Icon(
-              Icons.search,
-              size: 20,
+              Icons.search_rounded,
+              size: 20, // Slightly smaller icon for better proportion
               color: _focusNode.hasFocus
                   ? AppColors.primary
-                  : AppColors.textSecondary(context),
+                  : AppColors.textSecondary(context).withValues(alpha: 0.5),
             ),
             const SizedBox(width: 10),
             Expanded(
-              child: TextField(
-                controller: _controller,
-                focusNode: _focusNode,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: AppColors.textPrimary(context),
-                  fontWeight: FontWeight.w500,
-                ),
-                decoration: InputDecoration(
-                  hintText:
-                      AppStrings.tr(AppStrings.searchHint, widget.languageCode),
-                  hintStyle: TextStyle(
-                    fontSize: 14,
-                    color: AppColors.textSecondary(context),
-                    fontWeight: FontWeight.normal,
+              child: Stack(
+                alignment: Alignment.centerLeft,
+                children: [
+                  AnimatedSearchHint(
+                    languageCode: widget.languageCode,
+                    isFocused: _focusNode.hasFocus,
+                    hasText: _controller.text.isNotEmpty,
                   ),
-                  border: InputBorder.none,
-                  isDense: true,
-                  contentPadding: EdgeInsets.zero,
-                ),
-                onChanged: (value) {
-                  if (value.length >= 2) {
-                    _performSearch(value);
-                  } else {
-                    setState(() => _searchResults = []);
-                    _removeOverlay();
-                  }
-                },
-                onTap: () {
-                  if (_controller.text.length >= 2) {
-                    _showOverlay();
-                  }
-                },
+                  TextField(
+                    controller: _controller,
+                    focusNode: _focusNode,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: AppColors.textPrimary(context),
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: -0.1,
+                      height: 1.0,
+                    ),
+                    textAlignVertical: TextAlignVertical.center,
+                    decoration: InputDecoration(
+                      hintText: _focusNode.hasFocus && _controller.text.isEmpty
+                          ? AppStrings.tr(
+                              AppStrings.searchHint, widget.languageCode)
+                          : null,
+                      hintStyle: TextStyle(
+                        fontSize: 14,
+                        color: AppColors.textSecondary(context)
+                            .withValues(alpha: 0.4),
+                        fontWeight: FontWeight.w500,
+                      ),
+                      filled: false,
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      isDense: true,
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                    onChanged: (value) {
+                      setState(() {});
+                      if (value.length >= 2) {
+                        _performSearch(value);
+                      } else {
+                        setState(() => _searchResults = []);
+                        _removeOverlay();
+                      }
+                    },
+                    onTap: () {
+                      if (_controller.text.length >= 2) {
+                        _showOverlay();
+                      }
+                    },
+                  ),
+                ],
               ),
             ),
             if (_controller.text.isNotEmpty)
-              InkWell(
-                onTap: () {
+              IconButton(
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                icon: Icon(
+                  Icons.close_rounded,
+                  size: 20,
+                  color:
+                      AppColors.textSecondary(context).withValues(alpha: 0.5),
+                ),
+                onPressed: () {
                   _controller.clear();
                   setState(() => _searchResults = []);
                   _removeOverlay();
                 },
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  child: Icon(
-                    Icons.clear,
-                    size: 18,
-                    color: AppColors.textSecondary(context),
-                  ),
-                ),
               ),
           ],
         ),

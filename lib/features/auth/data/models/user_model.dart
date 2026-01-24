@@ -11,6 +11,12 @@ class UserModel {
   final DateTime? createdAt;
   final DateTime? updatedAt;
   final DateTime? lastLoginAt;
+  final int? birthYear;
+  final String? gender;
+  final String? occupation;
+  final String? financialGoal;
+  final String? riskTolerance;
+  final bool isProfileCompleted;
 
   UserModel({
     required this.id,
@@ -25,6 +31,12 @@ class UserModel {
     this.createdAt,
     this.updatedAt,
     this.lastLoginAt,
+    this.birthYear,
+    this.gender,
+    this.occupation,
+    this.financialGoal,
+    this.riskTolerance,
+    this.isProfileCompleted = false,
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
@@ -47,9 +59,14 @@ class UserModel {
       lastLoginAt: json['last_login_at'] != null
           ? DateTime.tryParse(json['last_login_at'] as String)
           : null,
+      birthYear: json['birth_year'] as int?,
+      gender: json['gender'] as String?,
+      occupation: json['occupation'] as String?,
+      financialGoal: json['financial_goal'] as String?,
+      riskTolerance: json['risk_tolerance'] as String?,
+      isProfileCompleted: json['is_profile_completed'] as bool? ?? false,
     );
   }
-
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -64,7 +81,55 @@ class UserModel {
       'created_at': createdAt?.toIso8601String(),
       'updated_at': updatedAt?.toIso8601String(),
       'last_login_at': lastLoginAt?.toIso8601String(),
+      'birth_year': birthYear,
+      'gender': gender,
+      'occupation': occupation,
+      'financial_goal': financialGoal,
+      'risk_tolerance': riskTolerance,
+      'is_profile_completed': isProfileCompleted,
     };
+  }
+
+  UserModel copyWith({
+    String? id,
+    String? email,
+    String? displayName,
+    String? avatarUrl,
+    String? preferredCurrency,
+    String? preferredLanguage,
+    String? theme,
+    bool? isEmailVerified,
+    String? authProvider,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    DateTime? lastLoginAt,
+    int? birthYear,
+    String? gender,
+    String? occupation,
+    String? financialGoal,
+    String? riskTolerance,
+    bool? isProfileCompleted,
+  }) {
+    return UserModel(
+      id: id ?? this.id,
+      email: email ?? this.email,
+      displayName: displayName ?? this.displayName,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
+      preferredCurrency: preferredCurrency ?? this.preferredCurrency,
+      preferredLanguage: preferredLanguage ?? this.preferredLanguage,
+      theme: theme ?? this.theme,
+      isEmailVerified: isEmailVerified ?? this.isEmailVerified,
+      authProvider: authProvider ?? this.authProvider,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      lastLoginAt: lastLoginAt ?? this.lastLoginAt,
+      birthYear: birthYear ?? this.birthYear,
+      gender: gender ?? this.gender,
+      occupation: occupation ?? this.occupation,
+      financialGoal: financialGoal ?? this.financialGoal,
+      riskTolerance: riskTolerance ?? this.riskTolerance,
+      isProfileCompleted: isProfileCompleted ?? this.isProfileCompleted,
+    );
   }
 }
 

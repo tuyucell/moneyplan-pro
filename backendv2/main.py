@@ -144,6 +144,40 @@ def get_macro_indicators(country_code: str):
     # Diğer ülkeler veya TR fallback için World Bank
     return macro_service.get_country_indicators(country_code)
 
+@app.on_event("startup")
+def startup_event():
+    """
+    Uygulama açılışında veritabanı boşsa static JSON dosyasından doldur.
+    (Hugging Face restart sonrası DB silindiği için)
+    """
+    import os
+    import json
+    from database import get_db_connection
+    
+    try:
+        # DB kontrolü
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM calendar_events")
+        count = cursor.fetchone()[0]
+        
+        if count == 0:
+            print("DB boş, JSON'dan calendar data yükleniyor...")
+            json_path = "calendar_data.json"
+            if os.path.exists(json_path):
+                with open(json_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    events = data.get("events", [])
+                    if events:
+                        market_provider.save_calendar_events(events)
+                        print(f"Başarıyla {len(events)} etkinlik yüklendi!")
+            else:
+                print(f"Uyarı: {json_path} bulunamadı.")
+        
+        conn.close()
+    except Exception as e:
+        print(f"Startup data load error: {e}")
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

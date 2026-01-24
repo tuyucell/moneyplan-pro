@@ -291,6 +291,8 @@ class _SavingsGoalDetailPageState extends ConsumerState<SavingsGoalDetailPage> {
               onPressed: () async {
                 final amount = double.tryParse(controller.text);
                 if (amount != null && amount > 0) {
+                  final messenger = ScaffoldMessenger.of(context);
+                  final navigator = Navigator.of(ctx);
                   await ref
                       .read(savingsGoalProvider.notifier)
                       .updateGoalAmount(goal.id, goal.currentAmount + amount);
@@ -309,16 +311,14 @@ class _SavingsGoalDetailPageState extends ConsumerState<SavingsGoalDetailPage> {
                         .read(walletProvider.notifier)
                         .addTransaction(transaction);
 
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                            content: Text(AppStrings.tr(
-                                AppStrings.addedToPiggyBank, lc))),
-                      );
-                    }
+                    messenger.showSnackBar(
+                      SnackBar(
+                          content: Text(
+                              AppStrings.tr(AppStrings.addedToPiggyBank, lc))),
+                    );
                   }
 
-                  if (context.mounted) Navigator.pop(ctx);
+                  if (mounted) navigator.pop();
                 }
               },
               style: ElevatedButton.styleFrom(
@@ -385,8 +385,10 @@ class _SavingsGoalDetailPageState extends ConsumerState<SavingsGoalDetailPage> {
               onPressed: () async {
                 final amount = double.tryParse(controller.text);
                 if (amount != null && amount > 0) {
+                  final messenger = ScaffoldMessenger.of(context);
+                  final navigator = Navigator.of(ctx);
                   if (amount > goal.currentAmount) {
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    messenger.showSnackBar(SnackBar(
                         content: Text(AppStrings.tr(
                             AppStrings.insufficientBalance, lc))));
                     return;
@@ -411,7 +413,7 @@ class _SavingsGoalDetailPageState extends ConsumerState<SavingsGoalDetailPage> {
                         .addTransaction(transaction);
                   }
 
-                  if (context.mounted) Navigator.pop(ctx);
+                  if (mounted) navigator.pop();
                 }
               },
               style: ElevatedButton.styleFrom(

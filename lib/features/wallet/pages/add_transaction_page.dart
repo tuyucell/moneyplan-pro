@@ -11,6 +11,7 @@ import 'package:uuid/uuid.dart';
 import 'package:invest_guide/core/services/currency_service.dart';
 import 'package:invest_guide/features/wallet/providers/email_integration_provider.dart';
 import 'package:invest_guide/features/wallet/pages/email_sync_page.dart';
+import 'package:invest_guide/services/analytics/analytics_service.dart';
 
 class AddTransactionPage extends ConsumerStatefulWidget {
   final WalletTransaction? transaction;
@@ -350,7 +351,15 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
                       activeTrackColor:
                           AppColors.primary.withValues(alpha: 0.5),
                       activeThumbColor: AppColors.primary,
-                      onChanged: (val) => setState(() => _isSubscription = val),
+                      onChanged: (val) {
+                        setState(() {
+                          _isSubscription = val;
+                          if (val && _recurrenceEndDate == null) {
+                            final now = DateTime.now();
+                            _recurrenceEndDate = DateTime(now.year, 12, 31);
+                          }
+                        });
+                      },
                     ),
                     // Kredi kartından otomatik ödeme checkbox'ı (sadece düzenli gider ise)
                     if (_isSubscription &&
@@ -905,6 +914,20 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
       await notifier.updateTransaction(transaction);
     } else {
       await notifier.addTransaction(transaction);
+
+      // Analytics: Track new transaction
+      await ref.read(analyticsServiceProvider).logEvent(
+            name: 'add_transaction',
+            category: 'engagement',
+            properties: {
+              'type': transaction.type.name,
+              'category_id': transaction.categoryId,
+              'amount': transaction.amount,
+              'currency': transaction.currencyCode,
+              'is_subscription': transaction.isSubscription,
+            },
+            screenName: 'AddTransactionPage',
+          );
     }
 
     if (mounted) {

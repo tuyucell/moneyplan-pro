@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:invest_guide/core/services/push_notification_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:invest_guide/core/theme/app_theme.dart';
@@ -9,38 +11,63 @@ import 'package:invest_guide/core/providers/language_provider.dart';
 import 'package:invest_guide/services/api/supabase_service.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:home_widget/home_widget.dart';
-
 import 'package:invest_guide/core/providers/navigation_provider.dart';
 import 'package:invest_guide/core/providers/balance_visibility_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:invest_guide/features/alerts/services/price_alert_monitor.dart';
+import 'package:invest_guide/core/services/remote_config_service.dart';
+import 'package:invest_guide/core/providers/common_providers.dart';
+import 'package:invest_guide/core/services/data_sync_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  debugPrint('APP_START: main() started');
 
   try {
-    // Initialize Hive for local storage
+    // 1. Initialize Hive
+    debugPrint('APP_START: Initializing Hive...');
     await Hive.initFlutter();
 
-    // Initialize Supabase
+    // 2. Initialize Supabase
+    debugPrint('APP_START: Initializing Supabase...');
     await SupabaseService.initialize();
 
-    // Set App Group ID early for iOS
-    await HomeWidget.setAppGroupId('group.com.turgayyucel.invest_guide');
-
-    // Initialize SharedPreferences
+    // 3. Initialize SharedPreferences
+    debugPrint('APP_START: Initializing SharedPreferences...');
     final prefs = await SharedPreferences.getInstance();
+
+    // 4. Initialize Non-blocking services
+    debugPrint('APP_START: Starting non-blocking initializations...');
+
+    // Set App Group ID (Try-catch to prevent splash crash)
+    try {
+      await HomeWidget.setAppGroupId('group.com.turgayyucel.invest_guide');
+    } catch (e) {
+      debugPrint('APP_START_ERROR: HomeWidget GroupID failed: $e');
+    }
+
+    // Initialize OneSignal
+    unawaited(PushNotificationService().initialize());
+
+    // Initialize Remote Config Service
+    final remoteConfigService = RemoteConfigService(prefs);
+    unawaited(remoteConfigService.fetchFlags());
+
+    debugPrint('APP_START: All critical initializations done. Running app...');
 
     runApp(
       ProviderScope(
         overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
           balanceVisibilityProvider
               .overrideWith((ref) => BalanceVisibilityNotifier(prefs)),
+          remoteConfigServiceProvider.overrideWithValue(remoteConfigService),
         ],
         child: const MyApp(),
       ),
     );
   } catch (e) {
+    debugPrint('APP_START_CRITICAL_ERROR: $e');
     runApp(
       MaterialApp(
         home: Scaffold(
@@ -79,14 +106,11 @@ class _MyAppState extends ConsumerState<MyApp> {
   @override
   void initState() {
     super.initState();
-    // Widget launch check
     _setupWidgetLaunch();
-    // Start price alert monitoring
     _startPriceAlertMonitoring();
   }
 
   void _startPriceAlertMonitoring() {
-    // Start monitoring after a short delay to ensure providers are ready
     Future.delayed(const Duration(seconds: 2), () {
       if (mounted) {
         ref.read(priceAlertMonitorProvider).start();
@@ -95,25 +119,23 @@ class _MyAppState extends ConsumerState<MyApp> {
   }
 
   void _setupWidgetLaunch() {
-    // Initially launched
     HomeWidget.initiallyLaunchedFromHomeWidget().then((uri) {
       if (uri != null) _handleWidgetLaunch(uri);
     });
-    // Listen for clicks while app is in background/foreground
     HomeWidget.widgetClicked.listen((uri) {
       if (uri != null) _handleWidgetLaunch(uri);
     });
   }
 
   Future<void> _handleWidgetLaunch(Uri uri) async {
-    // Logic is now EXCLUSIVELY handled in AppRouter via dummy routes.
-    // We removed this block to prevent "ghost" transactions (e.g. coffee added when clicking BES funds)
-    // caused by HomeWidget's behavior of replaying the initial URI.
     debugPrint('WIDGET_LOG: Received URI: $uri');
   }
 
   @override
   Widget build(BuildContext context) {
+    // Initialize Data Sync Service
+    ref.watch(syncManagerProvider);
+
     final themeMode = ref.watch(themeProvider);
     final language = ref.watch(languageProvider);
 

@@ -204,7 +204,7 @@ class BankAccountsCard extends ConsumerWidget {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.blue.withOpacity(0.1),
+                      color: Colors.blue.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Column(
@@ -244,12 +244,14 @@ class BankAccountsCard extends ConsumerWidget {
                               : isBest
                                   ? Colors.green
                                   : canPay
-                                      ? Colors.green.withOpacity(0.3)
-                                      : Colors.orange.withOpacity(0.3),
+                                      ? Colors.green.withValues(alpha: 0.3)
+                                      : Colors.orange.withValues(alpha: 0.3),
                           width: isSelected ? 3 : (isBest ? 2 : 1),
                         ),
                       ),
-                      color: isSelected ? Colors.blue.withOpacity(0.05) : null,
+                      color: isSelected
+                          ? Colors.blue.withValues(alpha: 0.05)
+                          : null,
                       child: ListTile(
                         contentPadding: const EdgeInsets.symmetric(
                             horizontal: 12, vertical: 4),
@@ -364,7 +366,10 @@ class BankAccountsCard extends ConsumerWidget {
           '🟢 Starting payment process for amount: ${debtTransaction.amount}');
       // We process the payment as long as we have a result.
       // The context check is mainly for showing snackbars, but the transaction logic should proceed.
-      await _processPayment(context, ref, debtTransaction, debtAccount, result);
+      if (context.mounted) {
+        await _processPayment(
+            context, ref, debtTransaction, debtAccount, result);
+      }
     } else {
       debugPrint('⚠️ Payment process skipped. Result is null.');
     }
@@ -417,6 +422,7 @@ class BankAccountsCard extends ConsumerWidget {
       debugPrint('  - Category: ${paymentTx.categoryId}');
       debugPrint('  - isPaid: ${paymentTx.isPaid}');
 
+      final messenger = ScaffoldMessenger.of(context);
       await ref.read(walletProvider.notifier).addTransaction(paymentTx);
 
       // Mark original debt as paid if full payment
@@ -427,18 +433,16 @@ class BankAccountsCard extends ConsumerWidget {
             .markAsPaid(debtTransaction.id, true);
       }
 
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              '✅ Ödeme Başarılı!\n\n'
-              '${paymentRequest.paymentAmount.toStringAsFixed(2)} ${paymentRequest.currencyCode} '
-              '${selectedBalance.account.name} hesabından ödendi.',
-            ),
-            backgroundColor: Colors.green,
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            '✅ Ödeme Başarılı!\n\n'
+            '${paymentRequest.paymentAmount.toStringAsFixed(2)} ${paymentRequest.currencyCode} '
+            '${selectedBalance.account.name} hesabından ödendi.',
           ),
-        );
-      }
+          backgroundColor: Colors.green,
+        ),
+      );
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -772,7 +776,7 @@ class BankAccountsCard extends ConsumerWidget {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -971,7 +975,7 @@ class BankAccountsCard extends ConsumerWidget {
                     ),
                     Builder(builder: (context) {
                       // Total balance converted to account's main currency
-                      double totalBalanceInMainCurrency = 0.0;
+                      var totalBalanceInMainCurrency = 0.0;
                       debugPrint(
                           '📊 --- Calculating Total Limit for ${bank.name} ---');
 
@@ -1014,7 +1018,7 @@ class BankAccountsCard extends ConsumerWidget {
                 const SizedBox(height: 4),
                 Builder(builder: (context) {
                   // Re-calculate total balance for progress indicator
-                  double totalBalanceInMainCurrency = 0.0;
+                  var totalBalanceInMainCurrency = 0.0;
                   balances.forEach((currency, amount) {
                     if (currency == bank.currencyCode) {
                       totalBalanceInMainCurrency += amount;

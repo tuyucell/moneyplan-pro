@@ -6,33 +6,79 @@ import 'package:invest_guide/features/watchlist/providers/asset_cache_provider.d
 import 'package:invest_guide/core/i18n/app_strings.dart';
 import 'package:invest_guide/core/providers/language_provider.dart';
 
-class AlertsPage extends ConsumerWidget {
+class AlertsPage extends ConsumerStatefulWidget {
   const AlertsPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AlertsPage> createState() => _AlertsPageState();
+}
+
+class _AlertsPageState extends ConsumerState<AlertsPage>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final alerts = ref.watch(alertsProvider);
     final language = ref.watch(languageProvider);
     final lc = language.code;
 
+    final activeAlerts = alerts.where((a) => a.isActive).toList();
+    final pastAlerts = alerts.where((a) => !a.isActive).toList();
+
     return Scaffold(
       backgroundColor: AppColors.background(context),
       appBar: AppBar(
-        title: Text(AppStrings.tr(AppStrings.priceAlertsTitle, lc), style: const TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(AppStrings.tr(AppStrings.priceAlertsTitle, lc),
+            style: const TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: AppColors.surface(context),
         elevation: 0,
         foregroundColor: AppColors.textPrimary(context),
+        bottom: TabBar(
+          controller: _tabController,
+          labelColor: AppColors.primary,
+          unselectedLabelColor: AppColors.textSecondary(context),
+          indicatorColor: AppColors.primary,
+          tabs: [
+            Tab(text: AppStrings.tr(AppStrings.activeAlerts, lc)),
+            Tab(text: AppStrings.tr(AppStrings.pastAlerts, lc)),
+          ],
+        ),
       ),
-      body: alerts.isEmpty
-          ? _buildEmptyState(context, lc)
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: alerts.length,
-              itemBuilder: (context, index) {
-                final alert = alerts[index];
-                return _buildAlertCard(context, ref, alert, lc);
-              },
-            ),
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          _buildAlertList(context, ref, activeAlerts, lc),
+          _buildAlertList(context, ref, pastAlerts, lc),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAlertList(
+      BuildContext context, WidgetRef ref, List<dynamic> alerts, String lc) {
+    if (alerts.isEmpty) {
+      return _buildEmptyState(context, lc);
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: alerts.length,
+      itemBuilder: (context, index) {
+        final alert = alerts[index];
+        return _buildAlertCard(context, ref, alert, lc);
+      },
     );
   }
 
@@ -41,7 +87,8 @@ class AlertsPage extends ConsumerWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.notifications_off_outlined, size: 64, color: AppColors.textTertiary(context)),
+          Icon(Icons.notifications_off_outlined,
+              size: 64, color: AppColors.textTertiary(context)),
           const SizedBox(height: 16),
           Text(
             AppStrings.tr(AppStrings.noAlertsYet, lc),
@@ -62,15 +109,24 @@ class AlertsPage extends ConsumerWidget {
     );
   }
 
-  Widget _buildAlertCard(BuildContext context, WidgetRef ref, dynamic alert, String lc) {
+  Widget _buildAlertCard(
+      BuildContext context, WidgetRef ref, dynamic alert, String lc) {
     final assetAsync = ref.watch(assetProvider(alert.assetId));
     final currentPrice = assetAsync.value?.currentPriceUsd;
-    
-    var isTriggered = false;
+
+    var isTriggeredNow = false;
     if (currentPrice != null) {
-      if (alert.isAbove && currentPrice >= alert.targetPrice) isTriggered = true;
-      if (!alert.isAbove && currentPrice <= alert.targetPrice) isTriggered = true;
+      if (alert.isAbove && currentPrice >= alert.targetPrice) {
+        isTriggeredNow = true;
+      }
+      if (!alert.isAbove && currentPrice <= alert.targetPrice) {
+        isTriggeredNow = true;
+      }
     }
+
+    final isPastTriggered = alert.lastTriggeredAt != null;
+    final showTriggeredStyle =
+        (isTriggeredNow && alert.isActive) || isPastTriggered;
 
     return Dismissible(
       key: Key(alert.id),
@@ -94,8 +150,10 @@ class AlertsPage extends ConsumerWidget {
           color: AppColors.surface(context),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isTriggered ? AppColors.success : AppColors.border(context),
-            width: isTriggered ? 2 : 1, 
+            color: showTriggeredStyle
+                ? AppColors.success
+                : AppColors.border(context),
+            width: showTriggeredStyle ? 1.5 : 1,
           ),
           boxShadow: AppColors.shadowSm(context),
         ),
@@ -123,17 +181,30 @@ class AlertsPage extends ConsumerWidget {
                       Text(
                         alert.symbol,
                         style: TextStyle(
-                          fontWeight: FontWeight.bold, 
+                          fontWeight: FontWeight.bold,
                           fontSize: 16,
                           color: AppColors.textPrimary(context),
                         ),
                       ),
-                      Switch(
-                        value: alert.isActive, 
-                        onChanged: (val) {
-                          ref.read(alertsProvider.notifier).toggleAlert(alert.id, val);
-                        },
-                        activeThumbColor: AppColors.primary,
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 4, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: alert.isActive
+                              ? AppColors.primary.withValues(alpha: 0.1)
+                              : AppColors.textSecondary(context)
+                                  .withValues(alpha: 0.05),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Switch.adaptive(
+                          value: alert.isActive,
+                          onChanged: (val) {
+                            ref
+                                .read(alertsProvider.notifier)
+                                .toggleAlert(alert.id, val);
+                          },
+                          activeTrackColor: AppColors.primary,
+                        ),
                       ),
                     ],
                   ),
@@ -150,22 +221,66 @@ class AlertsPage extends ConsumerWidget {
                     children: [
                       Text(
                         '${AppStrings.tr(AppStrings.currentPriceShort, lc)}: ${currentPrice != null ? '\$${currentPrice.toStringAsFixed(2)}' : AppStrings.tr(AppStrings.loading, lc)}',
-                        style: TextStyle(fontSize: 12, color: AppColors.textSecondary(context)),
+                        style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary(context)),
                       ),
-                      if (isTriggered && alert.isActive) 
-                        Padding(
-                          padding: const EdgeInsets.only(left: 8.0),
+                      const SizedBox(width: 8),
+                      // Status Label
+                      if (alert.isActive)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: isTriggeredNow
+                                ? AppColors.success.withValues(alpha: 0.1)
+                                : AppColors.primary.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
                           child: Text(
-                            AppStrings.tr(AppStrings.triggeredLabel, lc),
-                            style: const TextStyle(
-                               color: AppColors.success, 
-                               fontWeight: FontWeight.bold, 
-                               fontSize: 12
+                            isTriggeredNow
+                                ? AppStrings.tr(AppStrings.triggeredLabel, lc)
+                                : (lc == 'tr' ? 'Bekliyor' : 'Waiting'),
+                            style: TextStyle(
+                              color: isTriggeredNow
+                                  ? AppColors.success
+                                  : AppColors.primary,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 10,
+                            ),
+                          ),
+                        )
+                      else if (isPastTriggered)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppColors.textSecondary(context)
+                                .withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            lc == 'tr' ? 'Tamamlandı' : 'Completed',
+                            style: TextStyle(
+                              color: AppColors.textSecondary(context),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 10,
                             ),
                           ),
                         ),
                     ],
                   ),
+                  if (alert.lastTriggeredAt != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4.0),
+                      child: Text(
+                        '${lc == 'tr' ? 'Son Tetiklenme' : 'Last Triggered'}: ${alert.lastTriggeredAt!.toLocal().toString().split('.')[0]}',
+                        style: TextStyle(
+                            fontSize: 11,
+                            color: AppColors.textSecondary(context),
+                            fontStyle: FontStyle.italic),
+                      ),
+                    ),
                 ],
               ),
             ),

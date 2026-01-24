@@ -24,8 +24,7 @@ class InvestmentAmountStep extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final plan = ref.watch(investmentPlanProvider);
-    final maxAmount =
-        plan.hasDebt ? plan.monthlyAfterDebt : plan.monthlyAvailable;
+    final maxAmount = plan.potentialInvestmentAmount;
     final language = ref.watch(languageProvider);
     final lc = language.code;
     final numberFormat = NumberFormat('#,##0', lc == 'tr' ? 'tr_TR' : 'en_US');
@@ -52,7 +51,7 @@ class InvestmentAmountStep extends ConsumerWidget {
             ),
           ),
           child: Text(
-              '$label (${numberFormat.format(safeAmount)} ${plan.currencyCode})'),
+              '$label (${numberFormat.format(safeAmount)} ${plan.currencyDisplay})'),
         ),
       );
     }
@@ -75,34 +74,35 @@ class InvestmentAmountStep extends ConsumerWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                maxAmount > 0
-                    ? '${AppStrings.tr(AppStrings.maxInvestMsg, lc).replaceAll(RegExp(r'[:₺\$]'), '')}: ${numberFormat.format(maxAmount)} ${plan.currencyCode}'
-                    : (lc == 'tr'
-                        ? 'Önce bütçe açığınızı kapatmanız önerilir.'
-                        : 'We recommend balancing your budget first.'),
-                style: TextStyle(
-                  fontSize: 14,
-                  color: maxAmount > 0
-                      ? AppColors.textSecondary(context)
-                      : AppColors.error,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
               if (plan.hasDebt && plan.monthlyDebtPayment > 0)
                 Padding(
-                  padding: const EdgeInsets.only(top: 4),
+                  padding: const EdgeInsets.only(bottom: 8),
                   child: Text(
                     lc == 'tr'
-                        ? '💡 Borcun bittiğinde (${plan.monthsToPayOffDebt} ay sonra) yatırım kapasiten ${numberFormat.format(plan.potentialInvestmentAmount)} ${plan.currencyCode}\'ye yükselecek!'
-                        : '💡 Once debt is paid (in ${plan.monthsToPayOffDebt} months), your capacity will rise to ${numberFormat.format(plan.potentialInvestmentAmount)} ${plan.currencyCode}!',
+                        ? '💡 Borcun bittiğinde (${plan.monthsToPayOffDebt} ay sonra) yatırım kapasiten ${numberFormat.format(plan.potentialInvestmentAmount)} ${plan.currencyDisplay}\'ye yükselecek!'
+                        : '💡 Once debt is paid (in ${plan.monthsToPayOffDebt} months), your capacity will rise to ${numberFormat.format(plan.potentialInvestmentAmount)} ${plan.currencyDisplay}!',
                     style: const TextStyle(
-                      fontSize: 12,
+                      fontSize: 13,
                       color: AppColors.success,
                       fontStyle: FontStyle.italic,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
+              Text(
+                maxAmount > 0
+                    ? '${lc == 'tr' ? 'Borç Sonrası Hedef Kapasiten' : 'Post-Debt Target Capacity'}: ${numberFormat.format(maxAmount)} ${plan.currencyDisplay}'
+                    : (lc == 'tr'
+                        ? 'Gelir ve giderlerinize göre yatırım kapasiteniz 0 gözüküyor.'
+                        : 'Your investment capacity shows as 0 based on income/expenses.'),
+                style: TextStyle(
+                  fontSize: 14,
+                  color: maxAmount > 0
+                      ? AppColors.primary
+                      : AppColors.textSecondary(context),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 32),
@@ -112,7 +112,7 @@ class InvestmentAmountStep extends ConsumerWidget {
                 .replaceAll(RegExp(r'\s*\(.*\)\s*'), ''),
             hint: AppStrings.tr(AppStrings.hintAmount, lc),
             icon: Icons.account_balance_wallet,
-            suffix: plan.currencyCode,
+            suffix: plan.currencyDisplay,
             onChanged: (value) {
               final amount = double.tryParse(value) ?? 0;
               ref
@@ -128,7 +128,38 @@ class InvestmentAmountStep extends ConsumerWidget {
           buildQuickAmountButton('75%', maxAmount * 0.75),
           const SizedBox(height: 12),
           buildQuickAmountButton('100%', maxAmount),
-          const SizedBox(height: 32),
+          const SizedBox(height: 24),
+          if (plan.hasDebt && plan.monthsToPayOffDebt > 0)
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+                border:
+                    Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.auto_awesome,
+                      color: AppColors.primary, size: 20),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      lc == 'tr'
+                          ? 'Planın ilk ${plan.monthsToPayOffDebt} ayı borç ödemesine odaklanacak, ardından belirlediğin ${numberFormat.format(plan.monthlyInvestmentAmount)} ${plan.currencyDisplay} tutarındaki yatırımın tam kapasite başlayacak. 🚀'
+                          : 'The first ${plan.monthsToPayOffDebt} months will focus on debt payoff, after which your ${numberFormat.format(plan.monthlyInvestmentAmount)} ${plan.currencyDisplay} investment will launch at full capacity. 🚀',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textPrimary(context),
+                        height: 1.4,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          const SizedBox(height: 24),
           if (onJumpToIncome != null)
             Center(
               child: TextButton.icon(
@@ -166,7 +197,7 @@ class InvestmentAmountStep extends ConsumerWidget {
               Expanded(
                 flex: 2,
                 child: ElevatedButton(
-                  onPressed: plan.monthlyInvestmentAmount > 0 ? onNext : null,
+                  onPressed: onNext,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     padding: const EdgeInsets.symmetric(vertical: 16),

@@ -13,6 +13,7 @@ import 'package:invest_guide/features/search/presentation/widgets/macro_indicato
 import 'package:invest_guide/features/search/presentation/widgets/search_overlay.dart';
 import 'package:invest_guide/features/shared/services/widget_service.dart';
 import 'package:invest_guide/core/router/app_router.dart';
+import 'package:invest_guide/features/shared/widgets/notification_badge_icon.dart';
 
 class MarketsPage extends ConsumerStatefulWidget {
   const MarketsPage({super.key});
@@ -48,7 +49,11 @@ class _MarketsPageState extends ConsumerState<MarketsPage> {
       }
     } catch (e) {
       debugPrint('News Fetch Error: $e');
-      if (mounted) setState(() => _isNewsLoading = false);
+      if (mounted) {
+        setState(() {
+          _isNewsLoading = false;
+        });
+      }
     }
   }
 
@@ -74,13 +79,14 @@ class _MarketsPageState extends ConsumerState<MarketsPage> {
                 AppStrings.tr(AppStrings.pageMarkets, lc),
                 style: TextStyle(
                   color: AppColors.textPrimary(context),
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
                   letterSpacing: -0.5,
                 ),
               ),
               centerTitle: false,
               actions: const [
+                NotificationBadgeIcon(),
                 SizedBox(width: 8),
               ],
               bottom: PreferredSize(
@@ -119,8 +125,8 @@ class _MarketsPageState extends ConsumerState<MarketsPage> {
                 child: Text(
                   AppStrings.tr(AppStrings.headerInvestTools, lc),
                   style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
                     color: AppColors.textPrimary(context),
                     letterSpacing: -0.5,
                   ),
@@ -344,7 +350,13 @@ class _MarketTickerWidgetState extends State<_MarketTickerWidget> {
   }
 
   List<_TickerItem> _getDemoItems() {
-    return [];
+    return [
+      _TickerItem('BIST 100', '...', '...', true),
+      _TickerItem('USD/TRY', '...', '...', true),
+      _TickerItem('EUR/TRY', '...', '...', true),
+      _TickerItem('ALTIN', '...', '...', true),
+      _TickerItem('BTC/USD', '...', '...', true),
+    ];
   }
 
   void _startAutoScroll() {
@@ -369,6 +381,23 @@ class _MarketTickerWidgetState extends State<_MarketTickerWidget> {
 
   @override
   Widget build(BuildContext context) {
+    if (_items.isEmpty) {
+      return Container(
+        height: 48,
+        decoration: BoxDecoration(
+          color: AppColors.surface(context),
+          border: Border(bottom: BorderSide(color: AppColors.border(context))),
+        ),
+        child: const Center(
+          child: SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    }
+
     return Container(
       height: 48,
       decoration: BoxDecoration(
@@ -609,8 +638,8 @@ class _LatestNewsWidget extends StatelessWidget {
               Text(
                 AppStrings.tr(AppStrings.headerLastNews, lc),
                 style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
                   color: AppColors.textPrimary(context),
                   letterSpacing: -0.5,
                 ),

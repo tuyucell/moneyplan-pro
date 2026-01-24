@@ -6,16 +6,22 @@ import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 
+import 'package:invest_guide/core/services/google_auth_service.dart';
+
 class GmailSyncService {
-  static final GoogleSignIn _googleSignIn = GoogleSignIn(
-    scopes: [
-      GmailApi.gmailReadonlyScope,
-    ],
-  );
+  static final GoogleSignIn _googleSignIn = GoogleAuthService().instance;
 
   static Future<GoogleSignInAccount?> signIn() async {
     try {
-      return await _googleSignIn.signIn();
+      // First ensure basic sign in
+      final account = await _googleSignIn.signIn();
+      if (account == null) return null;
+
+      // Request Gmail scopes specifically when this service is used
+      final scopeGranted = await GoogleAuthService().requestGmailScopes();
+      if (!scopeGranted) return null;
+
+      return account;
     } catch (error) {
       debugPrint('Gmail Sign In Error: $error');
       return null;
@@ -38,6 +44,10 @@ class GmailSyncService {
     List<String>? customKeywords,
     List<String>? excludeKeywords,
   }) async {
+    // Ensure we have scopes before proceeding
+    final scopeGranted = await GoogleAuthService().requestGmailScopes();
+    if (!scopeGranted) return [];
+
     final authClient = await _googleSignIn.authenticatedClient();
     if (authClient == null) return [];
 

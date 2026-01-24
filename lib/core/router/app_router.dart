@@ -1,6 +1,16 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:uuid/uuid.dart';
+
+import 'package:invest_guide/core/i18n/app_strings.dart';
+import 'package:invest_guide/core/providers/language_provider.dart';
+import 'package:invest_guide/core/providers/navigation_provider.dart';
+import 'package:invest_guide/services/analytics/analytics_service.dart';
+
 import 'package:invest_guide/features/search/presentation/pages/home_page.dart';
 import 'package:invest_guide/features/search/presentation/pages/search_results_page.dart';
 import 'package:invest_guide/features/search/presentation/pages/category_page.dart';
@@ -8,29 +18,28 @@ import 'package:invest_guide/features/search/presentation/pages/asset_detail_pag
 import 'package:invest_guide/features/search/presentation/pages/pension_fund_page.dart';
 import 'package:invest_guide/features/calculators/pages/life_insurance_page.dart';
 import 'package:invest_guide/features/search/presentation/pages/fund_list_page.dart';
-import 'package:invest_guide/features/search/data/models/asset.dart';
-import 'package:invest_guide/features/exchanges/presentation/pages/exchange_list_page.dart';
 import 'package:invest_guide/features/exchanges/presentation/pages/exchange_detail_page.dart';
+import 'package:invest_guide/features/exchanges/presentation/pages/exchange_list_page.dart';
 import 'package:invest_guide/features/search/presentation/pages/news_list_page.dart';
 import 'package:invest_guide/features/search/presentation/pages/news_detail_page.dart';
-import 'package:invest_guide/core/constants/app_constants.dart';
 import 'package:invest_guide/features/tools/presentation/pages/tools_page.dart';
 import 'package:invest_guide/features/calculators/pages/compound_interest_page.dart';
 import 'package:invest_guide/features/calculators/pages/loan_kmh_calculator_page.dart';
 import 'package:invest_guide/features/calculators/pages/retirement_calculator_page.dart';
 import 'package:invest_guide/features/calculators/pages/credit_card_assistant_page.dart';
 import 'package:invest_guide/features/tools/presentation/pages/scenario_planner_page.dart';
-import 'package:invest_guide/features/investment_wizard/pages/investment_wizard_page.dart';
 import 'package:invest_guide/features/onboarding/presentation/pages/onboarding_page.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:invest_guide/core/i18n/app_strings.dart';
-import 'package:invest_guide/core/providers/language_provider.dart';
+import 'package:invest_guide/features/onboarding/presentation/pages/user_details_page.dart';
+import 'package:invest_guide/features/auth/presentation/pages/sign_up_page.dart';
+import 'package:invest_guide/features/settings/presentation/pages/privacy_policy_page.dart';
+import 'package:invest_guide/features/auth/presentation/pages/login_page.dart';
 import 'package:invest_guide/features/wallet/pages/add_transaction_page.dart';
 import 'package:invest_guide/features/wallet/providers/wallet_provider.dart';
 import 'package:invest_guide/features/wallet/models/wallet_transaction.dart';
 import 'package:invest_guide/features/wallet/models/transaction_category.dart';
-import 'package:invest_guide/core/providers/navigation_provider.dart';
-import 'package:uuid/uuid.dart';
+import 'package:invest_guide/features/search/data/models/asset.dart';
+import 'package:invest_guide/features/alerts/presentation/pages/alerts_page.dart';
+import 'package:invest_guide/features/investment_wizard/pages/investment_wizard_page.dart';
 
 // Persistent storage for processed deep links to prevent duplicates even after app restarts
 class DeepLinkPersistence {
@@ -147,9 +156,7 @@ class _QuickAddProcessorState extends ConsumerState<QuickAddProcessor> {
   }
 
   void _redirectToHome() {
-    // Switch to wallet tab
-    ref.read(bottomNavProvider.notifier).state = 1;
-    // Go home
+    ref.read(bottomNavProvider.notifier).state = 1; // Switch to wallet tab
     context.go('/home');
   }
 
@@ -207,10 +214,26 @@ class AppRouter {
   static const String newsDetail = '/news-detail';
   static const String exchangeList = '/exchange-list';
   static const String exchangeDetail = '/exchange-detail';
+  static const String userDetails = '/onboarding/details';
+  static const String privacyPolicy = '/privacy_policy';
+  static const String login = '/login';
+  static const String signup = '/signup'; // Added signup route constant
+  static const String alerts = '/alerts';
+
+  static final GlobalKey<ScaffoldMessengerState> snackbarKey =
+      GlobalKey<ScaffoldMessengerState>();
 
   static final GoRouter router = GoRouter(
     initialLocation: splash,
     routes: [
+      GoRoute(
+        path: signup,
+        builder: (context, state) => const SignUpPage(),
+      ),
+      GoRoute(
+        path: privacyPolicy,
+        builder: (context, state) => const PrivacyPolicyPage(),
+      ),
       GoRoute(
         path: splash,
         builder: (context, state) => const SplashScreen(),
@@ -299,6 +322,10 @@ class AppRouter {
         },
       ),
       GoRoute(
+        path: alerts,
+        builder: (context, state) => const AlertsPage(),
+      ),
+      GoRoute(
         path: '/tools',
         builder: (context, state) => const ToolsPage(),
         routes: [
@@ -331,10 +358,20 @@ class AppRouter {
       GoRoute(
         path: '/onboarding',
         builder: (context, state) => const OnboardingPage(),
+        routes: [
+          GoRoute(
+            path: 'details',
+            builder: (context, state) => const UserDetailsPage(),
+          ),
+        ],
       ),
       GoRoute(
         path: '/add-transaction',
         builder: (context, state) => const AddTransactionPage(),
+      ),
+      GoRoute(
+        path: login,
+        builder: (context, state) => const LoginPage(),
       ),
       // Deep link dummy routes
       GoRoute(
@@ -390,21 +427,34 @@ class AppRouter {
   );
 }
 
-class SplashScreen extends StatefulWidget {
+class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
 
   @override
-  State<SplashScreen> createState() => _SplashScreenState();
+  ConsumerState<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> {
+class _SplashScreenState extends ConsumerState<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    _navigateToHome();
+    _startAnalyticsAndNavigate();
   }
 
-  Future<void> _navigateToHome() async {
+  Future<void> _startAnalyticsAndNavigate() async {
+    // Start Analytics Session
+    try {
+      final packageInfo = await PackageInfo.fromPlatform();
+      await ref.read(analyticsServiceProvider).startSession({
+        'app_version': packageInfo.version,
+        'build_number': packageInfo.buildNumber,
+        'os_version': Platform.operatingSystemVersion,
+        'model': Platform.localHostname, // Simplified for now
+      });
+    } catch (e) {
+      debugPrint('Failed to start analytics session: $e');
+    }
+
     await Future.delayed(const Duration(seconds: 2));
     if (!mounted) return;
 
@@ -422,38 +472,29 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer(builder: (context, ref, _) {
-      final lc = ref.watch(languageProvider).code;
-      return Scaffold(
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.show_chart_rounded,
-                size: 100,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-              const SizedBox(height: 24),
-              Text(
-                AppConstants.appName,
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                AppStrings.tr(AppStrings.investmentGuideLabel, lc),
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: Colors.grey,
-                    ),
-              ),
-              const SizedBox(height: 48),
-              const CircularProgressIndicator(),
-            ],
-          ),
+    final lc = ref.watch(languageProvider).code;
+    return Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Image.asset(
+              'assets/images/logo_premium.png',
+              height: 100,
+            ),
+            const SizedBox(height: 32),
+            Text(
+              AppStrings.tr(AppStrings.investmentGuideLabel, lc),
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    color: Colors.grey,
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+            const SizedBox(height: 48),
+            const CircularProgressIndicator(),
+          ],
         ),
-      );
-    });
+      ),
+    );
   }
 }

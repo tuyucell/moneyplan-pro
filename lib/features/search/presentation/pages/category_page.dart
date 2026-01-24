@@ -342,7 +342,7 @@ class _CategoryPageState extends ConsumerState<CategoryPage>
         children: [
           // Search Box (same)
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
             color: AppColors.surface(context),
             child: Container(
               height: 46,
@@ -421,7 +421,7 @@ class _CategoryPageState extends ConsumerState<CategoryPage>
           if (widget.categoryId == 'stock' && !_isLoading && _items.isNotEmpty)
             Container(
               height: 50,
-              margin: const EdgeInsets.only(bottom: 8),
+              margin: const EdgeInsets.fromLTRB(0, 0, 0, 12),
               child: ListView(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -457,7 +457,8 @@ class _CategoryPageState extends ConsumerState<CategoryPage>
                                   onRefresh: _loadData,
                                   color: AppColors.primary,
                                   child: ReorderableListView.builder(
-                                    padding: const EdgeInsets.all(16),
+                                    padding: const EdgeInsets.fromLTRB(
+                                        16, 0, 16, 16),
                                     itemCount: _filteredItems.length,
                                     onReorder: (oldIndex, newIndex) {
                                       setState(() {
@@ -490,7 +491,8 @@ class _CategoryPageState extends ConsumerState<CategoryPage>
                                           color: AppColors.textSecondary(
                                               context))))
                               : ListView.separated(
-                                  padding: const EdgeInsets.all(16),
+                                  padding:
+                                      const EdgeInsets.fromLTRB(16, 0, 16, 16),
                                   itemCount: _filteredExchanges.length,
                                   separatorBuilder: (context, index) =>
                                       const SizedBox(height: 12),
@@ -520,7 +522,7 @@ class _CategoryPageState extends ConsumerState<CategoryPage>
     }
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: AppColors.surface(context),

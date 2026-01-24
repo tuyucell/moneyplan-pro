@@ -12,6 +12,9 @@ import 'package:invest_guide/features/watchlist/providers/asset_cache_provider.d
 import 'package:invest_guide/features/alerts/presentation/widgets/add_alert_dialog.dart';
 import 'package:invest_guide/core/i18n/app_strings.dart';
 import 'package:invest_guide/core/providers/language_provider.dart';
+import 'package:invest_guide/features/auth/presentation/providers/auth_providers.dart';
+import 'package:invest_guide/features/auth/data/models/user_model.dart';
+import 'package:invest_guide/features/auth/presentation/widgets/auth_prompt_dialog.dart';
 
 class AssetDetailPage extends ConsumerStatefulWidget {
   final String assetId;
@@ -19,6 +22,7 @@ class AssetDetailPage extends ConsumerStatefulWidget {
   final String? name;
   final double? currentPrice;
   final double? priceChange24h;
+  final String? categoryId;
 
   const AssetDetailPage({
     super.key,
@@ -27,6 +31,7 @@ class AssetDetailPage extends ConsumerStatefulWidget {
     this.name,
     this.currentPrice,
     this.priceChange24h,
+    this.categoryId,
   });
 
   @override
@@ -235,24 +240,41 @@ class _AssetDetailPageState extends ConsumerState<AssetDetailPage> {
                 _WatchlistToggleAction(
                     assetId: widget.assetId,
                     symbol: widget.symbol ?? _assetDetails?['symbol'] ?? '',
-                    name: widget.name ?? _assetDetails?['name'] ?? ''),
+                    name: widget.name ?? _assetDetails?['name'] ?? '',
+                    categoryId:
+                        widget.categoryId ?? _assetDetails?['category']),
                 IconButton(
                   icon:
                       const Icon(Icons.notifications_active_outlined, size: 22),
                   onPressed: () {
-                    showDialog(
-                      context: context,
-                      builder: (ctx) => AddAlertDialog(
-                        assetId: widget.assetId,
-                        symbol:
-                            widget.symbol ?? _assetDetails?['symbol'] ?? 'UNK',
-                        name: widget.name ?? _assetDetails?['name'] ?? '',
-                        currentPrice:
-                            (_assetDetails?['price'] as num?)?.toDouble() ??
-                                widget.currentPrice ??
-                                0.0,
-                      ),
-                    );
+                    final authState = ref.read(authNotifierProvider);
+                    if (authState is AuthAuthenticated) {
+                      showDialog(
+                        context: context,
+                        builder: (ctx) => AddAlertDialog(
+                          assetId: widget.assetId,
+                          symbol: widget.symbol ??
+                              _assetDetails?['symbol'] ??
+                              'UNK',
+                          name: widget.name ?? _assetDetails?['name'] ?? '',
+                          currentPrice:
+                              (_assetDetails?['price'] as num?)?.toDouble() ??
+                                  widget.currentPrice ??
+                                  0.0,
+                        ),
+                      );
+                    } else {
+                      showDialog(
+                        context: context,
+                        builder: (ctx) => AuthPromptDialog(
+                          title:
+                              lc == 'tr' ? 'Hesap Gerekli' : 'Account Required',
+                          description: lc == 'tr'
+                              ? 'Fiyat alarmı kurabilmek için lütfen giriş yapın veya kayıt olun.'
+                              : 'Please login or sign up to create price alerts.',
+                        ),
+                      );
+                    }
                   },
                 ),
                 IconButton(
@@ -1155,11 +1177,13 @@ class _WatchlistToggleAction extends ConsumerWidget {
   final String assetId;
   final String symbol;
   final String name;
+  final String? categoryId;
 
   const _WatchlistToggleAction({
     required this.assetId,
     required this.symbol,
     required this.name,
+    this.categoryId,
   });
 
   @override
@@ -1183,7 +1207,7 @@ class _WatchlistToggleAction extends ConsumerWidget {
             symbol: symbol,
             name: name,
             assetId: assetId,
-            category: 'other', // Should determine category from asset details
+            category: categoryId ?? 'other',
           ));
         }
       },
