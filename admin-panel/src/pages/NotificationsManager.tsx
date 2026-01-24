@@ -30,7 +30,9 @@ import {
 } from '@ant-design/icons';
 
 const { Title, Text } = Typography;
-const BACKEND_URL = 'http://localhost:8000';
+import { API_BASE_URL } from '../config';
+
+const BACKEND_URL = API_BASE_URL;
 
 interface NotificationHistory {
     id: number;

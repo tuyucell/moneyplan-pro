@@ -24,6 +24,9 @@ import {
 } from '@ant-design/icons';
 
 const { Title, Text, Paragraph } = Typography;
+import { API_BASE_URL } from '../config';
+
+const BACKEND_URL = API_BASE_URL;
 const { Option } = Select;
 
 interface UIConfig {
@@ -55,7 +58,7 @@ const UIManager: React.FC = () => {
     const fetchConfig = async () => {
         setLoading(true);
         try {
-            const response = await fetch('http://localhost:8000/api/v1/ui/config');
+            const response = await fetch(`${BACKEND_URL}/api/v1/ui/config`);
             const data = await response.json();
             setConfig(data);
         } catch (error) {
@@ -73,7 +76,7 @@ const UIManager: React.FC = () => {
     const updateConfig = async (updates: Record<string, any>) => {
         setUpdating(true);
         try {
-            const response = await fetch('http://localhost:8000/api/v1/ui/config', {
+            const response = await fetch(`${BACKEND_URL}/api/v1/ui/config`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(updates),

@@ -24,6 +24,9 @@ import {
 } from '@ant-design/icons';
 
 const { Title, Text, Paragraph } = Typography;
+import { API_BASE_URL } from '../config';
+
+const BACKEND_URL = API_BASE_URL;
 
 interface FeatureFlag {
     id: string;
@@ -53,7 +56,7 @@ const FeatureFlags: React.FC = () => {
     const fetchFlags = async () => {
         setLoading(true);
         try {
-            const response = await fetch('http://localhost:8000/api/v1/features');
+            const response = await fetch(`${BACKEND_URL}/api/v1/features`);
             const data: FeatureFlagsResponse = await response.json();
             setFlags(data.features);
             setVersion(data.version);
@@ -73,7 +76,7 @@ const FeatureFlags: React.FC = () => {
     const updateFlag = async (flagId: string, updates: Partial<FeatureFlag>) => {
         setSaving(flagId);
         try {
-            const response = await fetch(`http://localhost:8000/api/v1/features/${flagId}`, {
+            const response = await fetch(`${BACKEND_URL}/api/v1/features/${flagId}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(updates),

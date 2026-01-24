@@ -27,6 +27,9 @@ import {
 import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
+import { API_BASE_URL } from '../config';
+
+const BACKEND_URL = API_BASE_URL;
 const { TextArea } = Input;
 
 interface PricingConfig {
@@ -64,7 +67,7 @@ const PricingManager: React.FC = () => {
     const fetchConfig = async () => {
         setLoading(true);
         try {
-            const response = await fetch('http://localhost:8000/api/v1/pricing');
+            const response = await fetch(`${BACKEND_URL}/api/v1/pricing`);
             const data = await response.json();
             setConfig(data);
             message.success('Pricing configuration loaded');
@@ -83,7 +86,7 @@ const PricingManager: React.FC = () => {
     const updateConfig = async (updates: Record<string, any>) => {
         setSaving(true);
         try {
-            const response = await fetch('http://localhost:8000/api/v1/pricing', {
+            const response = await fetch(`${BACKEND_URL}/api/v1/pricing`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(updates),
