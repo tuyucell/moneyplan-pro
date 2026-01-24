@@ -32,7 +32,7 @@
             android:name="flutterEmbedding"
             android:value="2" />
 
-        <receiver android:name="com.turgayyucel.invest_guide.HomeWidgetProvider" android:exported="true">
+        <receiver android:name="com.turgayyucel.investguide.HomeWidgetProvider" android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>

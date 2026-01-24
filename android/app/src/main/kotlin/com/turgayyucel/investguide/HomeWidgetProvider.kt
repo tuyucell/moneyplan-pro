@@ -1,4 +1,4 @@
-package com.turgayyucel.invest_guide
+package com.turgayyucel.investguide
 
 import android.appwidget.AppWidgetManager
 import android.content.Context
@@ -6,6 +6,7 @@ import android.content.SharedPreferences
 import android.net.Uri
 import android.widget.RemoteViews
 import es.antonborri.home_widget.HomeWidgetProvider
+import com.turgayyucel.investguide.R
 
 class HomeWidgetProvider : HomeWidgetProvider() {
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray, widgetData: SharedPreferences) {

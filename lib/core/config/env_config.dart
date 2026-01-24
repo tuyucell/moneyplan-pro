@@ -10,7 +10,7 @@ class EnvConfig {
   static const String alphaVantageApiKey = ''; // Daha sonra eklenebilir
   static const String googleIosClientId =
       '342870422238-2d0fmm4b6922n5rdskdk1lj9s2h4gemn.apps.googleusercontent.com';
-  static const String oneSignalAppId = 'cca06363-a6f1-4a85-a217-f94b8053530e';
+  static const String oneSignalAppId = '4c57d6a6-9e5f-4738-94c0-e864cbb95845';
 
   // Backend Configuration
   static String get backendBaseUrl {

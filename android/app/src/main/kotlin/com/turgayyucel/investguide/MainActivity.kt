@@ -1,4 +1,4 @@
-package com.turgayyucel.invest_guide
+package com.turgayyucel.investguide
 
 import io.flutter.embedding.android.FlutterFragmentActivity
 

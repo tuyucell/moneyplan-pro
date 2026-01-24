@@ -3,6 +3,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import '../models/bank_account.dart';
 import 'package:invest_guide/features/auth/presentation/providers/auth_providers.dart';
 import 'package:invest_guide/features/auth/data/models/user_model.dart';
+import 'package:invest_guide/services/api/supabase_service.dart';
 
 class BankAccountNotifier extends StateNotifier<List<BankAccount>> {
   final String? userId;
@@ -12,6 +13,8 @@ class BankAccountNotifier extends StateNotifier<List<BankAccount>> {
   BankAccountNotifier(this.userId) : super(DefaultBankAccounts.accounts) {
     _loadAccounts();
   }
+
+  final _client = SupabaseService.client;
 
   Future<void> _loadAccounts() async {
     final box = await Hive.openBox(_boxName);
@@ -31,6 +34,33 @@ class BankAccountNotifier extends StateNotifier<List<BankAccount>> {
       }
       state = merged;
     }
+
+    // Sync from Supabase
+    if (userId != null) {
+      try {
+        final List<dynamic> response = await _client
+            .from('user_bank_accounts')
+            .select('*')
+            .eq('user_id', userId!);
+
+        final remoteAccounts = response.map((json) {
+          return BankAccount(
+            id: json['id'] as String,
+            name: json['account_name'] as String,
+            accountType: json['account_type'] as String,
+            initialBalance: (json['balance'] as num).toDouble(),
+            currencyCode: json['currency'] as String,
+          );
+        }).toList();
+
+        if (remoteAccounts.isNotEmpty) {
+          state = remoteAccounts;
+          await _saveToDisk();
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
   }
 
   Future<void> updateAccount(BankAccount updatedAccount) async {
@@ -39,16 +69,49 @@ class BankAccountNotifier extends StateNotifier<List<BankAccount>> {
         if (account.id == updatedAccount.id) updatedAccount else account
     ];
     await _saveToDisk();
+
+    // Sync to Supabase
+    if (userId != null) {
+      await _client.from('user_bank_accounts').upsert({
+        'id': updatedAccount.id,
+        'user_id': userId,
+        'account_name': updatedAccount.name,
+        'account_type': updatedAccount.accountType,
+        'balance': updatedAccount.initialBalance,
+        'currency': updatedAccount.currencyCode,
+      });
+    }
   }
 
   Future<void> addAccount(BankAccount newAccount) async {
     state = [...state, newAccount];
     await _saveToDisk();
+
+    // Sync to Supabase
+    if (userId != null) {
+      await _client.from('user_bank_accounts').upsert({
+        'id': newAccount.id,
+        'user_id': userId,
+        'account_name': newAccount.name,
+        'account_type': newAccount.accountType,
+        'balance': newAccount.initialBalance,
+        'currency': newAccount.currencyCode,
+      });
+    }
   }
 
   Future<void> deleteAccount(String id) async {
     state = state.where((a) => a.id != id).toList();
     await _saveToDisk();
+
+    // Sync to Supabase
+    if (userId != null) {
+      await _client
+          .from('user_bank_accounts')
+          .delete()
+          .eq('user_id', userId!)
+          .eq('id', id);
+    }
   }
 
   Future<void> _saveToDisk() async {

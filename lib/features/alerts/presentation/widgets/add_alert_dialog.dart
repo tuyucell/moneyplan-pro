@@ -30,8 +30,12 @@ class _AddAlertDialogState extends ConsumerState<AddAlertDialog> {
   @override
   void initState() {
     super.initState();
-    _priceController =
-        TextEditingController(text: widget.currentPrice.toString());
+    _priceController = TextEditingController(
+        text: widget.currentPrice > 0 ? widget.currentPrice.toString() : '');
+    // Auto-detect isAbove based on current price
+    if (widget.currentPrice > 0) {
+      _isAbove = true; // Default to above, but we will adjust on change
+    }
   }
 
   @override
@@ -89,7 +93,12 @@ class _AddAlertDialogState extends ConsumerState<AddAlertDialog> {
               ),
             ),
             onChanged: (val) {
-              setState(() {});
+              setState(() {
+                final target = double.tryParse(val);
+                if (target != null && widget.currentPrice > 0) {
+                  _isAbove = target > widget.currentPrice;
+                }
+              });
             },
           ),
           const SizedBox(height: 12),
@@ -202,9 +211,19 @@ class _AddAlertDialogState extends ConsumerState<AddAlertDialog> {
           ),
           const SizedBox(height: 8),
           Text(
-            '${AppStrings.tr(AppStrings.currentPriceShort, lc)}: \$${widget.currentPrice}',
-            style:
-                TextStyle(color: AppColors.textTertiary(context), fontSize: 12),
+            widget.currentPrice > 0
+                ? '${AppStrings.tr(AppStrings.currentPriceShort, lc)}: \$${widget.currentPrice}'
+                : (lc == 'tr'
+                    ? '⚠️ Güncel fiyat alınamadı'
+                    : '⚠️ Current price unavailable'),
+            style: TextStyle(
+                color: widget.currentPrice > 0
+                    ? AppColors.textTertiary(context)
+                    : AppColors.error,
+                fontSize: 12,
+                fontWeight: widget.currentPrice > 0
+                    ? FontWeight.normal
+                    : FontWeight.bold),
           ),
         ],
       ),
@@ -217,6 +236,17 @@ class _AddAlertDialogState extends ConsumerState<AddAlertDialog> {
         ElevatedButton(
           onPressed: () {
             final target = double.tryParse(_priceController.text);
+            if (widget.currentPrice <= 0) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(lc == 'tr'
+                      ? 'Güncel fiyat 0 iken alarm kurulamaz. Lütfen fiyatın yüklenmesini bekleyin.'
+                      : 'Cannot set alert when current price is 0. Please wait for it to load.'),
+                  backgroundColor: AppColors.error,
+                ),
+              );
+              return;
+            }
             if (target != null && target > 0) {
               ref.read(alertsProvider.notifier).addAlert(
                     assetId: widget.assetId,

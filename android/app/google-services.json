@@ -1,0 +1,37 @@
+{
+  "project_info": {
+    "project_number": "342870422238",
+    "project_id": "gen-lang-client-0267324403",
+    "storage_bucket": "gen-lang-client-0267324403.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:342870422238:android:61de9fd89f144f94ef484f",
+        "android_client_info": {
+          "package_name": "com.turgayyucel.investguide"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCrgnu2pPF0VQQC7TAq5X-pd3hwDeWn-Eg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "342870422238-2d0fmm4b6922n5rdskdk1lj9s2h4gemn.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.turgayyucel.invest_guide"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

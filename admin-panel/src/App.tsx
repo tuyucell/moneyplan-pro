@@ -6,9 +6,8 @@ import { useAuthStore } from './store/authStore';
 import { useThemeStore } from './store/themeStore';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard.tsx';
-import Users from './pages/Users';
 import Analytics from './pages/Analytics';
-import LiveMonitor from './pages/LiveMonitor';
+import LiveIntelligence from './pages/LiveIntelligence';
 import SystemTasks from './pages/SystemTasks';
 import AppSettings from './pages/AppSettings';
 import AdsManager from './pages/AdsManager';
@@ -18,10 +17,11 @@ import PricingManager from './pages/PricingManager';
 import AnnouncementsManager from './pages/AnnouncementsManager';
 import LimitsManager from './pages/LimitsManager';
 import UIManager from './pages/UIManager';
-import AdminGuide from './pages/AdminGuide';
-import PriceAlertsManager from './pages/PriceAlertsManager';
-import AuditLogs from './pages/AuditLogs';
 import DeletionRequests from './pages/DeletionRequests';
+import AuditLogs from './pages/AuditLogs';
+import UserExplorer from './pages/UserExplorer';
+import UserProfileIntelligence from './pages/UserProfileIntelligence';
+import StrategicDecisions from './pages/StrategicDecisions';
 import Layout from './components/Layout';
 import './App.css';
 
@@ -81,9 +81,11 @@ function App() {
                     <Layout>
                       <Routes>
                         <Route path="/" element={<Dashboard />} />
-                        <Route path="/users" element={<Users />} />
+                        <Route path="/users" element={<UserExplorer />} />
+                        <Route path="/intelligence/profile/:id" element={<UserProfileIntelligence />} />
                         <Route path="/analytics" element={<Analytics />} />
-                        <Route path="/live" element={<LiveMonitor />} />
+                        <Route path="/strategic" element={<StrategicDecisions />} />
+                        <Route path="/live" element={<LiveIntelligence />} />
                         <Route path="/system/tasks" element={<SystemTasks />} />
                         <Route path="/system/settings" element={<AppSettings />} />
                         <Route path="/system/ads" element={<AdsManager />} />
@@ -93,10 +95,9 @@ function App() {
                         <Route path="/system/announcements" element={<AnnouncementsManager />} />
                         <Route path="/system/limits" element={<LimitsManager />} />
                         <Route path="/system/ui" element={<UIManager />} />
-                        <Route path="/system/alerts" element={<PriceAlertsManager />} />
                         <Route path="/system/audit-logs" element={<AuditLogs />} />
-                        <Route path="/system/kvkk" element={<DeletionRequests />} />
-                        <Route path="/guide" element={<AdminGuide />} />
+                        <Route path="/billing" element={<PricingManager />} />
+                        <Route path="/kvkk" element={<DeletionRequests />} />
                         <Route path="*" element={<Navigate to="/" />} />
                       </Routes>
                     </Layout>

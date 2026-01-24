@@ -41,7 +41,7 @@ void main() async {
 
     // Set App Group ID (Try-catch to prevent splash crash)
     try {
-      await HomeWidget.setAppGroupId('group.com.turgayyucel.invest_guide');
+      await HomeWidget.setAppGroupId('group.com.turgayyucel.investguide');
     } catch (e) {
       debugPrint('APP_START_ERROR: HomeWidget GroupID failed: $e');
     }

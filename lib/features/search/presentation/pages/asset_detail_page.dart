@@ -258,9 +258,9 @@ class _AssetDetailPageState extends ConsumerState<AssetDetailPage> {
                               'UNK',
                           name: widget.name ?? _assetDetails?['name'] ?? '',
                           currentPrice:
-                              (_assetDetails?['price'] as num?)?.toDouble() ??
+                              ((_assetDetails?['price'] as num?)?.toDouble() ??
                                   widget.currentPrice ??
-                                  0.0,
+                                  0.0),
                         ),
                       );
                     } else {

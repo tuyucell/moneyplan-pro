@@ -1,46 +1,49 @@
-import type { ReactNode } from 'react';
 import { useState } from 'react';
-import { Layout as AntLayout, Menu, Avatar, Dropdown, Typography, Switch, Space, Flex } from 'antd';
-import type { MenuProps } from 'antd';
+import { useNavigate } from 'react-router-dom';
+import { Layout as AntLayout, Menu, Typography, Switch, Space, Button, Avatar, Drawer, Empty, Alert, Flex } from 'antd';
 import {
     DashboardOutlined,
     UserOutlined,
-    LogoutOutlined,
     BarChartOutlined,
-    BulbOutlined,
-    BulbFilled,
-    ThunderboltOutlined,
+    SyncOutlined,
     ToolOutlined,
     SettingOutlined,
-    SyncOutlined,
+    GlobalOutlined,
     NotificationOutlined,
-    BellOutlined,
+    FlagOutlined,
     DollarOutlined,
-    BgColorsOutlined,
-    BookOutlined,
-    DeleteOutlined,
+    NotificationFilled,
+    LineOutlined,
+    LayoutOutlined,
+    ThunderboltOutlined,
+    InfoCircleOutlined,
+    AuditOutlined,
+    LogoutOutlined,
+    SunOutlined,
+    MoonOutlined,
+    HeatMapOutlined,
 } from '@ant-design/icons';
-import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
+import { HELP_CONFIG } from '../constants/helpConfig';
 
 const { Header, Sider, Content } = AntLayout;
-const { Text } = Typography;
+const { Text, Paragraph } = Typography;
 
-interface LayoutProps {
-    readonly children: ReactNode;
-}
-
-export default function Layout({ children }: LayoutProps) {
-    const [collapsed, setCollapsed] = useState(false);
+export default function Layout({ children }: Readonly<{ children: React.ReactNode }>) {
     const navigate = useNavigate();
-    const location = useLocation();
-    const { user, logout } = useAuthStore();
+    const { logout, user } = useAuthStore();
     const { isDark, toggleTheme } = useThemeStore();
+    const [helpOpen, setHelpOpen] = useState(false);
 
-    const menuItems: MenuProps['items'] = [
+    const currentPath = globalThis.location.pathname;
+    // Map intelligence/profile/:id to /intelligence/profile
+    const helpKey = currentPath.startsWith('/intelligence/profile') ? '/intelligence/profile' : currentPath;
+    const pageHelp = HELP_CONFIG[helpKey];
+
+    const menuItems = [
         {
-            key: '/',
+            key: '/dashboard',
             icon: <DashboardOutlined />,
             label: 'Dashboard',
             onClick: () => { navigate('/'); },
@@ -48,30 +51,43 @@ export default function Layout({ children }: LayoutProps) {
         {
             key: '/users',
             icon: <UserOutlined />,
-            label: 'Users',
+            label: 'User Management',
             onClick: () => { navigate('/users'); },
-        },
-        {
-            key: '/analytics',
-            icon: <BarChartOutlined />,
-            label: 'Analytics',
-            onClick: () => { navigate('/analytics'); },
         },
         {
             key: '/live',
             icon: <ThunderboltOutlined />,
-            label: 'Live Monitor',
+            label: 'Live Intelligence',
             onClick: () => { navigate('/live'); },
+        },
+        {
+            key: 'executive',
+            icon: <HeatMapOutlined />,
+            label: 'Executive Insights',
+            children: [
+                {
+                    key: '/strategic',
+                    icon: <BarChartOutlined />,
+                    label: 'Decision Panel',
+                    onClick: () => { navigate('/strategic'); },
+                },
+                {
+                    key: '/analytics',
+                    icon: <BarChartOutlined />,
+                    label: 'Analytics Insights',
+                    onClick: () => { navigate('/analytics'); },
+                },
+            ]
         },
         {
             key: 'system',
             icon: <ToolOutlined />,
-            label: 'System',
+            label: 'System Engine',
             children: [
                 {
                     key: '/system/tasks',
                     icon: <SyncOutlined />,
-                    label: 'Tasks & Scripts',
+                    label: 'System Tasks',
                     onClick: () => { navigate('/system/tasks'); },
                 },
                 {
@@ -82,158 +98,174 @@ export default function Layout({ children }: LayoutProps) {
                 },
                 {
                     key: '/system/ads',
-                    icon: <NotificationOutlined />,
+                    icon: <GlobalOutlined />,
                     label: 'Ads Manager',
                     onClick: () => { navigate('/system/ads'); },
                 },
                 {
                     key: '/system/notifications',
-                    icon: <BellOutlined />,
+                    icon: <NotificationOutlined />,
                     label: 'Push Notifications',
                     onClick: () => { navigate('/system/notifications'); },
                 },
                 {
                     key: '/system/features',
-                    icon: <BulbOutlined />,
+                    icon: <FlagOutlined />,
                     label: 'Feature Flags',
                     onClick: () => { navigate('/system/features'); },
                 },
                 {
                     key: '/system/pricing',
                     icon: <DollarOutlined />,
-                    label: 'Pricing & Promos',
+                    label: 'Pricing & Plans',
                     onClick: () => { navigate('/system/pricing'); },
                 },
                 {
                     key: '/system/announcements',
-                    icon: <NotificationOutlined />,
-                    label: 'System Announcements',
+                    icon: <NotificationFilled />,
+                    label: 'In-App Alerts',
                     onClick: () => { navigate('/system/announcements'); },
                 },
                 {
                     key: '/system/limits',
-                    icon: <DashboardOutlined />,
-                    label: 'User Limits',
+                    icon: <LineOutlined />,
+                    label: 'Usage Limits',
                     onClick: () => { navigate('/system/limits'); },
                 },
                 {
-                    key: '/system/alerts',
-                    icon: <BellOutlined />,
-                    label: 'Price Alerts',
-                    onClick: () => { navigate('/system/alerts'); },
-                },
-                {
                     key: '/system/ui',
-                    icon: <BgColorsOutlined />,
-                    label: 'System Branding',
+                    icon: <LayoutOutlined />,
+                    label: 'UI Components',
                     onClick: () => { navigate('/system/ui'); },
                 },
                 {
                     key: '/system/audit-logs',
-                    icon: <BookOutlined />,
+                    icon: <AuditOutlined />,
                     label: 'Audit Logs',
                     onClick: () => { navigate('/system/audit-logs'); },
                 },
                 {
-                    key: '/system/kvkk',
-                    icon: <DeleteOutlined />,
-                    label: 'KVKK Silme Talepleri',
-                    onClick: () => { navigate('/system/kvkk'); },
+                    key: '/kvkk',
+                    icon: <LogoutOutlined />,
+                    label: 'KVKK Requests',
+                    onClick: () => { navigate('/kvkk'); },
                 },
-            ],
-        },
-        {
-            key: '/guide',
-            icon: <BookOutlined />,
-            label: 'User Guide',
-            onClick: () => { navigate('/guide'); },
-        },
-    ];
-
-    const userMenuItems: MenuProps['items'] = [
-        {
-            key: 'logout',
-            icon: <LogoutOutlined />,
-            label: 'Logout',
-            onClick: () => { void logout(); },
+            ]
         },
     ];
 
     return (
         <AntLayout style={{ minHeight: '100vh' }}>
             <Sider
-                collapsible
-                collapsed={collapsed}
-                onCollapse={setCollapsed}
+                breakpoint="lg"
+                collapsedWidth="0"
                 theme={isDark ? 'dark' : 'light'}
                 style={{
-                    boxShadow: '2px 0 8px rgba(0,0,0,0.08)',
-                    borderRight: isDark ? 'none' : '1px solid #f0f0f0',
+                    boxShadow: '2px 0 8px 0 rgba(29,35,41,.05)',
+                    zIndex: 10
                 }}
             >
-                <div
-                    style={{
-                        height: '64px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: collapsed ? '20px' : '24px',
-                        fontWeight: 'bold',
-                        color: isDark ? '#fff' : '#1890ff',
-                        transition: 'all 0.2s',
-                        borderBottom: isDark ? '1px solid #303030' : '1px solid #f0f0f0',
-                    }}
-                >
-                    {collapsed ? '💰' : '💰 MoneyPlan Pro'}
+                <div style={{
+                    height: '64px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '0 24px',
+                    background: isDark ? '#001529' : '#fff',
+                    borderBottom: '1px solid ' + (isDark ? '#002140' : '#f0f0f0')
+                }}>
+                    <Text strong style={{ fontSize: '18px', color: '#1890ff' }}>MoneyPlan Pro</Text>
                 </div>
                 <Menu
-                    theme={isDark ? 'dark' : 'light'}
                     mode="inline"
-                    selectedKeys={[location.pathname]}
+                    defaultSelectedKeys={[globalThis.location.pathname]}
                     items={menuItems}
+                    theme={isDark ? 'dark' : 'light'}
+                    style={{ borderRight: 0, marginTop: '8px' }}
                 />
             </Sider>
-
             <AntLayout>
-                <Header
-                    style={{
-                        padding: '0 24px',
-                        background: isDark ? '#001529' : '#fff',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-                        borderBottom: isDark ? 'none' : '1px solid #f0f0f0',
-                    }}
-                >
-                    <Text style={{ color: isDark ? '#fff' : '#333', fontSize: '18px', fontWeight: 500 }}>
-                        Admin Panel
-                    </Text>
-
-                    <Flex gap="middle" align="center">
+                <Header style={{
+                    padding: '0 24px',
+                    background: isDark ? '#001529' : '#fff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'flex-end',
+                    boxShadow: '0 1px 4px rgba(0,21,41,.08)',
+                    zIndex: 9
+                }}>
+                    <Space size="large">
                         <Space>
-                            {isDark ? <BulbFilled style={{ color: '#faad14' }} /> : <BulbOutlined />}
+                            {isDark ? <MoonOutlined style={{ color: '#fff' }} /> : <SunOutlined style={{ color: '#faad14' }} />}
                             <Switch
                                 checked={isDark}
                                 onChange={toggleTheme}
-                                checkedChildren="Dark"
-                                unCheckedChildren="Light"
+                                size="small"
                             />
                         </Space>
-
-                        <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
-                            <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', gap: '8px' }}>
-                                <Text style={{ color: isDark ? '#fff' : '#333' }}>{user?.email}</Text>
-                                <Avatar icon={<UserOutlined />} />
-                            </div>
-                        </Dropdown>
-                    </Flex>
+                        <Button
+                            icon={<InfoCircleOutlined />}
+                            onClick={() => setHelpOpen(true)}
+                            type="text"
+                            style={{ color: isDark ? '#fff' : '#1890ff' }}
+                        >
+                            Info
+                        </Button>
+                        <div style={{
+                            padding: '4px 12px',
+                            background: isDark ? '#002140' : '#f5f5f5',
+                            borderRadius: '16px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px'
+                        }}>
+                            <Avatar size="small" icon={<UserOutlined />} />
+                            <Text style={{ fontSize: '13px' }}>{user?.email}</Text>
+                        </div>
+                        <Button
+                            type="text"
+                            icon={<LogoutOutlined />}
+                            onClick={logout}
+                            danger
+                        >
+                            Logout
+                        </Button>
+                    </Space>
                 </Header>
-
-                <Content style={{ margin: '24px', minHeight: 'calc(100vh - 112px)' }}>
+                <Content style={{ margin: '24px 24px 0', padding: '24px', background: isDark ? '#141414' : '#fff', borderRadius: '8px', minHeight: '280px' }}>
                     {children}
                 </Content>
             </AntLayout>
+
+            <Drawer
+                title={<Space><InfoCircleOutlined style={{ color: '#1890ff' }} /> {pageHelp?.title || 'System Guide'}</Space>}
+                placement="right"
+                onClose={() => setHelpOpen(false)}
+                open={helpOpen}
+                width={400}
+            >
+                {pageHelp ? (
+                    <Flex vertical gap="large">
+                        <div>
+                            <Text strong style={{ display: 'block', marginBottom: '8px' }}>Nedir?</Text>
+                            <Paragraph type="secondary">{pageHelp.description}</Paragraph>
+                        </div>
+                        <div>
+                            <Text strong style={{ display: 'block', marginBottom: '8px' }}>Key Features</Text>
+                            <ul style={{ paddingLeft: '20px', color: '#666' }}>
+                                {pageHelp.features.map((f) => <li key={f} style={{ marginBottom: '4px' }}>{f}</li>)}
+                            </ul>
+                        </div>
+                        <Alert
+                            message="Dinamik Rehber"
+                            description="Bu yardım içeriği bulunduğunuz sayfaya göre otomatik değişir."
+                            type="info"
+                            showIcon
+                        />
+                    </Flex>
+                ) : (
+                    <Empty description="Bu sayfa için henüz rehber içeriği eklenmedi." />
+                )}
+            </Drawer>
         </AntLayout>
     );
 }

@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/watchlist_item.dart';
 import 'package:invest_guide/features/auth/presentation/providers/auth_providers.dart';
 import 'package:invest_guide/features/auth/data/models/user_model.dart';
+import 'package:invest_guide/services/api/supabase_service.dart';
 
 class WatchlistNotifier extends StateNotifier<List<WatchlistItem>> {
   final String? userId;
@@ -20,6 +21,8 @@ class WatchlistNotifier extends StateNotifier<List<WatchlistItem>> {
   WatchlistNotifier(this.userId) : super([]) {
     _loadWatchlist();
   }
+
+  final _client = SupabaseService.client;
 
   /// Get cached SharedPreferences instance or create new one
   Future<SharedPreferences> get _prefs async {
@@ -43,6 +46,27 @@ class WatchlistNotifier extends StateNotifier<List<WatchlistItem>> {
             .map((item) => WatchlistItem.fromJson(item as Map<String, dynamic>))
             .toList();
         state = items;
+      }
+
+      // 2. Sync with Supabase if logged in
+      if (userId != null) {
+        final List<dynamic> response = await _client
+            .from('user_watchlists')
+            .select('*')
+            .eq('user_id', userId!);
+
+        final remoteItems = response.map((json) {
+          return WatchlistItem(
+            symbol: json['symbol'] as String,
+            name: json['asset_name'] as String? ?? '',
+            assetId: json['symbol'], // Using symbol as assetId if not present
+            category: json['asset_type'] as String?,
+          );
+        }).toList();
+
+        // Merge or overwrite (Overwrite is safer for sync)
+        state = remoteItems;
+        await _saveWatchlist();
       }
 
       _isInitialized = true;
@@ -94,6 +118,16 @@ class WatchlistNotifier extends StateNotifier<List<WatchlistItem>> {
       if (!state.contains(item)) {
         state = [...state, item];
         await _saveWatchlist();
+
+        // Sync to Supabase
+        if (userId != null) {
+          await _client.from('user_watchlists').upsert({
+            'user_id': userId,
+            'symbol': item.symbol,
+            'asset_name': item.name,
+            'asset_type': item.category,
+          });
+        }
       }
     } catch (e, stackTrace) {
       if (kDebugMode) {
@@ -114,6 +148,15 @@ class WatchlistNotifier extends StateNotifier<List<WatchlistItem>> {
     try {
       state = state.where((item) => item.symbol != symbol).toList();
       await _saveWatchlist();
+
+      // Sync to Supabase
+      if (userId != null) {
+        await _client
+            .from('user_watchlists')
+            .delete()
+            .eq('user_id', userId!)
+            .eq('symbol', symbol);
+      }
     } catch (e, stackTrace) {
       if (kDebugMode) {
         debugPrint('Error removing from watchlist: $e');

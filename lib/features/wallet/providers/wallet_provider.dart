@@ -11,6 +11,7 @@ import 'package:invest_guide/features/wallet/models/bank_account.dart';
 import 'package:invest_guide/features/wallet/providers/bank_account_provider.dart';
 import 'package:invest_guide/features/auth/presentation/providers/auth_providers.dart';
 import 'package:invest_guide/features/auth/data/models/user_model.dart';
+import 'package:invest_guide/services/api/supabase_service.dart';
 
 class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
   final String? userId;
@@ -36,6 +37,49 @@ class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
     try {
       _box = await Hive.openBox<Map>(_boxName);
       _loadTransactions();
+
+      // Sync with Supabase if logged in
+      if (userId != null) {
+        final client = SupabaseService.client;
+        final List<dynamic> response = await client
+            .from('user_transactions')
+            .select('*')
+            .eq('user_id', userId!);
+
+        final remoteTransactions = response.map((json) {
+          return WalletTransaction(
+            id: json['id'] as String,
+            amount: (json['amount'] as num).toDouble(),
+            categoryId: json['category_id'] as String? ?? 'unknown',
+            note: json['description'] as String?,
+            date: DateTime.parse(json['date'] as String),
+            type: TransactionType.values.firstWhere(
+              (e) => e.name == (json['type'] as String).toLowerCase(),
+              orElse: () => TransactionType.expense,
+            ),
+            currencyCode: json['currency'] as String? ?? 'TRY',
+            bankAccountId: json['account_id'] as String?,
+            recurrence: json['is_recurring'] == true
+                ? RecurrenceType.values.firstWhere(
+                    (e) => e.name == json['recurrence_type'],
+                    orElse: () => RecurrenceType.none,
+                  )
+                : RecurrenceType.none,
+            recurrenceEndDate: json['recurrence_end_date'] != null
+                ? DateTime.parse(json['recurrence_end_date'] as String)
+                : null,
+          );
+        }).toList();
+
+        if (remoteTransactions.isNotEmpty) {
+          // Update Hive with remote data
+          for (final tx in remoteTransactions) {
+            await _box!.put(tx.id, tx.toJson());
+          }
+          _loadTransactions();
+        }
+      }
+
       _isInitialized = true;
       if (!_initCompleter.isCompleted) {
         _initCompleter.complete();
@@ -95,6 +139,26 @@ class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
       debugPrint('📥 Hive: Putting transaction ${transaction.id}');
       await _box!.put(transaction.id, transaction.toJson());
       _loadTransactions();
+
+      // Sync to Supabase
+      if (userId != null) {
+        final client = SupabaseService.client;
+        await client.from('user_transactions').upsert({
+          'id': transaction.id,
+          'user_id': userId,
+          'amount': transaction.amount,
+          'type': transaction.type.name,
+          'category_id': transaction.categoryId,
+          'description': transaction.note,
+          'date': transaction.date.toIso8601String(),
+          'currency': transaction.currencyCode,
+          'account_id': transaction.bankAccountId,
+          'is_recurring': transaction.recurrence != RecurrenceType.none,
+          'recurrence_type': transaction.recurrence.name,
+          'recurrence_end_date':
+              transaction.recurrenceEndDate?.toIso8601String(),
+        });
+      }
       debugPrint(
           '📥 Hive: Transaction saved, state updated. Count: ${state.length}');
     } catch (e, stackTrace) {
@@ -121,6 +185,26 @@ class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
 
       await _box!.put(transaction.id, transaction.toJson());
       _loadTransactions();
+
+      // Sync to Supabase
+      if (userId != null) {
+        final client = SupabaseService.client;
+        await client.from('user_transactions').upsert({
+          'id': transaction.id,
+          'user_id': userId,
+          'amount': transaction.amount,
+          'type': transaction.type.name,
+          'category_id': transaction.categoryId,
+          'description': transaction.note,
+          'date': transaction.date.toIso8601String(),
+          'currency': transaction.currencyCode,
+          'account_id': transaction.bankAccountId,
+          'is_recurring': transaction.recurrence != RecurrenceType.none,
+          'recurrence_type': transaction.recurrence.name,
+          'recurrence_end_date':
+              transaction.recurrenceEndDate?.toIso8601String(),
+        });
+      }
     } catch (e, stackTrace) {
       if (kDebugMode) {
         debugPrint('Error updating transaction: $e');
@@ -155,6 +239,19 @@ class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
 
       for (final key in relatedKeys) {
         await _box!.delete(key);
+      }
+
+      // Sync to Supabase
+      if (userId != null) {
+        final client = SupabaseService.client;
+        await client
+            .from('user_transactions')
+            .delete()
+            .eq('user_id', userId!)
+            .eq('id', id);
+        // Also delete related keys from Supabase if they exist as separate rows?
+        // Flutter generates some recurring IDs on the fly, but if they were materialized, they should be deleted.
+        // For now, primary deletion is enough as recurring instances are usually ephemeral or have their own materialized IDs.
       }
 
       _loadTransactions();
