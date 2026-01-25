@@ -1,3 +1,12 @@
+---
+title: InvestGuide Backend
+emoji: 📈
+colorFrom: blue
+colorTo: green
+sdk: docker
+app_port: 7860
+---
+
 # InvestGuide Backend API
 
 Bu proje, Flutter uygulaması için bir aracı (middleware) API sunar. Yahoo Finance, TEFAS ve TCMB gibi kaynaklardan veri çekip REST API olarak sunar.
