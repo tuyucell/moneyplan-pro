@@ -230,8 +230,13 @@ class FeatureFlagService:
                 else:
                      created_at = now # Fallback
                 
+                # Prepare dict for model creation, removing keys we will override
+                flag_dict = flags_data[flag_id].copy()
+                flag_dict.pop("created_at", None)
+                flag_dict.pop("updated_at", None)
+
                 return FeatureFlag(
-                    **flags_data[flag_id],
+                    **flag_dict,
                     created_at=created_at,
                     updated_at=now
                 )
