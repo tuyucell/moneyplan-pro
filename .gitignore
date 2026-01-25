@@ -53,12 +53,24 @@ backend/*.log
 .env.local
 .env.production
 backend/.env
+*.env
+*.env.*
 
-# Sensitive files
+# Sensitive files & Data
 *.key
 *.pem
 *.p12
 *.mobileprovision
+*.sql
+*.sqlite
+*.db
+*.csv
+
+# Documentation
+docs/
+*.md
+!README.md
+!ADMIN-PANEL-README.md
 
 # macOS
 .DS_Store
