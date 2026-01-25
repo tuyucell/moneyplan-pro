@@ -305,28 +305,29 @@ class _WatchlistPageState extends ConsumerState<WatchlistPage> {
                 child: watchlist.isEmpty
                     ? _buildEmptyState(context, lc)
                     : TabBarView(
-                        children: categories.map((category) {
-                          final currentList = (category ==
-                                  AppStrings.tr(AppStrings.tabAll, lc))
-                              ? filteredWatchlist
-                                  .where((e) => e.assetId != null)
-                                  .toList()
-                              : filteredWatchlist
-                                  .where((e) =>
-                                      e.assetId != null &&
-                                      _getCategoryDisplayName(e.category, lc,
-                                              symbol: e.symbol) ==
-                                          category)
-                                  .toList();
+                        children: categories.isEmpty
+                            ? [const SizedBox()]
+                            : categories.map((category) {
+                                final currentList = (category ==
+                                        AppStrings.tr(AppStrings.tabAll, lc))
+                                    ? filteredWatchlist
+                                    : filteredWatchlist
+                                        .where((e) =>
+                                            _getCategoryDisplayName(
+                                                e.category, lc,
+                                                symbol: e.symbol) ==
+                                            category)
+                                        .toList();
 
-                          if (currentList.isEmpty && _searchQuery.isNotEmpty) {
-                            return _buildNoResultsState(context, lc);
-                          } else if (currentList.isEmpty) {
-                            return _buildEmptyState(context, lc);
-                          }
-                          return _buildWatchlistItems(
-                              context, ref, currentList, lc);
-                        }).toList(),
+                                if (currentList.isEmpty &&
+                                    _searchQuery.isNotEmpty) {
+                                  return _buildNoResultsState(context, lc);
+                                } else if (currentList.isEmpty) {
+                                  return _buildEmptyState(context, lc);
+                                }
+                                return _buildWatchlistItems(
+                                    context, ref, currentList, lc);
+                              }).toList(),
                       ),
               ),
             ),
@@ -506,8 +507,42 @@ class _WatchlistPageState extends ConsumerState<WatchlistPage> {
               await ref
                   .read(watchlistProvider.notifier)
                   .removeFromWatchlist(item.symbol);
+
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      lc == 'tr'
+                          ? '${item.name} listenizden kaldırıldı.'
+                          : '${item.name} removed from watchlist.',
+                    ),
+                    behavior: SnackBarBehavior.floating,
+                    action: SnackBarAction(
+                      label: lc == 'tr' ? 'Geri Al' : 'Undo',
+                      onPressed: () {
+                        // Undo logic could be added here if needed,
+                        // but logic currently makes it hard without re-adding
+                        // For now we just show confirmation.
+                      },
+                    ),
+                  ),
+                );
+              }
             } catch (e) {
-              // Ignore failure to remove from watchlist silently
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      lc == 'tr'
+                          ? 'İşlem başarısız oldu. Lütfen tekrar deneyin.'
+                          : 'Action failed. Please try again.',
+                    ),
+                    backgroundColor: AppColors.error,
+                  ),
+                );
+              }
+              // Force refresh to restore item if delete failed
+              ref.invalidate(watchlistProvider);
             }
           },
           child: Padding(
@@ -521,13 +556,16 @@ class _WatchlistPageState extends ConsumerState<WatchlistPage> {
 
   Widget _buildWatchlistCard(
       BuildContext context, WidgetRef ref, WatchlistItem item) {
-    if (item.assetId == null) return const SizedBox.shrink();
-    final assetAsync = ref.watch(assetProvider(item.assetId!));
+    if (item.assetId == null && item.symbol.isEmpty)
+      return const SizedBox.shrink();
+    // Fallback ID to symbol if assetId is missing (should be fixed by provider now)
+    final effectiveId = item.assetId ?? item.symbol;
+    final assetAsync = ref.watch(assetProvider(effectiveId));
 
     return assetAsync.when(
       data: (asset) {
         return EnhancedMarketItemCard(
-          assetId: asset?.id ?? item.assetId!,
+          assetId: asset?.id ?? effectiveId,
           symbol: asset?.symbol ?? item.symbol,
           name: asset?.name ?? item.name,
           price: asset?.currentPriceUsd ?? 0.0,
@@ -546,7 +584,7 @@ class _WatchlistPageState extends ConsumerState<WatchlistPage> {
         child: const Center(child: CircularProgressIndicator()),
       ),
       error: (_, __) => EnhancedMarketItemCard(
-        assetId: item.assetId!,
+        assetId: effectiveId,
         symbol: item.symbol,
         name: item.name,
         price: 0.0,

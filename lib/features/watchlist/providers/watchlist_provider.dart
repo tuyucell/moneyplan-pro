@@ -38,53 +38,133 @@ class WatchlistNotifier extends StateNotifier<List<WatchlistItem>> {
 
     try {
       final prefs = await _prefs;
+
+      // 1. GUEST TO USER MIGRATION
+      if (userId != null) {
+        const guestKey = 'watchlist_items_guest';
+        final guestWatchlistJson = prefs.getString(guestKey);
+        if (guestWatchlistJson != null && guestWatchlistJson.isNotEmpty) {
+          final List<dynamic> guestItems = jsonDecode(guestWatchlistJson);
+          if (guestItems.isNotEmpty) {
+            final String userKey = 'watchlist_items_$userId';
+            debugPrint(
+                'Migrating ${guestItems.length} guest items to user: $userId');
+            final userWatchlistJson = prefs.getString(userKey) ?? '[]';
+            final List<dynamic> userItems = jsonDecode(userWatchlistJson);
+
+            final Set<String> existingSymbols =
+                userItems.map((e) => e['symbol'] as String).toSet();
+            int migratedCount = 0;
+            for (var item in guestItems) {
+              if (!existingSymbols.contains(item['symbol'])) {
+                userItems.add(item);
+                migratedCount++;
+              }
+            }
+
+            if (migratedCount > 0) {
+              await prefs.setString(userKey, jsonEncode(userItems));
+              debugPrint(
+                  'Sync: Migrated $migratedCount items from guest to user $userId');
+            }
+            // IMPORTANT: Clear guest items after migration
+            await prefs.remove(guestKey);
+          }
+        }
+      }
+
+      // Load items from current context's key
       final watchlistJson = prefs.getString(_watchlistKey);
 
       if (watchlistJson != null && watchlistJson.isNotEmpty) {
         final List<dynamic> decoded = jsonDecode(watchlistJson);
-        final items = decoded
-            .map((item) => WatchlistItem.fromJson(item as Map<String, dynamic>))
-            .toList();
-        state = items;
+        final items = decoded.map((item) {
+          final w = WatchlistItem.fromJson(item as Map<String, dynamic>);
+          // Self-heal: ensure assetId exists
+          if (w.assetId == null || w.assetId!.isEmpty) {
+            return WatchlistItem(
+              symbol: w.symbol,
+              name: w.name,
+              assetId: w.symbol, // Fallback to symbol
+              category: w.category,
+            );
+          }
+          return w;
+        }).toList();
+        state = items; // Set local data immediately
       }
 
-      // 2. Sync with Supabase if logged in
+      // 2. REMOTE SYNC (Non-blocking)
       if (userId != null) {
-        final List<dynamic> response = await _client
-            .from('user_watchlists')
-            .select('*')
-            .eq('user_id', userId!);
+        debugPrint('Sync: Starting remote pull for user $userId');
+        try {
+          final List<dynamic> response = await _client
+              .from('user_watchlists')
+              .select('*')
+              .eq('user_id', userId!);
 
-        final remoteItems = response.map((json) {
-          return WatchlistItem(
-            symbol: json['symbol'] as String,
-            name: json['asset_name'] as String? ?? '',
-            assetId: json['symbol'], // Using symbol as assetId if not present
-            category: json['asset_type'] as String?,
-          );
-        }).toList();
+          if (response.isNotEmpty) {
+            final remoteItems = response.map((json) {
+              return WatchlistItem(
+                symbol: json['symbol'] as String,
+                name: json['asset_name'] as String? ?? '',
+                assetId:
+                    json['asset_id'] as String? ?? json['symbol'] as String,
+                category: json['asset_type'] as String?,
+              );
+            }).toList();
 
-        // Merge or overwrite (Overwrite is safer for sync)
-        state = remoteItems;
-        await _saveWatchlist();
+            // Merge local and remote
+            final Map<String, WatchlistItem> merged = {};
+            for (var item in state) {
+              merged[item.symbol] = item;
+            }
+            for (var item in remoteItems) {
+              merged[item.symbol] = item;
+            }
+
+            state = merged.values.toList();
+            await _saveWatchlist();
+            debugPrint(
+                'Sync: Remote pull completed. Total items: ${state.length}');
+          }
+        } catch (syncError) {
+          debugPrint('Sync: Remote pull failed (preserving local): $syncError');
+        }
+
+        // Also push local items to remote that might be missing
+        _pushLocalToRemote();
       }
 
       _isInitialized = true;
       if (!_initCompleter.isCompleted) {
         _initCompleter.complete();
       }
-    } catch (e, stackTrace) {
-      if (kDebugMode) {
-        debugPrint('Error loading watchlist: $e');
-        debugPrint('Stack trace: $stackTrace');
-      }
-      state = [];
+    } catch (e) {
+      debugPrint('Sync: Critical initialization error: $e');
       _isInitialized = true;
       if (!_initCompleter.isCompleted) {
-        _initCompleter.completeError(e, stackTrace);
+        _initCompleter.complete();
       }
-      // Re-throw to allow UI to handle the error
-      rethrow;
+    }
+  }
+
+  void _pushLocalToRemote() {
+    if (userId == null || state.isEmpty) return;
+
+    debugPrint('Sync: Pushing ${state.length} items to remote...');
+    for (var item in state) {
+      _client.from('user_watchlists').upsert({
+        'user_id': userId,
+        'symbol': item.symbol,
+        'asset_name': item.name,
+        'asset_type': item.category,
+        'asset_id': item.assetId,
+      }, onConflict: 'user_id, symbol').then((_) {
+        // Success
+      }).catchError((e) {
+        debugPrint('Sync: Push failed for ${item.symbol}: $e');
+      });
     }
   }
 
@@ -115,27 +195,27 @@ class WatchlistNotifier extends StateNotifier<List<WatchlistItem>> {
   /// Add item to watchlist with error handling
   Future<void> addToWatchlist(WatchlistItem item) async {
     try {
-      if (!state.contains(item)) {
+      if (!state.any((e) => e.symbol == item.symbol)) {
         state = [...state, item];
         await _saveWatchlist();
 
-        // Sync to Supabase
+        // Sync to Supabase - NON-BLOCKING
         if (userId != null) {
-          await _client.from('user_watchlists').upsert({
+          _client.from('user_watchlists').upsert({
             'user_id': userId,
             'symbol': item.symbol,
             'asset_name': item.name,
             'asset_type': item.category,
+            'asset_id': item.assetId,
+          }, onConflict: 'user_id, symbol').then((_) {
+            debugPrint('Sync: Successfully pushed ${item.symbol}');
+          }).catchError((e) {
+            debugPrint('Sync: Push failed for ${item.symbol}: $e');
           });
         }
       }
-    } catch (e, stackTrace) {
-      if (kDebugMode) {
-        debugPrint('Error adding to watchlist: $e');
-        debugPrint('Stack trace: $stackTrace');
-      }
-      // Rollback state on error
-      state = state.where((i) => i != item).toList();
+    } catch (e) {
+      debugPrint('Error adding to watchlist locally: $e');
       rethrow;
     }
   }

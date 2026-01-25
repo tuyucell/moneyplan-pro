@@ -10,9 +10,6 @@ import {
     SettingOutlined,
     GlobalOutlined,
     NotificationOutlined,
-    FlagOutlined,
-    DollarOutlined,
-    NotificationFilled,
     LineOutlined,
     LayoutOutlined,
     ThunderboltOutlined,
@@ -22,6 +19,7 @@ import {
     SunOutlined,
     MoonOutlined,
     HeatMapOutlined,
+    BankOutlined,
 } from '@ant-design/icons';
 import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
@@ -109,27 +107,9 @@ export default function Layout({ children }: Readonly<{ children: React.ReactNod
                     onClick: () => { navigate('/system/notifications'); },
                 },
                 {
-                    key: '/system/features',
-                    icon: <FlagOutlined />,
-                    label: 'Feature Flags',
-                    onClick: () => { navigate('/system/features'); },
-                },
-                {
-                    key: '/system/pricing',
-                    icon: <DollarOutlined />,
-                    label: 'Pricing & Plans',
-                    onClick: () => { navigate('/system/pricing'); },
-                },
-                {
-                    key: '/system/announcements',
-                    icon: <NotificationFilled />,
-                    label: 'In-App Alerts',
-                    onClick: () => { navigate('/system/announcements'); },
-                },
-                {
                     key: '/system/limits',
                     icon: <LineOutlined />,
-                    label: 'Usage Limits',
+                    label: 'System Config',
                     onClick: () => { navigate('/system/limits'); },
                 },
                 {
@@ -149,6 +129,12 @@ export default function Layout({ children }: Readonly<{ children: React.ReactNod
                     icon: <LogoutOutlined />,
                     label: 'KVKK Requests',
                     onClick: () => { navigate('/kvkk'); },
+                },
+                {
+                    key: '/system/market-rates',
+                    icon: <BankOutlined />,
+                    label: 'Market Rates',
+                    onClick: () => { navigate('/system/market-rates'); },
                 },
             ]
         },
@@ -241,7 +227,7 @@ export default function Layout({ children }: Readonly<{ children: React.ReactNod
                 placement="right"
                 onClose={() => setHelpOpen(false)}
                 open={helpOpen}
-                width={400}
+                styles={{ wrapper: { width: 400 } }}
             >
                 {pageHelp ? (
                     <Flex vertical gap="large">
@@ -256,7 +242,7 @@ export default function Layout({ children }: Readonly<{ children: React.ReactNod
                             </ul>
                         </div>
                         <Alert
-                            message="Dinamik Rehber"
+                            title="Dinamik Rehber"
                             description="Bu yardım içeriği bulunduğunuz sayfaya göre otomatik değişir."
                             type="info"
                             showIcon

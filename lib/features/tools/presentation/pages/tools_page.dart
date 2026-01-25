@@ -170,6 +170,16 @@ class ToolsPage extends ConsumerWidget {
             color: AppColors.error,
             onTap: () => context.push('/tools/credit_card_assistant'),
           ),
+
+          // 7. Satın Alma Asistanı (AI)
+          _buildToolCard(
+            context,
+            icon: Icons.psychology,
+            title: 'Satın Alma Asistanı',
+            subtitle: 'Nakit mi Taksit mi?',
+            color: Colors.deepPurple,
+            onTap: () => context.push('/tools/purchase_assistant'),
+          ),
         ],
       ),
     );

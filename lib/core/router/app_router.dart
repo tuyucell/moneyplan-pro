@@ -40,6 +40,7 @@ import 'package:invest_guide/features/wallet/models/transaction_category.dart';
 import 'package:invest_guide/features/search/data/models/asset.dart';
 import 'package:invest_guide/features/alerts/presentation/pages/alerts_page.dart';
 import 'package:invest_guide/features/investment_wizard/pages/investment_wizard_page.dart';
+import 'package:invest_guide/features/ai_assistant/presentation/pages/purchase_assistant_page.dart';
 
 // Persistent storage for processed deep links to prevent duplicates even after app restarts
 class DeepLinkPersistence {
@@ -348,6 +349,10 @@ class AppRouter {
           GoRoute(
             path: 'scenario_planner',
             builder: (context, state) => const ScenarioPlannerPage(),
+          ),
+          GoRoute(
+            path: 'purchase_assistant',
+            builder: (context, state) => const PurchaseAssistantPage(),
           ),
         ],
       ),

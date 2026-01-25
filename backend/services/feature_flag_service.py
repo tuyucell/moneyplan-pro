@@ -174,6 +174,8 @@ class FeatureFlagService:
     async def update_flag(flag_id: str, updates: dict) -> Optional[FeatureFlag]:
         """Update a specific feature flag"""
         from database import get_db_connection
+        import sys
+        
         db = get_db_connection()
         try:
             # Get current flags
@@ -190,11 +192,25 @@ class FeatureFlagService:
             flags_data = json.loads(result[0])
             
             if flag_id not in flags_data:
+                print(f"Flag ID {flag_id} not found", file=sys.stderr)
                 return None
             
             # Update the flag
             now = datetime.now()
-            for key, value in updates.items():
+            
+            # Special handling for metadata merge
+            if "metadata" in updates and updates["metadata"] is not None:
+                current_metadata = flags_data[flag_id].get("metadata", {}) or {}
+                # Merge new metadata into existing
+                current_metadata.update(updates["metadata"])
+                flags_data[flag_id]["metadata"] = current_metadata
+                # Remove metadata from updates so loop below doesn't overwrite it
+                updates_copy = updates.copy()
+                del updates_copy["metadata"]
+            else:
+                updates_copy = updates
+
+            for key, value in updates_copy.items():
                 if value is not None:
                     flags_data[flag_id][key] = value
             
@@ -207,11 +223,31 @@ class FeatureFlagService:
             )
             db.commit()
             
-            return FeatureFlag(
-                **flags_data[flag_id],
-                created_at=datetime.fromisoformat(flags_data[flag_id]["created_at"]),
-                updated_at=now
-            )
+            try:
+                created_at_str = flags_data[flag_id]["created_at"]
+                if isinstance(created_at_str, str):
+                    created_at = datetime.fromisoformat(created_at_str)
+                else:
+                     created_at = now # Fallback
+                
+                return FeatureFlag(
+                    **flags_data[flag_id],
+                    created_at=created_at,
+                    updated_at=now
+                )
+            except Exception as e:
+                print(f"Error creating FeatureFlag model: {e}", file=sys.stderr)
+                import traceback
+                traceback.print_exc()
+                # Return dict as fallback if model validation fails? 
+                # Better to raise so we know
+                raise e
+                
+        except Exception as e:
+            print(f"Error updating flag: {e}", file=sys.stderr)
+            import traceback
+            traceback.print_exc()
+            raise e
         finally:
             db.close()
     

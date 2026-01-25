@@ -19,6 +19,7 @@ import LimitsManager from './pages/LimitsManager';
 import UIManager from './pages/UIManager';
 import DeletionRequests from './pages/DeletionRequests';
 import AuditLogs from './pages/AuditLogs';
+import MarketRates from './pages/MarketRates';
 import UserExplorer from './pages/UserExplorer';
 import UserProfileIntelligence from './pages/UserProfileIntelligence';
 import StrategicDecisions from './pages/StrategicDecisions';
@@ -95,7 +96,9 @@ function App() {
                         <Route path="/system/announcements" element={<AnnouncementsManager />} />
                         <Route path="/system/limits" element={<LimitsManager />} />
                         <Route path="/system/ui" element={<UIManager />} />
+                        <Route path="/system/ui" element={<UIManager />} />
                         <Route path="/system/audit-logs" element={<AuditLogs />} />
+                        <Route path="/system/market-rates" element={<MarketRates />} />
                         <Route path="/billing" element={<PricingManager />} />
                         <Route path="/kvkk" element={<DeletionRequests />} />
                         <Route path="*" element={<Navigate to="/" />} />

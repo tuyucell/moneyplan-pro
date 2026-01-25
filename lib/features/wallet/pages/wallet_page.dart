@@ -753,11 +753,10 @@ class _WalletPageState extends ConsumerState<WalletPage>
               onTap: () async {
                 final isPro = ref.read(isProUserProvider);
                 const featureKey = 'import_statement_ai';
-                final hasUsage = await ref
-                    .read(featureUsageProvider)
-                    .hasFreeUsageRemaining(featureKey);
+                final isLocked =
+                    await ref.read(featureLockedProvider(featureKey).future);
 
-                if (isPro || hasUsage) {
+                if (!isLocked) {
                   if (!isPro) {
                     await ref.read(featureUsageProvider).trackUsage(featureKey);
                     // Analytics: Free use
@@ -805,11 +804,10 @@ class _WalletPageState extends ConsumerState<WalletPage>
               onTap: () async {
                 final isPro = ref.read(isProUserProvider);
                 const featureKey = 'export_csv';
-                final hasUsage = await ref
-                    .read(featureUsageProvider)
-                    .hasFreeUsageRemaining(featureKey);
+                final isLocked =
+                    await ref.read(featureLockedProvider(featureKey).future);
 
-                if (!isPro && !hasUsage) {
+                if (isLocked) {
                   if (context.mounted) {
                     Navigator.pop(context);
                     _showProUpsellDialog(context, lc);
@@ -886,11 +884,10 @@ class _WalletPageState extends ConsumerState<WalletPage>
               onTap: () async {
                 final isPro = ref.read(isProUserProvider);
                 const featureKey = 'export_pdf';
-                final hasUsage = await ref
-                    .read(featureUsageProvider)
-                    .hasFreeUsageRemaining(featureKey);
+                final isLocked =
+                    await ref.read(featureLockedProvider(featureKey).future);
 
-                if (!isPro && !hasUsage) {
+                if (isLocked) {
                   if (context.mounted) {
                     Navigator.pop(context);
                     _showProUpsellDialog(context, lc);

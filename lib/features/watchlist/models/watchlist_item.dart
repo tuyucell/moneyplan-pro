@@ -15,7 +15,7 @@ class WatchlistItem {
     return {
       'symbol': symbol,
       'name': name,
-      'assetId': assetId,
+      'asset_id': assetId, // Map to snake_case for DB consistency
       'category': category,
     };
   }
@@ -23,9 +23,9 @@ class WatchlistItem {
   factory WatchlistItem.fromJson(Map<String, dynamic> json) {
     return WatchlistItem(
       symbol: json['symbol'] as String,
-      name: json['name'] as String,
-      assetId: json['assetId'] as String?,
-      category: json['category'] as String?,
+      name: (json['name'] ?? json['asset_name'] ?? '') as String,
+      assetId: (json['asset_id'] ?? json['assetId']) as String?,
+      category: (json['category'] ?? json['asset_type']) as String?,
     );
   }
 

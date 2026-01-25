@@ -1198,17 +1198,54 @@ class _WatchlistToggleAction extends ConsumerWidget {
             isInWatchlist ? AppColors.warning : AppColors.textPrimary(context),
         size: 24,
       ),
-      onPressed: () {
+      onPressed: () async {
         final notifier = ref.read(watchlistProvider.notifier);
-        if (isInWatchlist) {
-          notifier.removeFromWatchlist(symbol);
-        } else {
-          notifier.addToWatchlist(WatchlistItem(
-            symbol: symbol,
-            name: name,
-            assetId: assetId,
-            category: categoryId ?? 'other',
-          ));
+        final language =
+            ref.read(languageProvider); // Use read for event handler
+        final lc = language.code;
+
+        try {
+          if (isInWatchlist) {
+            await notifier.removeFromWatchlist(symbol);
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(lc == 'tr'
+                      ? '$name favorilerden çıkarıldı.'
+                      : '$name removed from favorites.'),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            }
+          } else {
+            await notifier.addToWatchlist(WatchlistItem(
+              symbol: symbol,
+              name: name,
+              assetId: assetId,
+              category: categoryId ?? 'other',
+            ));
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(lc == 'tr'
+                      ? '$name favorilere eklendi.'
+                      : '$name added to favorites.'),
+                  backgroundColor: AppColors.success,
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            }
+          }
+        } catch (e) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                    lc == 'tr' ? 'İşlem başarısız: $e' : 'Action failed: $e'),
+                backgroundColor: AppColors.error,
+              ),
+            );
+          }
         }
       },
     );

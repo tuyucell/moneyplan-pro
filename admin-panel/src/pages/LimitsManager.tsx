@@ -14,62 +14,64 @@ import {
     Tag,
     Flex,
     App,
+    Input,
+    Tabs,
+    Tooltip
 } from 'antd';
 import {
-    ThunderboltOutlined,
-    ReloadOutlined,
     CrownOutlined,
-    UserOutlined,
+    RobotOutlined,
+    SearchOutlined,
+    InfoCircleOutlined,
+    CheckCircleOutlined,
+    CloseCircleOutlined,
+    SettingOutlined,
+    ExperimentOutlined
 } from '@ant-design/icons';
-
-const { Title, Text, Paragraph } = Typography;
+import { supabase } from '../lib/supabase';
 import { API_BASE_URL } from '../config';
 
+const { Title, Text, Paragraph } = Typography;
 const BACKEND_URL = API_BASE_URL;
 
-interface TierLimits {
-    max_transactions: number;
-    max_portfolios: number;
-    max_alerts: number;
-    max_bank_accounts: number;
-    ai_requests_per_day: number;
-    export_per_day: number;
-    can_use_email_sync: boolean;
-    can_use_advanced_charts: boolean;
-    can_use_ai_analyst: boolean;
-}
-
-interface LimitsConfig {
-    free_tier: TierLimits;
-    pro_tier: TierLimits;
-    rate_limits: {
-        api_calls_per_minute: number;
-        export_per_hour: number;
-        ai_requests_per_hour: number;
-        search_per_minute: number;
-    };
-    quotas: {
-        max_storage_mb: number;
-        max_api_calls_per_day: number;
-        max_concurrent_sessions: number;
-        data_retention_days: number;
-    };
-    enforce_limits: boolean;
+// --- TYPES ---
+interface FeatureFlag {
+    id: string;
+    name: string;
+    description: string;
+    is_pro: boolean;
+    is_enabled: boolean;
+    daily_free_limit: number | null;
+    metadata: Record<string, any>;
     updated_at: string;
 }
 
-const LimitsManager: React.FC = () => {
-    const [config, setConfig] = useState<LimitsConfig | null>(null);
+// --- SUB-COMPONENTS ---
+
+const LimitsTab: React.FC = () => {
     const [loading, setLoading] = useState(true);
-    const [updating, setUpdating] = useState(false);
     const { message } = App.useApp();
+    const [config, setConfig] = useState<Record<string, any>>({});
+
+    // User Premium Management State
+    const [searchEmail, setSearchEmail] = useState('');
+    const [userResult, setUserResult] = useState<any>(null);
+    const [searchingUser, setSearchingUser] = useState(false);
 
     const fetchConfig = async () => {
         setLoading(true);
         try {
-            const response = await fetch(`${BACKEND_URL}/api/v1/limits/config`);
-            const data = await response.json();
-            setConfig(data);
+            const { data, error } = await supabase
+                .from('app_config')
+                .select('key, value');
+
+            if (error) throw error;
+
+            const configMap: Record<string, any> = {};
+            data?.forEach(item => {
+                configMap[item.key] = item.value;
+            });
+            setConfig(configMap);
         } catch (error) {
             console.error(error);
             message.error('Limit ayarları yüklenemedi');
@@ -82,140 +84,326 @@ const LimitsManager: React.FC = () => {
         fetchConfig();
     }, []);
 
-    const updateConfig = async (updates: Record<string, any>) => {
-        setUpdating(true);
+    const updateConfig = async (key: string, value: any) => {
         try {
-            const response = await fetch(`${BACKEND_URL}/api/v1/limits/config`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(updates),
-            });
+            const { error } = await supabase
+                .from('app_config')
+                .upsert({ key, value });
 
-            if (!response.ok) throw new Error('Güncelleme başarısız');
-            const data = await response.json();
-            setConfig(data);
-            message.success('Limit ayarları güncellendi');
+            if (error) throw error;
+
+            setConfig(prev => ({ ...prev, [key]: value }));
+            message.success('Limit güncellendi');
         } catch (error) {
             console.error(error);
             message.error('Güncelleme hatası');
-        } finally {
-            setUpdating(false);
         }
     };
 
-    if (loading || !config) {
-        return <div style={{ textAlign: 'center', padding: '50px' }}><Spin size="large" /></div>;
-    }
+    const searchUser = async () => {
+        if (!searchEmail) return;
+        setSearchingUser(true);
+        try {
+            const { data, error } = await supabase
+                .from('users')
+                .select('id, email, is_premium, display_name')
+                .eq('email', searchEmail)
+                .maybeSingle();
 
-    const renderLimitItem = (label: string, value: number, onChange: (val: number | null) => void) => (
+            if (error) throw error;
+
+            if (data) {
+                setUserResult(data);
+                message.success('Kullanıcı bulundu');
+            } else {
+                setUserResult(null);
+                message.warning('Kullanıcı bulunamadı');
+            }
+        } catch (err) {
+            console.error(err);
+            message.error('Arama hatası');
+        } finally {
+            setSearchingUser(false);
+        }
+    };
+
+    const togglePremium = async () => {
+        if (!userResult) return;
+        try {
+            const newStatus = !userResult.is_premium;
+            const { error } = await supabase
+                .from('users')
+                .update({ is_premium: newStatus })
+                .eq('id', userResult.id);
+
+            if (error) throw error;
+
+            setUserResult({ ...userResult, is_premium: newStatus });
+            message.success(`Kullanıcı ${newStatus ? 'Premium yapıldı' : 'Free üyeliğe döndürüldü'}`);
+        } catch (err) {
+            console.error(err);
+            message.error('İşlem başarısız');
+        }
+    };
+
+    const renderLimitItem = (label: string, valueName: string, defaultValue: number) => (
         <Row align="middle" style={{ marginBottom: 12 }}>
             <Col span={16}><Text>{label}</Text></Col>
             <Col span={8}>
                 <InputNumber
                     style={{ width: '100%' }}
-                    value={value}
-                    onChange={onChange}
-                    formatter={(val) => val === -1 ? '∞' : `${val}`}
-                    parser={(val) => val === '∞' ? '-1' : val as any}
+                    value={config[valueName] ? Number.parseInt(config[valueName]) : defaultValue}
+                    onChange={(val) => updateConfig(valueName, val)}
                 />
             </Col>
         </Row>
     );
 
-    return (
-        <div style={{ padding: '24px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-                <div>
-                    <Title level={2} style={{ margin: 0 }}>Limit ve Kota Yönetimi</Title>
-                    <Text type="secondary">Kullanıcı katmanları (Free/Pro) ve sistem kotalarını belirleyin</Text>
-                </div>
-                <Space>
-                    <Tag color={config.enforce_limits ? 'success' : 'error'}>
-                        Sistem: {config.enforce_limits ? 'Aktif' : 'Limitler Pasif'}
-                    </Tag>
-                    <Button icon={<ReloadOutlined />} onClick={fetchConfig} disabled={updating}>Yenile</Button>
-                </Space>
-            </div>
+    if (loading) return <div style={{ textAlign: 'center', padding: '40px' }}><Spin /></div>;
 
-            <Row gutter={[16, 16]}>
-                {/* FREE TIER */}
-                <Col xs={24} md={12}>
-                    <Card title={<Space><UserOutlined /> Free Seviyesi</Space>}>
-                        {renderLimitItem('Maks. İşlem Sayısı', config.free_tier.max_transactions, (v) => updateConfig({ free_max_transactions: v }))}
-                        {renderLimitItem('Maks. Portföy Sayısı', config.free_tier.max_portfolios, (v) => updateConfig({ free_max_portfolios: v }))}
-                        {renderLimitItem('Maks. Alarm Sayısı', config.free_tier.max_alerts, (v) => updateConfig({ free_max_alerts: v }))}
-                        {renderLimitItem('Günlük AI İstek', config.free_tier.ai_requests_per_day, (v) => updateConfig({ free_ai_requests_per_day: v }))}
-                        {renderLimitItem('Günlük Dışa Aktar (Export)', config.free_tier.export_per_day, (v) => updateConfig({ free_export_per_day: v }))}
-                        {renderLimitItem('Maks. Banka Hesabı', config.free_tier.max_bank_accounts, (v) => updateConfig({ free_max_bank_accounts: v }))}
-                        <Divider>Erişimler</Divider>
-                        <Flex vertical style={{ width: '100%' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                <Text>Email Senkronizasyonu</Text>
-                                <Switch checked={config.free_tier.can_use_email_sync} disabled />
+    return (
+        <Row gutter={[16, 16]}>
+            {/* AI LIMITS */}
+            <Col xs={24} md={12}>
+                <Card title={<Space><RobotOutlined /> AI Asistan Limitleri (Aylık)</Space>}>
+                    <Alert
+                        message="Dinamik Limitler"
+                        description="Bu değerler mobil uygulamaya anlık yansır. Kullanıcılar limitlerini doldurduğunda bu değerler baz alınır."
+                        type="info"
+                        showIcon
+                        style={{ marginBottom: 16 }}
+                    />
+                    {renderLimitItem('Free Kullanıcı Limiti', 'ai_limit_monthly_free', 3)}
+                    {renderLimitItem('Premium Kullanıcı Limiti', 'ai_limit_monthly_premium', 10)}
+                </Card>
+            </Col>
+
+            {/* USER PREMIUM MANAGER */}
+            <Col xs={24} md={12}>
+                <Card title={<Space><CrownOutlined style={{ color: '#faad14' }} /> Kullanıcı Premium Yönetimi</Space>}>
+                    <Space.Compact style={{ width: '100%', marginBottom: 16 }}>
+                        <Input
+                            placeholder="Kullanıcı E-posta Ara..."
+                            value={searchEmail}
+                            onChange={e => setSearchEmail(e.target.value)}
+                            onPressEnter={searchUser}
+                        />
+                        <Button type="primary" icon={<SearchOutlined />} onClick={searchUser} loading={searchingUser}>Ara</Button>
+                    </Space.Compact>
+
+                    {userResult ? (
+                        <div style={{ padding: 16, background: '#f5f5f5', borderRadius: 8 }}>
+                            <Flex justify="space-between" align="center">
+                                <div>
+                                    <Text strong style={{ display: 'block' }}>{userResult.email}</Text>
+                                    <Text type="secondary" style={{ fontSize: 12 }}>{userResult.id}</Text>
+                                    <div style={{ marginTop: 8 }}>
+                                        {userResult.is_premium ?
+                                            <Tag color="gold" icon={<CrownOutlined />}>PREMIUM</Tag> :
+                                            <Tag color="default">FREE</Tag>
+                                        }
+                                    </div>
+                                </div>
+                                <Button
+                                    type={userResult.is_premium ? 'default' : 'primary'}
+                                    danger={userResult.is_premium}
+                                    onClick={togglePremium}
+                                >
+                                    {userResult.is_premium ? 'Free Yap' : 'Premium Yap'}
+                                </Button>
+                            </Flex>
+                        </div>
+                    ) : (
+                        <div style={{ textAlign: 'center', padding: '20px', color: '#999' }}>
+                            Kullanıcı aramak için e-posta girin
+                        </div>
+                    )}
+                </Card>
+            </Col>
+        </Row>
+    );
+};
+
+const FeaturesTab: React.FC = () => {
+    const [flags, setFlags] = useState<Record<string, FeatureFlag>>({});
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState<string | null>(null);
+    const { message } = App.useApp();
+
+    const fetchFlags = async () => {
+        setLoading(true);
+        try {
+            const response = await fetch(`${BACKEND_URL}/api/v1/features`);
+            const data = await response.json();
+            setFlags(data.features || {});
+        } catch (error) {
+            message.error('Failed to load feature flags');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchFlags();
+    }, []);
+
+    const updateFlag = async (flagId: string, updates: Partial<FeatureFlag>) => {
+        setSaving(flagId);
+        try {
+            const response = await fetch(`${BACKEND_URL}/api/v1/features/${flagId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updates),
+            });
+
+            if (!response.ok) throw new Error('Update failed');
+
+            const result = await response.json();
+            setFlags((prev) => ({
+                ...prev,
+                [flagId]: result.flag,
+            }));
+            message.success(`${flags[flagId].name} updated`);
+        } catch (error) {
+            message.error('Failed to update feature');
+        } finally {
+            setSaving(null);
+        }
+    };
+
+    if (loading) return <div style={{ textAlign: 'center', padding: '40px' }}><Spin /></div>;
+
+    return (
+        <Row gutter={[16, 16]}>
+            {Object.entries(flags).map(([flagId, flag]) => (
+                <Col xs={24} md={12} lg={8} key={flagId}>
+                    <Card
+                        title={
+                            <Flex vertical style={{ width: '100%' }}>
+                                <Text strong style={{ fontSize: 16 }}>{flag.name}</Text>
+                                <Tag color="default" style={{ fontSize: 11 }}>{flag.id}</Tag>
+                            </Flex>
+                        }
+                        extra={
+                            <Tooltip title="Feature ID for app integration">
+                                <InfoCircleOutlined />
+                            </Tooltip>
+                        }
+                        loading={saving === flagId}
+                        style={{ height: '100%' }}
+                    >
+                        <Flex vertical gap="middle" style={{ width: '100%' }}>
+                            <Paragraph type="secondary" style={{ marginBottom: 0, minHeight: 40 }}>
+                                {flag.description}
+                            </Paragraph>
+
+                            <Divider style={{ margin: '8px 0' }} />
+
+                            <div>
+                                <Space style={{ width: '100%', justifyContent: 'space-between' }}>
+                                    <Flex vertical>
+                                        <Text strong>Enabled</Text>
+                                        <Text type="secondary" style={{ fontSize: 12 }}>
+                                            {flag.is_enabled ? (
+                                                <><CheckCircleOutlined style={{ color: '#52c41a' }} /> Active</>
+                                            ) : (
+                                                <><CloseCircleOutlined style={{ color: '#ff4d4f' }} /> Disabled</>
+                                            )}
+                                        </Text>
+                                    </Flex>
+                                    <Switch
+                                        size="small"
+                                        checked={flag.is_enabled}
+                                        onChange={(checked) => updateFlag(flagId, { is_enabled: checked })}
+                                        disabled={saving === flagId}
+                                    />
+                                </Space>
                             </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                <Text>Gelişmiş Grafikler (Advanced)</Text>
-                                <Switch checked={config.free_tier.can_use_advanced_charts} disabled />
+
+                            <div>
+                                <Space style={{ width: '100%', justifyContent: 'space-between' }}>
+                                    <Flex vertical>
+                                        <Text strong>PRO Only</Text>
+                                        <Text type="secondary" style={{ fontSize: 12 }}>
+                                            {flag.is_pro ? 'Premium Users' : 'All Users'}
+                                        </Text>
+                                    </Flex>
+                                    <Switch
+                                        size="small"
+                                        checked={flag.is_pro}
+                                        onChange={(checked) => updateFlag(flagId, { is_pro: checked })}
+                                        disabled={saving === flagId}
+                                        style={{ backgroundColor: flag.is_pro ? '#faad14' : undefined }}
+                                    />
+                                </Space>
                             </div>
+
+                            <div>
+                                <Text strong>Daily Limits</Text>
+                                <Row gutter={12}>
+                                    <Col span={12}>
+                                        <Text type="secondary" style={{ fontSize: 12 }}>Free User Limit</Text>
+                                        <InputNumber
+                                            style={{ width: '100%', marginTop: 4 }}
+                                            value={flag.daily_free_limit}
+                                            onChange={(value) => updateFlag(flagId, { daily_free_limit: value })}
+                                            disabled={saving === flagId}
+                                            placeholder="Unlimited"
+                                            min={0}
+                                        />
+                                    </Col>
+                                    <Col span={12}>
+                                        <Text type="secondary" style={{ fontSize: 12 }}>Pro User Limit</Text>
+                                        <InputNumber
+                                            style={{ width: '100%', marginTop: 4 }}
+                                            value={flag.metadata?.daily_pro_limit ?? null}
+                                            onChange={(value) => updateFlag(flagId, {
+                                                metadata: { ...flag.metadata, daily_pro_limit: value }
+                                            })}
+                                            disabled={saving === flagId}
+                                            placeholder="Unlimited"
+                                            min={0}
+                                        />
+                                    </Col>
+                                </Row>
+                            </div>
+
+                            <Text type="secondary" style={{ fontSize: 10, textAlign: 'right' }}>
+                                Updated: {new Date(flag.updated_at).toLocaleDateString()}
+                            </Text>
                         </Flex>
                     </Card>
                 </Col>
+            ))}
+        </Row>
+    );
+};
 
-                {/* PRO TIER */}
-                <Col xs={24} md={12}>
-                    <Card title={<Space><CrownOutlined style={{ color: '#faad14' }} /> Pro Seviyesi</Space>}>
-                        {renderLimitItem('Maks. İşlem Sayısı', config.pro_tier.max_transactions, (v) => updateConfig({ pro_max_transactions: v }))}
-                        {renderLimitItem('Maks. Portföy Sayısı', config.pro_tier.max_portfolios, (v) => updateConfig({ pro_max_portfolios: v }))}
-                        {renderLimitItem('Maks. Alarm Sayısı', config.pro_tier.max_alerts, (v) => updateConfig({ pro_max_alerts: v }))}
-                        <Alert
-                            description={
-                                <>
-                                    <Text strong style={{ display: 'block', marginBottom: 4 }}>Profesyonel Kullanıcılar</Text>
-                                    Pro kullanıcılar için yukarıdaki limitler genellikle sınırsız (-1) olarak belirlenir.
-                                </>
-                            }
-                            type="info"
-                            showIcon
-                            style={{ marginTop: 20 }}
-                        />
-                    </Card>
-                </Col>
+// --- MAIN PAGE ---
 
-                {/* RATE LIMITS & QUOTAS */}
-                <Col xs={24}>
-                    <Card title={<Space><ThunderboltOutlined /> Sistem Kotaları & Rate Limiting</Space>}>
-                        <Row gutter={32}>
-                            <Col xs={24} md={12}>
-                                <Divider>Hız Limitleri (Dakika Başına)</Divider>
-                                {renderLimitItem('API Çağrıları', config.rate_limits.api_calls_per_minute, (v) => updateConfig({ api_calls_per_minute: v }))}
-                                {renderLimitItem('Arama İstekleri', config.rate_limits.search_per_minute, (v) => updateConfig({ search_per_minute: v }))}
-                                {renderLimitItem('AI İstekleri (Saatlik)', config.rate_limits.ai_requests_per_hour, (v) => updateConfig({ ai_requests_per_hour: v }))}
-                            </Col>
-                            <Col xs={24} md={12}>
-                                <Divider>Genel Kotalar</Divider>
-                                {renderLimitItem('Maks. Depolama (MB)', config.quotas.max_storage_mb, (v) => updateConfig({ max_storage_mb: v }))}
-                                {renderLimitItem('Günlük Toplam API Kotası', config.quotas.max_api_calls_per_day, (v) => updateConfig({ max_api_calls_per_day: v }))}
-                                {renderLimitItem('Maks. Eşzamanlı Oturum', config.quotas.max_concurrent_sessions, (v) => updateConfig({ max_concurrent_sessions: v }))}
-                            </Col>
-                        </Row>
-                    </Card>
-                </Col>
-            </Row>
-
-            <div style={{ marginTop: 24, textAlign: 'center' }}>
-                <Paragraph type="secondary">
-                    Global Limit Denetimi: {' '}
-                    <Switch
-                        checked={config.enforce_limits}
-                        onChange={(val) => updateConfig({ enforce_limits: val })}
-                        checkedChildren="Açık"
-                        unCheckedChildren="Kapalı"
-                    />
-                </Paragraph>
-                <Text type="secondary" style={{ fontSize: 11 }}>
-                    Son Güncelleme: {new Date(config.updated_at).toLocaleString()}
-                </Text>
+const LimitsManager: React.FC = () => {
+    return (
+        <div style={{ padding: '24px' }}>
+            <div style={{ marginBottom: 24 }}>
+                <Title level={2} style={{ margin: 0 }}>System Configuration</Title>
+                <Text type="secondary">Manage application limits, user tiers, and feature flags.</Text>
             </div>
+
+            <Tabs
+                defaultActiveKey="1"
+                items={[
+                    {
+                        key: '1',
+                        label: <Space><SettingOutlined /> Limits & Premium</Space>,
+                        children: <LimitsTab />,
+                    },
+                    {
+                        key: '2',
+                        label: <Space><ExperimentOutlined /> Feature Flags</Space>,
+                        children: <FeaturesTab />,
+                    },
+                ]}
+            />
         </div>
     );
 };

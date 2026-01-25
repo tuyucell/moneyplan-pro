@@ -25,7 +25,7 @@ import {
     LeftOutlined,
     ArrowUpOutlined,
     ArrowDownOutlined,
-    UserOutlined, // Added UserOutlined as it's used
+    UserOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { supabase } from '../lib/supabase';
@@ -87,6 +87,20 @@ export default function UserProfileIntelligence() {
         enabled: !!id,
     });
 
+    // 4. Fetch Financial Health Insights
+    const { data: financialHealth, isLoading: healthLoading } = useQuery({
+        queryKey: ['financial-health', id],
+        queryFn: async () => {
+            const { data, error } = await supabase.rpc('analyze_user_financial_health', { p_user_id: id });
+            if (error) {
+                console.error('Financial health check failed:', error);
+                return [];
+            }
+            return data;
+        },
+        enabled: !!id,
+    });
+
     if (userLoading || wealthLoading) {
         return <div style={{ textAlign: 'center', padding: '100px' }}><Spin size="large" /></div>;
     }
@@ -94,6 +108,26 @@ export default function UserProfileIntelligence() {
     if (!user) {
         return <Empty description="User not found" />;
     }
+
+    const getInsightBorderColor = (priority: string) => {
+        switch (priority) {
+            case 'critical': return '#cf1322';
+            case 'high': return '#faad14';
+            case 'medium': return '#faad14'; // Orange
+            case 'low': return '#1890ff';
+            default: return '#1890ff';
+        }
+    };
+
+    const getAlertColor = (priority: string) => {
+        switch (priority) {
+            case 'critical': return 'error';
+            case 'high': return 'warning';
+            case 'medium': return 'warning';
+            case 'low': return 'success';
+            default: return 'info';
+        }
+    };
 
     const watchlistColumns: ColumnsType<any> = [
         { title: 'Symbol', dataIndex: 'symbol', key: 'symbol', render: (s) => <Tag color="blue">{s}</Tag> },
@@ -154,6 +188,46 @@ export default function UserProfileIntelligence() {
                                 </Descriptions>
                             </Col>
                         </Row>
+                    </Card>
+                </Col>
+
+                {/* Financial Health Radar - AI Insights */}
+                <Col span={24}>
+                    <Card title={<Space><WalletOutlined style={{ color: '#722ed1' }} /> Financial Health Radar (AI Powered)</Space>}>
+                        {healthLoading ? <Spin /> : (
+                            <Row gutter={[16, 16]}>
+                                {(!financialHealth || financialHealth.length === 0) && (
+                                    <Col span={24}>
+                                        <Empty description="No financial insights available yet." image={Empty.PRESENTED_IMAGE_SIMPLE} />
+                                    </Col>
+                                )}
+                                {financialHealth?.map((insight: any) => (
+                                    <Col span={12} key={insight.title}>
+                                        <Card
+                                            type="inner"
+                                            size="small"
+                                            className={`insight-card ${insight.priority}`}
+                                            styles={{
+                                                body: {
+                                                    borderLeft: `4px solid ${getInsightBorderColor(insight.priority)}`
+                                                }
+                                            }}
+                                        >
+                                            <Space align="start">
+                                                <div style={{ fontSize: '24px' }}>{insight.icon}</div>
+                                                <div>
+                                                    <Text strong style={{ fontSize: '16px' }}>{insight.title}</Text>
+                                                    <div style={{ marginTop: '4px', color: '#666' }}>{insight.message}</div>
+                                                    <div style={{ marginTop: '8px' }}>
+                                                        <Tag color={getAlertColor(insight.priority)}>{insight.priority.toUpperCase()}</Tag>
+                                                    </div>
+                                                </div>
+                                            </Space>
+                                        </Card>
+                                    </Col>
+                                ))}
+                            </Row>
+                        )}
                     </Card>
                 </Col>
 
