@@ -12,19 +12,18 @@
 !/ANDROID_SIGNING_GUIDE.md
 !/DEPLOYMENT_READY.md
 !/deploy.sh
-!/docs/
 !/.gitignore
 
 # Still ignore sensitive things within allowed folders
 **/node_modules/
 **/.DS_Store
-website/.env
-website/*.log
-website/CNAME
+docs/.env
+docs/*.log
+docs/CNAME
+!/docs/CNAME
 
-# Note: CNAME should generally be included if you want GitHub to manage it, 
-# but we specified it at Step 86. Let's make sure it's kept.
-!/website/CNAME
+# Note: /docs is for GitHub Pages
+# APP SOURCE CODE IS IGNORED ABOVE (/*)
 
 # If you have specific assets you want to keep
 !/assets/

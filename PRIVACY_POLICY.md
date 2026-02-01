@@ -212,12 +212,12 @@ Son güncelleme tarihi her zaman en üstte belirtilir.
 
 ### 1. Introduction
 
-Investment Guide ("App", "we", "our") respects the privacy of our users. This Privacy Policy explains how your personal data is collected, used, stored, and protected.
+MoneyPlan Pro ("App", "we", "our") respects the privacy of our users. This Privacy Policy explains how your personal data is collected, used, stored, and protected.
 
 By using our App, you agree to this Privacy Policy.
 
 **Contact Information:**
-- Emawriting to trgy.ycl@gmail.com or the address: Istanbul, Turkey.
+- Email: trgy.ycl@gmail.com or the address: Istanbul, Turkey.
 - Phone: +90 554 660 9464 (optional)
 
 ### 2. Data We Collect
