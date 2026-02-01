@@ -159,7 +159,7 @@ class _PurchaseAssistantPageState extends ConsumerState<PurchaseAssistantPage> {
                   SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      'Yapay zeka, güncel mevduat faizlerini kullanarak "Nakit mi, Taksit mi?" sorusuna yanıt verir.',
+                      'Gelişmiş finansal algoritmalar, güncel mevduat faizlerini kullanarak "Nakit mi, Taksit mi?" sorusuna yanıt verir.',
                       style: TextStyle(color: Colors.blue, fontSize: 13),
                     ),
                   ),
@@ -360,8 +360,11 @@ class _PurchaseAssistantPageState extends ConsumerState<PurchaseAssistantPage> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label,
-            style: TextStyle(fontSize: 14, color: Colors.grey.shade700)),
+        Expanded(
+          child: Text(label,
+              style: TextStyle(fontSize: 14, color: Colors.grey.shade700)),
+        ),
+        const SizedBox(width: 8),
         Text(value,
             style: TextStyle(
               fontSize: 14,

@@ -22,6 +22,7 @@ import 'package:invest_guide/features/exchanges/presentation/pages/exchange_deta
 import 'package:invest_guide/features/exchanges/presentation/pages/exchange_list_page.dart';
 import 'package:invest_guide/features/search/presentation/pages/news_list_page.dart';
 import 'package:invest_guide/features/search/presentation/pages/news_detail_page.dart';
+import 'package:invest_guide/features/search/presentation/pages/economic_calendar_page.dart';
 import 'package:invest_guide/features/tools/presentation/pages/tools_page.dart';
 import 'package:invest_guide/features/calculators/pages/compound_interest_page.dart';
 import 'package:invest_guide/features/calculators/pages/loan_kmh_calculator_page.dart';
@@ -41,6 +42,7 @@ import 'package:invest_guide/features/search/data/models/asset.dart';
 import 'package:invest_guide/features/alerts/presentation/pages/alerts_page.dart';
 import 'package:invest_guide/features/investment_wizard/pages/investment_wizard_page.dart';
 import 'package:invest_guide/features/ai_assistant/presentation/pages/purchase_assistant_page.dart';
+import 'package:invest_guide/features/financial_pilot/presentation/pages/financial_pilot_page.dart';
 
 // Persistent storage for processed deep links to prevent duplicates even after app restarts
 class DeepLinkPersistence {
@@ -220,6 +222,7 @@ class AppRouter {
   static const String login = '/login';
   static const String signup = '/signup'; // Added signup route constant
   static const String alerts = '/alerts';
+  static const String calendar = '/calendar';
 
   static final GlobalKey<ScaffoldMessengerState> snackbarKey =
       GlobalKey<ScaffoldMessengerState>();
@@ -327,6 +330,10 @@ class AppRouter {
         builder: (context, state) => const AlertsPage(),
       ),
       GoRoute(
+        path: calendar,
+        builder: (context, state) => const EconomicCalendarPage(),
+      ),
+      GoRoute(
         path: '/tools',
         builder: (context, state) => const ToolsPage(),
         routes: [
@@ -353,6 +360,10 @@ class AppRouter {
           GoRoute(
             path: 'purchase_assistant',
             builder: (context, state) => const PurchaseAssistantPage(),
+          ),
+          GoRoute(
+            path: 'financial_pilot',
+            builder: (context, state) => const FinancialPilotPage(),
           ),
         ],
       ),

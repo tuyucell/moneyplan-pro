@@ -46,15 +46,15 @@ class WatchlistNotifier extends StateNotifier<List<WatchlistItem>> {
         if (guestWatchlistJson != null && guestWatchlistJson.isNotEmpty) {
           final List<dynamic> guestItems = jsonDecode(guestWatchlistJson);
           if (guestItems.isNotEmpty) {
-            final String userKey = 'watchlist_items_$userId';
+            final userKey = 'watchlist_items_$userId';
             debugPrint(
                 'Migrating ${guestItems.length} guest items to user: $userId');
             final userWatchlistJson = prefs.getString(userKey) ?? '[]';
             final List<dynamic> userItems = jsonDecode(userWatchlistJson);
 
-            final Set<String> existingSymbols =
+            final existingSymbols =
                 userItems.map((e) => e['symbol'] as String).toSet();
-            int migratedCount = 0;
+            var migratedCount = 0;
             for (var item in guestItems) {
               if (!existingSymbols.contains(item['symbol'])) {
                 userItems.add(item);
@@ -115,7 +115,7 @@ class WatchlistNotifier extends StateNotifier<List<WatchlistItem>> {
             }).toList();
 
             // Merge local and remote
-            final Map<String, WatchlistItem> merged = {};
+            final merged = <String, WatchlistItem>{};
             for (var item in state) {
               merged[item.symbol] = item;
             }
@@ -153,19 +153,24 @@ class WatchlistNotifier extends StateNotifier<List<WatchlistItem>> {
     if (userId == null || state.isEmpty) return;
 
     debugPrint('Sync: Pushing ${state.length} items to remote...');
-    for (var item in state) {
-      _client.from('user_watchlists').upsert({
-        'user_id': userId,
-        'symbol': item.symbol,
-        'asset_name': item.name,
-        'asset_type': item.category,
-        'asset_id': item.assetId,
-      }, onConflict: 'user_id, symbol').then((_) {
-        // Success
-      }).catchError((e) {
-        debugPrint('Sync: Push failed for ${item.symbol}: $e');
-      });
-    }
+    final List<Map<String, dynamic>> batch = state
+        .map((item) => {
+              'user_id': userId,
+              'symbol': item.symbol,
+              'asset_name': item.name,
+              'asset_type': item.category,
+              'asset_id': item.assetId,
+            })
+        .toList();
+
+    _client
+        .from('user_watchlists')
+        .upsert(batch, onConflict: 'user_id, symbol')
+        .then((_) {
+      debugPrint('Sync: Batch push completed for ${batch.length} items');
+    }).catchError((e) {
+      debugPrint('Sync: Batch push failed: $e');
+    });
   }
 
   /// Save watchlist to disk with error handling
@@ -201,7 +206,7 @@ class WatchlistNotifier extends StateNotifier<List<WatchlistItem>> {
 
         // Sync to Supabase - NON-BLOCKING
         if (userId != null) {
-          _client.from('user_watchlists').upsert({
+          await _client.from('user_watchlists').upsert({
             'user_id': userId,
             'symbol': item.symbol,
             'asset_name': item.name,

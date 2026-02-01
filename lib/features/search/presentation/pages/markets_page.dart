@@ -106,22 +106,9 @@ class _MarketsPageState extends ConsumerState<MarketsPage> {
                 child: SearchOverlay(languageCode: lc),
               ),
             ),
-            const SliverToBoxAdapter(
-              child: EconomicCalendarWidget(),
-            ),
-            const SliverToBoxAdapter(
-              child: MacroIndicatorsWidget(),
-            ),
-            SliverToBoxAdapter(
-              child: _LatestNewsWidget(
-                news: _newsList,
-                isLoading: _isNewsLoading,
-                lc: lc,
-              ),
-            ),
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 32, 20, 16),
+                padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
                 child: Text(
                   AppStrings.tr(AppStrings.headerInvestTools, lc),
                   style: TextStyle(
@@ -134,7 +121,7 @@ class _MarketsPageState extends ConsumerState<MarketsPage> {
               ),
             ),
             SliverPadding(
-              padding: context.adaptivePadding,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               sliver: SliverGrid(
                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: context.isTablet ? 3 : 2,
@@ -207,6 +194,19 @@ class _MarketsPageState extends ConsumerState<MarketsPage> {
                         '/category/life_insurance?name=${AppStrings.tr(AppStrings.catInsurance, lc)}'),
                   ),
                 ]),
+              ),
+            ),
+            const SliverToBoxAdapter(
+              child: EconomicCalendarWidget(),
+            ),
+            const SliverToBoxAdapter(
+              child: MacroIndicatorsWidget(),
+            ),
+            SliverToBoxAdapter(
+              child: _LatestNewsWidget(
+                news: _newsList,
+                isLoading: _isNewsLoading,
+                lc: lc,
               ),
             ),
             const SliverPadding(padding: EdgeInsets.only(bottom: 24)),

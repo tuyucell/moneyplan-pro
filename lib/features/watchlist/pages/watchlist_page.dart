@@ -556,8 +556,9 @@ class _WatchlistPageState extends ConsumerState<WatchlistPage> {
 
   Widget _buildWatchlistCard(
       BuildContext context, WidgetRef ref, WatchlistItem item) {
-    if (item.assetId == null && item.symbol.isEmpty)
+    if (item.assetId == null && item.symbol.isEmpty) {
       return const SizedBox.shrink();
+    }
     // Fallback ID to symbol if assetId is missing (should be fixed by provider now)
     final effectiveId = item.assetId ?? item.symbol;
     final assetAsync = ref.watch(assetProvider(effectiveId));

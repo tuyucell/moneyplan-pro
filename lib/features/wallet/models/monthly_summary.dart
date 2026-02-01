@@ -13,8 +13,9 @@ class MonthlySummary {
   final double
       cashPendingExpense; // Nakit hesaplardan çıkacak bekleyenler (Hariç CC)
   final double totalIncome; // Tüm hesaplar (Analiz için)
-  final double totalExpense; // Tüm hesaplar - ödendi (Analiz için)
-  final double totalPendingExpense; // Tüm hesaplar - bekliyor (Analiz için)
+  final double totalExpense; // Tüm hesaplar - Toplam Harcama (Analiz için)
+  final double
+      totalPendingExpense; // Tüm hesaplar - Sadece Bekleyenler (Analiz için)
 
   final double totalBES; // BES katkıları (pozitif tutar olarak)
   final double totalSavings; // Toplam tasarruf/yatırım (BES dahil)
@@ -23,7 +24,7 @@ class MonthlySummary {
       pendingPayments; // Bekleyen ödemeler (excludeFromBalance=true olanlar)
   final Map<String, double> incomeByCurrency; // Para birimine göre toplam gelir
   final Map<String, double>
-      expenseByCurrency; // Para birimine göre toplam gider (Ödenen)
+      expenseByCurrency; // Para birimine göre toplam gider (Tüm harcama)
   final Map<String, double>
       pendingExpenseByCurrency; // Para birimine göre bekleyen gider
   final Map<String, double> incomeByCategory;
@@ -66,8 +67,8 @@ class MonthlySummary {
       totalOverdraftLimit -
       (cashPendingExpense + pendingPayments);
 
-  // Toplam Gider (Ödenen + Ödenmemiş)
-  double get totalOutflow => totalExpense + totalPendingExpense;
+  // Toplam Gider (Tüm Harcamalar)
+  double get totalOutflow => totalExpense;
 
   // Tasarruf Oranı: (Toplam Tasarruf / Toplam Gelir) * 100
   double get savingsRate =>
@@ -109,8 +110,7 @@ class MonthlySummary {
 
     final cashAccountIds = <String>{};
     if (bankAccountList != null) {
-      debugPrint(
-          '🏦 MonthlySummary: Analyzing ${bankAccountList.length} accounts for CASH flow');
+      // debugPrint('🏦 MonthlySummary: Analyzing ${bankAccountList.length} accounts for CASH flow');
       for (final acc in bankAccountList) {
         if (acc.accountType != 'Kredi Kartı') {
           cashAccountIds.add(acc.id);
@@ -150,8 +150,8 @@ class MonthlySummary {
       if (tx.type == TransactionType.income) {
         initialBalance += normalizedAmount;
         debugPrint('   + [PAST INCOME] $normalizedAmount');
-      } else if (tx.isPaid || tx.categoryId == 'bank_flexible') {
-        // KMH borçları (bank_flexible) ödenmemiş olsa bile nakit bakiyeyi düşürür (eksi bakiye)
+      } else {
+        // Any expense assigned to a cash account in the past reduces starting balance
         initialBalance -= normalizedAmount;
         debugPrint(
             '   - [PAST CASH DEDUCTION] $normalizedAmount (${tx.categoryId})');
@@ -229,33 +229,25 @@ class MonthlySummary {
         }
       } else {
         // Gider işlemleri
-        final isKMH = transaction.categoryId == 'bank_flexible';
-        if (transaction.isPaid || (isCashAccount && isKMH)) {
-          totalExpense += normalizedAmount;
-          expenseByCurrency[currency] =
-              (expenseByCurrency[currency] ?? 0) + amount;
+        // Standard Ledger Logic: Any expense assigned to an account reduces its balance
+        // unless explicitly excluded (reminder/placeholder).
 
-          if (isCashAccount) {
-            cashExpense += normalizedAmount;
-            debugPrint(
-                '   💸 CASH Deduction [Realized]: $normalizedAmount on ${transaction.bankAccountId} (${transaction.note})');
-          } else {
-            debugPrint(
-                '   ⏭️ NON-CASH Expense [SKIP]: $normalizedAmount on ${transaction.bankAccountId} (${transaction.note})');
-          }
-        } else {
+        // Add to main analytics fields (ALL spending)
+        totalExpense += normalizedAmount;
+        expenseByCurrency[currency] =
+            (expenseByCurrency[currency] ?? 0) + amount;
+
+        // If not realized yet, also track as pending
+        if (!transaction.isPaid) {
           totalPendingExpense += normalizedAmount;
           pendingExpenseByCurrency[currency] =
               (pendingExpenseByCurrency[currency] ?? 0) + amount;
+        }
 
-          if (isCashAccount) {
-            cashPendingExpense += normalizedAmount;
-            debugPrint(
-                '   ⏳ CASH Pending (Non-KMH): $normalizedAmount on ${transaction.bankAccountId}');
-          } else {
-            debugPrint(
-                '   ⏭️ NON-CASH Pending [SKIP]: $normalizedAmount on ${transaction.bankAccountId}');
-          }
+        if (isCashAccount) {
+          cashExpense += normalizedAmount;
+          debugPrint(
+              '   💸 CASH Deduction: $normalizedAmount on ${transaction.bankAccountId} (${transaction.note})');
         }
 
         // Kategori bazlı döküm (Analytics)

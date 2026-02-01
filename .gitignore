@@ -66,6 +66,13 @@ backend/.env
 *.db
 *.csv
 
+# Android Signing
+android/key.properties
+android/upload-keystore.jks
+android/app/upload-keystore.jks
+*.jks
+*.keystore
+
 # Documentation
 docs/
 *.md

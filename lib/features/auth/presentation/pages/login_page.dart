@@ -65,6 +65,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
+    final messenger = ScaffoldMessenger.of(context);
 
     try {
       await ref.read(authNotifierProvider.notifier).signInWithEmail(
@@ -82,15 +83,13 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       }
     } catch (e) {
       debugPrint('SIGN_IN_ERROR: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              backgroundColor: Colors.redAccent,
-              behavior: SnackBarBehavior.floating,
-              content: Text(
-                  '${AppStrings.tr(AppStrings.loginFailed, lc)}: ${e.toString()}')),
-        );
-      }
+      messenger.showSnackBar(
+        SnackBar(
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+            content: Text(
+                '${AppStrings.tr(AppStrings.loginFailed, lc)}: ${e.toString()}')),
+      );
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -100,6 +99,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
   Future<void> _handleGoogleLogin(String lc) async {
     setState(() => _isLoading = true);
+    final messenger = ScaffoldMessenger.of(context);
 
     try {
       await ref.read(authNotifierProvider.notifier).signInWithGoogle();
@@ -114,15 +114,13 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       }
     } catch (e) {
       debugPrint('GOOGLE_AUTH_ERROR: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              '${AppStrings.tr(AppStrings.googleLoginFailed, lc)}: ${e.toString()}',
-            ),
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            '${AppStrings.tr(AppStrings.googleLoginFailed, lc)}: ${e.toString()}',
           ),
-        );
-      }
+        ),
+      );
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -142,13 +140,13 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
       if (mounted) {
         if (!user.isProfileCompleted) {
-          context.go(AppRouter.userDetails);
+          GoRouter.of(context).go(AppRouter.userDetails);
         } else {
-          context.go(AppRouter.home);
+          GoRouter.of(context).go(AppRouter.home);
         }
       }
     } else {
-      if (mounted) context.go(AppRouter.home);
+      if (mounted) GoRouter.of(context).go(AppRouter.home);
     }
   }
 
@@ -171,6 +169,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
   Future<void> _showBiometricOfferDialog(String email) async {
     final prefs = ref.read(sharedPreferencesProvider);
+    final messenger = ScaffoldMessenger.of(context);
+
     await showDialog(
       context: context,
       barrierDismissible: false,
@@ -195,12 +195,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 await ref
                     .read(authNotifierProvider.notifier)
                     .registerBiometrics(email, password);
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text('Biometrik giriş aktif edildi!')),
-                  );
-                }
+                messenger.showSnackBar(
+                  const SnackBar(
+                      content: Text('Biometrik giriş aktif edildi!')),
+                );
               }
               if (context.mounted) Navigator.pop(context);
             },
@@ -213,6 +211,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
   Future<void> _handleBiometricLogin(String lc) async {
     setState(() => _isLoading = true);
+    final messenger = ScaffoldMessenger.of(context);
     try {
       await ref.read(authNotifierProvider.notifier).signInWithBiometrics(
             localizedReason: lc == 'tr'
@@ -221,14 +220,84 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           );
       if (mounted) await _navigateAfterLogin();
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Biometrik Giriş Hatası: $e')),
-        );
-      }
+      messenger.showSnackBar(
+        SnackBar(content: Text('Biometrik Giriş Hatası: $e')),
+      );
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  Future<void> _handleForgotPassword(String lc) async {
+    final email = _emailController.text.trim();
+    final emailController = TextEditingController(text: email);
+
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(AppStrings.tr(AppStrings.forgotPassword, lc)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(lc == 'tr'
+                ? 'Şifre sıfırlama bağlantısı gönderilecek e-posta adresini girin:'
+                : 'Enter the email address to send the password reset link:'),
+            const SizedBox(height: 16),
+            TextField(
+              controller: emailController,
+              decoration: InputDecoration(
+                labelText: AppStrings.tr(AppStrings.email, lc),
+                border: const OutlineInputBorder(),
+              ),
+              keyboardType: TextInputType.emailAddress,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(lc == 'tr' ? 'İptal' : 'Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final emailToReset = emailController.text.trim();
+              if (emailToReset.isEmpty) return;
+
+              Navigator.pop(context);
+              setState(() => _isLoading = true);
+
+              final messenger = ScaffoldMessenger.of(context);
+
+              try {
+                await ref
+                    .read(authNotifierProvider.notifier)
+                    .sendPasswordResetEmail(emailToReset);
+
+                messenger.showSnackBar(
+                  SnackBar(
+                    content: Text(lc == 'tr'
+                        ? 'Sıfırlama e-postası gönderildi!'
+                        : 'Reset email sent!'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              } catch (e) {
+                messenger.showSnackBar(
+                  SnackBar(
+                    content: Text('Hata: $e'),
+                    backgroundColor: Colors.redAccent,
+                  ),
+                );
+              } finally {
+                if (mounted) setState(() => _isLoading = false);
+              }
+            },
+            child: Text(lc == 'tr' ? 'Gönder' : 'Send'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -339,7 +408,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       ),
                       const Spacer(),
                       TextButton(
-                        onPressed: () {}, // TODO: Forgot Password
+                        onPressed: () => _handleForgotPassword(lc),
                         child: Text(
                           AppStrings.tr(AppStrings.forgotPassword, lc),
                           style: const TextStyle(

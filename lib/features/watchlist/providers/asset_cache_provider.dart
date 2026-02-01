@@ -97,8 +97,9 @@ class AssetCacheNotifier extends StateNotifier<Map<String, _CachedAsset>> {
           return externalAsset;
         }
       } catch (e) {
-        if (kDebugMode)
+        if (kDebugMode) {
           debugPrint('External API fetch failed for $assetId: $e');
+        }
       }
 
       // 3. Last Resort: Safe Mock Data

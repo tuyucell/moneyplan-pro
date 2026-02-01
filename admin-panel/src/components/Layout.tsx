@@ -20,6 +20,7 @@ import {
     MoonOutlined,
     HeatMapOutlined,
     BankOutlined,
+    CalendarOutlined,
 } from '@ant-design/icons';
 import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
@@ -135,6 +136,12 @@ export default function Layout({ children }: Readonly<{ children: React.ReactNod
                     icon: <BankOutlined />,
                     label: 'Market Rates',
                     onClick: () => { navigate('/system/market-rates'); },
+                },
+                {
+                    key: '/system/calendar',
+                    icon: <CalendarOutlined />,
+                    label: 'Economic Calendar',
+                    onClick: () => { navigate('/system/calendar'); },
                 },
             ]
         },

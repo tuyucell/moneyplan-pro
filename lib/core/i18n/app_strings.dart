@@ -104,6 +104,9 @@ class AppStrings {
   static const String impactHigh = 'impact_high';
   static const String impactCritical = 'impact_critical';
   static const String impactMedium = 'impact_medium';
+  static const String actualLabel = 'actual_label';
+  static const String forecastLabel = 'forecast_label';
+  static const String previousLabel = 'previous_label';
   static const String tabAll = 'tab_all';
   static const String tabOther = 'tab_other';
   static const String toolCompound = 'tool_compound';
@@ -736,6 +739,9 @@ class AppStrings {
       impactHigh: 'Yüksek',
       impactCritical: 'Kritik',
       impactMedium: 'Orta',
+      actualLabel: 'Açıklanan',
+      forecastLabel: 'Beklenti',
+      previousLabel: 'Önceki',
       tabAll: 'Tümü',
       tabOther: 'Diğer',
       toolCompound: 'Bileşik Faiz',
@@ -1378,6 +1384,9 @@ class AppStrings {
       impactHigh: 'High',
       impactCritical: 'Critical',
       impactMedium: 'Medium',
+      actualLabel: 'Actual',
+      forecastLabel: 'Forecast',
+      previousLabel: 'Previous',
       tabAll: 'All',
       tabOther: 'Other',
       toolCompound: 'Compound Interest',

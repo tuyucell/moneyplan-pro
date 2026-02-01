@@ -238,8 +238,9 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage> {
         const SizedBox(height: 24),
         const _FeatureItem(
           icon: Icons.auto_awesome,
-          title: 'AI Portföy Analisti',
-          description: 'Yatırımlarını yapay zeka ile analiz et ve öneriler al.',
+          title: 'Akıllı Portföy Analisti',
+          description:
+              'Yatırımlarını finansal modeller ile analiz et ve öneriler al.',
         ),
         const SizedBox(height: 20),
         const _FeatureItem(

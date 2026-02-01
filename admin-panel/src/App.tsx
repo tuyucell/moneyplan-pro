@@ -23,6 +23,7 @@ import MarketRates from './pages/MarketRates';
 import UserExplorer from './pages/UserExplorer';
 import UserProfileIntelligence from './pages/UserProfileIntelligence';
 import StrategicDecisions from './pages/StrategicDecisions';
+import CalendarManager from './pages/CalendarManager';
 import Layout from './components/Layout';
 import './App.css';
 
@@ -99,6 +100,7 @@ function App() {
                         <Route path="/system/ui" element={<UIManager />} />
                         <Route path="/system/audit-logs" element={<AuditLogs />} />
                         <Route path="/system/market-rates" element={<MarketRates />} />
+                        <Route path="/system/calendar" element={<CalendarManager />} />
                         <Route path="/billing" element={<PricingManager />} />
                         <Route path="/kvkk" element={<DeletionRequests />} />
                         <Route path="*" element={<Navigate to="/" />} />

@@ -12,6 +12,7 @@ from services.settings_service import settings_service
 from services.ad_service import ad_service
 from services.notification_service import notification_service
 from services.alert_monitor_service import alert_monitor_service
+from services.scheduler_service import scheduler_service
 
 app = FastAPI(
     title="InvestGuide Middleware API",
@@ -22,11 +23,15 @@ app = FastAPI(
 async def startup_event():
     # Start the price alert monitor in the background
     alert_monitor_service.start()
+    # Start the daily task scheduler
+    scheduler_service.start()
 
 @app.on_event("shutdown")
 async def shutdown_event():
     # Stop the price alert monitor
     alert_monitor_service.stop()
+    # Stop the daily task scheduler
+    scheduler_service.stop()
 
 app.add_middleware(
     CORSMiddleware,
@@ -405,6 +410,29 @@ def delete_alert(alert_id: int):
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("DELETE FROM price_alerts WHERE id = ?", (alert_id,))
+    conn.commit()
+    conn.close()
+    return {"status": "success"}
+
+# --- CALENDAR ADMIN ENDPOINTS ---
+
+@app.get("/api/v1/system/calendar")
+def list_calendar_events(limit: int = 500):
+    from database import get_db_connection
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM calendar_events ORDER BY date_time DESC LIMIT ?", (limit,))
+    rows = cursor.fetchall()
+    events = [dict(row) for row in rows]
+    conn.close()
+    return events
+
+@app.delete("/api/v1/system/calendar/{event_id}")
+def delete_calendar_event(event_id: int):
+    from database import get_db_connection
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM calendar_events WHERE id = ?", (event_id,))
     conn.commit()
     conn.close()
     return {"status": "success"}

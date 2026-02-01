@@ -167,7 +167,7 @@ const LimitsTab: React.FC = () => {
             <Col xs={24} md={12}>
                 <Card title={<Space><RobotOutlined /> AI Asistan Limitleri (Aylık)</Space>}>
                     <Alert
-                        message="Dinamik Limitler"
+                        title="Dinamik Limitler"
                         description="Bu değerler mobil uygulamaya anlık yansır. Kullanıcılar limitlerini doldurduğunda bu değerler baz alınır."
                         type="info"
                         showIcon
@@ -228,7 +228,7 @@ const FeaturesTab: React.FC = () => {
     const [flags, setFlags] = useState<Record<string, FeatureFlag>>({});
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState<string | null>(null);
-    const { message } = App.useApp();
+    const { message: messageApi } = App.useApp();
 
     const fetchFlags = async () => {
         setLoading(true);
@@ -237,7 +237,8 @@ const FeaturesTab: React.FC = () => {
             const data = await response.json();
             setFlags(data.features || {});
         } catch (error) {
-            message.error('Failed to load feature flags');
+            console.error(error);
+            messageApi.error('Failed to load feature flags');
         } finally {
             setLoading(false);
         }
@@ -263,9 +264,10 @@ const FeaturesTab: React.FC = () => {
                 ...prev,
                 [flagId]: result.flag,
             }));
-            message.success(`${flags[flagId].name} updated`);
+            messageApi.success(`${flags[flagId].name} updated`);
         } catch (error) {
-            message.error('Failed to update feature');
+            console.error(error);
+            messageApi.error('Failed to update feature');
         } finally {
             setSaving(null);
         }

@@ -69,6 +69,27 @@ class ToolsPage extends ConsumerWidget {
         mainAxisSpacing: 12,
         childAspectRatio: context.isTablet ? 1.2 : 1.0,
         children: [
+          // 0. Finansal Pilot (Unified Hub) - YENİ
+          ProFeatureGate(
+            featureName: 'Finansal Pilot',
+            lockedChild: _buildToolCard(
+              context,
+              icon: Icons.lock_outline,
+              title: 'Finansal Pilot',
+              subtitle: 'Pro Özellik',
+              color: Colors.grey,
+              onTap: () => ProFeatureGate.showUpsell(context, 'Finansal Pilot'),
+            ),
+            child: _buildToolCard(
+              context,
+              icon: Icons.rocket_launch,
+              title: 'Finansal Pilot',
+              subtitle: 'Gelecek & Karar Merkezi',
+              color: Colors.teal,
+              onTap: () => context.push('/tools/financial_pilot'),
+            ),
+          ),
+
           // 1. Yatırım Asistanı (Pro)
           ProFeatureGate(
             featureName: 'Yatırım Asistanı',

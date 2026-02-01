@@ -91,31 +91,15 @@ class PaymentService {
         continue;
       }
 
-      // Balance calculation (same as widget):
-      // 1. UNPAID debts → Reduce credit
-      // 2. PAID debts (original, no linkedTx) → Skip
-      // 3. Payment transactions (has linkedTx) → Include
-      // 4. Regular expenses → Include
-      // 5. Income → Include
+      // Standard balance calculation:
+      // Balance = Initial + Sum(Income) - Sum(Expense)
+      // This supports the new "Transfer" logic where paying a debt creates an offsetting Income.
 
-      final isUnpaidDebt = !tx.isPaid &&
-          tx.type == TransactionType.expense &&
-          tx.categoryId == 'bank_credit_card';
-
-      final isPaidDebt = tx.isPaid &&
-          tx.type == TransactionType.expense &&
-          tx.categoryId == 'bank_credit_card' &&
-          tx.linkedTransactionId == null;
-
-      if (isUnpaidDebt) {
+      if (tx.type == TransactionType.income) {
+        balance += tx.amount;
+      } else {
         balance -= tx.amount;
-      } else if (!isPaidDebt) {
-        // Include payments, regular expenses, income
-        final amount =
-            tx.type == TransactionType.income ? tx.amount : -tx.amount;
-        balance += amount;
       }
-      // Skip isPaidDebt
     }
 
     return AccountBalance(
@@ -155,32 +139,50 @@ class PaymentService {
     return balances;
   }
 
-  /// Create payment transaction following banking standards
-  /// Ensures atomicity and proper audit trail
-  static WalletTransaction createPaymentTransaction(
+  /// Create payment transactions (Transfer: Expense from Source -> Income to Target)
+  static List<WalletTransaction> createPaymentTransactions(
     PaymentRequest request,
   ) {
     debugPrint(
-        '🏦 PaymentService: Creating transaction for debt on ${request.debtAccount.name}');
-    debugPrint(
-        '   - From Account: ${request.payingAccount.name} (Type: ${request.payingAccount.accountType})');
-    debugPrint('   - Amount: ${request.paymentAmount} ${request.currencyCode}');
+        '🏦 PaymentService: Creating transfer ${request.paymentAmount} from ${request.payingAccount.name} to ${request.debtAccount.name}');
 
-    return WalletTransaction(
-      id: const Uuid().v4(),
-      categoryId: request.debtTransaction.categoryId,
+    final now = DateTime.now();
+
+    // 1. Expense from Paying Account
+    final expenseTx = WalletTransaction(
+      id: const Uuid().v4(), // Unique ID
+      categoryId:
+          request.debtTransaction.categoryId, // Keep category for tracking
       amount: request.paymentAmount,
       currencyCode: request.currencyCode,
-      date: DateTime.now(),
-      note:
-          '${request.debtAccount.name} borcunu ${request.payingAccount.name} ile ödeme '
-          '(${request.isPartialPayment ? "Kısmi " : ""}${request.paymentAmount.toStringAsFixed(2)} ${request.currencyCode})',
+      date: now,
+      note: '${request.debtAccount.name} hesabına transfer/borç ödeme',
       type: TransactionType.expense,
       isPaid: true,
       bankAccountId: request.payingAccount.id,
       paymentMethod: PaymentMethod.bankTransfer,
-      linkedTransactionId: request.debtTransaction.id,
+      linkedTransactionId: request.debtTransaction.id, // Links to original debt
     );
+
+    // 2. Income to Debt Account (The "Payment")
+    // This effectively reduces the negative balance of the debt account
+    final incomeTx = WalletTransaction(
+      id: const Uuid().v4(),
+      categoryId: 'transfer_deposit', // Special category or same as expense?
+      // If we want it to show as "Debt Repayment", maybe use same category but Income type?
+      // Usually "Transfer" or "Deposit". Let's use Income type.
+      amount: request.paymentAmount,
+      currencyCode: request.currencyCode,
+      date: now,
+      note: '${request.payingAccount.name} hesabından gelen ödeme',
+      type: TransactionType.income,
+      isPaid: true,
+      bankAccountId: request.debtAccount.id,
+      paymentMethod: PaymentMethod.bankTransfer,
+      linkedTransactionId: expenseTx.id, // Link to the expense
+    );
+
+    return [expenseTx, incomeTx];
   }
 
   /// Validate payment request before execution

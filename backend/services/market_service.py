@@ -168,28 +168,37 @@ class MarketDataProvider:
         return None
 
     def get_calendar(self, country_code: str = "ALL"):
-        from database import get_db_connection
-        from datetime import datetime
-        
+        """
+        Takvim verilerini getirir.
+        Öncelik: 1. FXStreet Canlı API, 2. Yerel Veritabanı
+        """
         try:
+            # 1. Canlı Veriyi Çek
+            items = self._fetch_live_calendar(country_code)
+            
+            # 2. Veritabanındaki özel/ek kayıtları çek
+            from database import get_db_connection
             conn = get_db_connection()
             cursor = conn.cursor()
-            
             query, params = self._build_calendar_query(country_code)
             cursor.execute(query, tuple(params))
-            rows = cursor.fetchall()
+            db_rows = cursor.fetchall()
             conn.close()
             
-            formatted = self._format_calendar_rows(rows)
+            db_events = self._format_calendar_rows(db_rows)
             
-            # Fallback: Eğer veri yoksa veya çok azsa simülasyon verisi üret
-            if len(formatted) < 5:
-                formatted = self._apply_calendar_fallback(formatted, country_code)
+            # Çakışanları temizle (Title ve Date aynıysa canlı olanı tut)
+            seen_titles = { (e.get("title"), e.get("date")) for e in items }
+            for db_ev in db_events:
+                if (db_ev.get("title"), db_ev.get("date")) not in seen_titles:
+                    items.append(db_ev)
+            
+            # Tarihe göre tekrar sırala
+            return self._sort_events(items)
 
-            return formatted
         except Exception as e:
-            print(f"Calendar DB Error: {e}")
-            return self._generate_fallback_calendar(country_code)
+            print(f"Calendar Fetch Error: {e}")
+            return []
 
     def _build_calendar_query(self, country_code):
         """Takvim sorgusunu ülke koduna göre inşa eder."""
@@ -203,12 +212,7 @@ class MarketDataProvider:
         params = [now_str]
 
         if country_code and country_code.upper() != "ALL":
-            id_map = {
-                "TR": [63, 32], "US": [5], "USA": [5], "EU": [72], "GBP": [12],
-                "GB": [12], "DE": [4, 17], "CA": [6], "JP": [37], "AU": [7, 25],
-                "NZ": [35], "CH": [110, 39, 36]
-            }
-            target_ids = id_map.get(country_code.upper())
+            target_ids = self.ID_MAP.get(country_code.upper())
             if target_ids:
                 placeholders = ",".join(["?"] * len(target_ids))
                 query += f" AND country_id IN ({placeholders})"
@@ -219,23 +223,11 @@ class MarketDataProvider:
 
     def _format_calendar_rows(self, rows):
         """Veritabanı satırlarını API formatına dönüştürür."""
-        from datetime import datetime
-        formatted = []
-        months_tr = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", 
-                   "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"]
-        
-        flag_map = {
-            5: "us", 63: "tr", 32: "tr", 72: "eu", 12: "gb", 4: "de", 6: "ca",
-            37: "jp", 7: "au", 35: "nz", 110: "ch", 39: "ch", 36: "ch", 51: "cn",
-            160: "in", 14: "in", 17: "de", 25: "au", 10: "it", 22: "fr", 26: "es",
-            21: "nl", 56: "ru"
-        }
-
         for row in rows:
             dt = datetime.fromisoformat(row["date_time"])
-            formatted_date = f"{dt.day} {months_tr[dt.month-1]}"
+            formatted_date = f"{dt.day} {self.MONTHS_TR[dt.month-1]}"
             
-            flag_code = flag_map.get(row["country_id"], "us")
+            flag_code = self.FLAG_MAP.get(row["country_id"], "us")
             flag_url = f"https://flagcdn.com/w40/{flag_code}.png"
 
             formatted.append({
@@ -268,29 +260,22 @@ class MarketDataProvider:
         formatted.sort(key=sort_key)
         return formatted
 
-    def _generate_fallback_calendar(self, country_code):
+    def _fetch_live_calendar(self, country_code):
         """
         FXStreet API üzerinden gerçek verileri çeler.
-        Fallback olarak simülasyon yerine gerçek canlı veri kullanılır.
         """
         try:
             from datetime import datetime, timedelta
             import requests
 
-            start_date = datetime.now()
+            start_date = datetime.now() - timedelta(days=1) # Dünü de dahil et (Açıklananlar için)
             end_date = start_date + timedelta(days=7)
             
             url = f"https://calendar-api.fxstreet.com/en/api/v1/eventDates/{start_date.strftime('%Y-%m-%d')}/{end_date.strftime('%Y-%m-%d')}"
-            headers = {
-                "Accept": "application/json",
-                "Origin": "https://www.fxstreet.com",
-                "Referer": "https://www.fxstreet.com/",
-                "User-Agent": "Mozilla/5.0"
-            }
+            headers = self._get_api_headers()
             
             resp = requests.get(url, headers=headers, timeout=10)
             if resp.status_code != 200:
-                print(f"FXStreet API Error: {resp.status_code}")
                 return []
                 
             data = resp.json()
@@ -303,9 +288,36 @@ class MarketDataProvider:
             
             return events
 
-        except Exception as e:
-            print(f"FXStreet Integration Error: {e}")
+        except requests.exceptions.RequestException as e:
+            print(f"FXStreet API Request Error: {e}")
             return []
+        except (KeyError, ValueError, TypeError) as e:
+            print(f"FXStreet Data Parsing Error: {e}")
+            return []
+        except Exception as e:
+            print(f"Unexpected FXStreet Error: {e}")
+            return []
+
+    def _sort_events(self, events):
+        from datetime import datetime
+        months_en = {
+            "Ocak": "01", "Şubat": "02", "Mart": "03", "Nisan": "04", "Mayıs": "05", "Haziran": "06",
+            "Temmuz": "07", "Ağustos": "08", "Eylül": "09", "Ekim": "10", "Kasım": "11", "Aralık": "12"
+        }
+        current_year = datetime.now().year
+        
+        def sort_key(x):
+            try:
+                # "26 Ocak" -> "2026-01-26"
+                day, month_tr = x['date'].split(' ')
+                month = months_en.get(month_tr, "01")
+                # Handle year rollover logic if needed, but current_year is safer than hardcoded 2026
+                return f"{current_year}-{month}-{int(day):02d} {x['time']}"
+            except (ValueError, KeyError, AttributeError, TypeError):
+                return "9999-12-31 23:59"
+        
+        events.sort(key=sort_key)
+        return events
 
     def _parse_fxstreet_event(self, item, filter_country):
         """Tek bir FXStreet event objesini parse eder."""
@@ -348,10 +360,51 @@ class MarketDataProvider:
                 "unit": item.get("unit", ""),
                 "country_id": code_map.get(c_code, 0),
                 "flag_url": f"https://flagcdn.com/w40/{c_code.lower()}.png",
-                "currency": item.get("currencyCode", "")
+                "currency": item.get("currencyCode", ""),
+                "date_time": dt.strftime('%Y-%m-%d %H:%M:%S')
             }
-        except Exception:
+        except (ValueError, KeyError, TypeError) as e:
+            print(f"Parse FXStreet Event Error: {e}")
             return None
+        except Exception as e:
+            print(f"General FXStreet Parse Error: {e}")
+            return None
+
+    def sync_calendar_to_db(self):
+        """
+        API'den güncel verileri çeker ve veritabanına kaydeder/günceller.
+        Açıklanan (Actual) verileri yerel DB'ye sabitlemek için kullanılır.
+        """
+        try:
+            # ALL için son 2 gün ve gelecek 7 gün verisini çek
+            items = self._fetch_live_calendar("ALL")
+            if not items:
+                return []
+            
+            from database import get_db_connection
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            
+            # Upsert mantığı (SQLite 3.24+ destekliyorsa ON CONFLICT, ama daha güvenli INSERT OR REPLACE)
+            # Ancak event_id unique olmalı.
+            for ev in items:
+                cursor.execute("""
+                    INSERT OR REPLACE INTO calendar_events 
+                    (event_id, date_time, country_id, currency, title, impact, actual, forecast, previous, unit)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    str(ev.get("id", "")), ev.get("date_time"), ev.get("country_id", 0),
+                    ev.get("currency", ""), ev.get("title", ""), ev.get("impact", "Medium"),
+                    ev.get("actual", "-"), ev.get("forecast", "-"),
+                    ev.get("previous", "-"), ev.get("unit", "")
+                ))
+            
+            conn.commit()
+            conn.close()
+            return items
+        except Exception as e:
+            print(f"Sync Calendar Error: {e}")
+            return []
 
     def save_calendar_events(self, events: list):
         from database import get_db_connection
@@ -662,24 +715,39 @@ class MarketDataProvider:
         symbols = ["USD", "EUR", "GBP", "CHF", "JPY", "CAD", "AUD", "DKK", "SEK", "NOK", "SAR"]
         from services.ta_service import ta_service
         ta_results = ta_service.get_multiple_analysis(symbols)
-        has_zeros = any(item.get("price", 0) <= 0 for item in ta_results) if ta_results else True
-        if not has_zeros and len(ta_results) == len(symbols): return ta_results
+        
+        # Valid data check
+        if self._is_comprehensive(ta_results, symbols):
+            return ta_results
+        
         try:
             from services.exchange_api_service import exchange_api_service
             api_rates = exchange_api_service.get_try_rates()
-            if not ta_results: return api_rates or []
-            api_map = {item["symbol"]: item for item in api_rates}
-            final_results = []
-            processed = set()
-            for item in ta_results:
-                sym = item["symbol"]
-                if item.get("price", 0) <= 0 and sym in api_map: final_results.append(api_map[sym])
-                else: final_results.append(item)
-                processed.add(sym)
-            for sym in symbols:
-                if sym not in processed and sym in api_map: final_results.append(api_map[sym])
-            return final_results
-        except Exception: return ta_results or []
+            if not api_rates: return ta_results or []
+            
+            return self._merge_currency_sources(ta_results, api_rates, symbols)
+        except Exception as e:
+            print(f"Currency sync error: {e}")
+            return ta_results or []
+
+    def _is_comprehensive(self, results, symbols):
+        if not results or len(results) != len(symbols):
+            return False
+        return not any(item.get("price", 0) <= 0 for item in results)
+
+    def _merge_currency_sources(self, ta_results, api_rates, symbols):
+        api_map = {item["symbol"]: item for item in api_rates}
+        ta_map = {item["symbol"]: item for item in ta_results} if ta_results else {}
+        final_results = []
+        
+        for sym in symbols:
+            ta_item = ta_map.get(sym)
+            if ta_item and ta_item.get("price", 0) > 0:
+                final_results.append(ta_item)
+            elif sym in api_map:
+                final_results.append(api_map[sym])
+                
+        return final_results
 
     def get_stock_markets(self):
         from services.ta_service import ta_service
@@ -692,7 +760,14 @@ class MarketDataProvider:
         all_symbols = tr_stocks + us_stocks + de_stocks + uk_stocks
         ta_data = ta_service.get_multiple_analysis(all_symbols)
         
-        # Twelve Data Fallback for US Stocks
+        self._apply_twelve_data_fallback(ta_data)
+
+        if ta_data:
+            self._apply_country_tags(ta_data, tr_stocks, us_stocks, de_stocks, uk_stocks)
+        
+        return ta_data if ta_data else []
+
+    def _apply_twelve_data_fallback(self, ta_data):
         try:
             from services.twelve_data_service import twelve_data_service
             top_us = ["AAPL", "TSLA", "MSFT", "AMZN", "GOOGL", "NVDA", "META", "NFLX"]
@@ -702,27 +777,29 @@ class MarketDataProvider:
                     sym = item.get("symbol")
                     if sym in td_data:
                         td_item = td_data[sym]
-                        item["price"] = td_item["price"]
-                        item["change_percent"] = td_item["change_percent"]
-                        item["source"] = "TwelveData"
-        except Exception: pass
+                        item.update({
+                            "price": td_item["price"],
+                            "change_percent": td_item["change_percent"],
+                            "source": "TwelveData"
+                        })
+        except Exception as e:
+            print(f"TwelveData fallback error: {e}")
 
-        if ta_data:
-            clean_tr = [s.replace(".IS", "") for s in tr_stocks]
-            for item in ta_data:
-                sym = item.get("symbol")
-                if sym in tr_stocks or sym in clean_tr: item["country"] = "Turkey"
-                elif sym in us_stocks: item["country"] = "USA"
-                elif sym in de_stocks: item["country"] = "Germany"
-                elif sym in uk_stocks: item["country"] = "UK"
-                else: item["country"] = "Global"
-        
-        return ta_data if ta_data else []
+    def _apply_country_tags(self, ta_data, tr_stocks, us_stocks, de_stocks, uk_stocks):
+        clean_tr = [s.replace(".IS", "") for s in tr_stocks]
+        for item in ta_data:
+            sym = item.get("symbol")
+            if sym in tr_stocks or sym in clean_tr: item["country"] = "Turkey"
+            elif sym in us_stocks: item["country"] = "USA"
+            elif sym in de_stocks: item["country"] = "Germany"
+            elif sym in uk_stocks: item["country"] = "UK"
+            else: item["country"] = "Global"
 
     def get_commodity_markets(self):
         cache_key = "commodity_markets_ultimate_v7"
         cached = cache.get(cache_key)
         if cached: return cached
+        
         from services.ta_service import ta_service
         symbols = [
             "XAU/USD", "XAG/USD", "LCO/USD", "WTI/USD", "PLATINUM", "PALLADIUM", 
@@ -731,21 +808,31 @@ class MarketDataProvider:
         ] 
         ta_data = ta_service.get_multiple_analysis(symbols)
         
-        # Twelve Data Fallback for Commodities
-        has_zeros = any(item.get("price", 0) <= 0 for item in ta_data) if ta_data else True
-        if has_zeros:
-            missing = [s for s in symbols if not any(item["symbol"] == s and item.get("price", 0) > 0 for item in ta_data)]
-            if missing:
-                from services.twelve_data_service import twelve_data_service
-                td_data = twelve_data_service.get_quotes(missing[:7])
-                if td_data:
-                    for i, item in enumerate(ta_data):
-                        sym = item["symbol"]
-                        if sym in td_data and item.get("price", 0) <= 0:
-                            ta_data[i] = td_data[sym]
+        # Twelve Data Fallback
+        self._apply_commodity_fallback(ta_data, symbols)
         
         cache.set(cache_key, ta_data, ttl_seconds=300)
         return ta_data if ta_data else []
+
+    def _apply_commodity_fallback(self, ta_data, symbols):
+        if not ta_data: return
+        has_zeros = any(item.get("price", 0) <= 0 for item in ta_data)
+        if not has_zeros: return
+        
+        missing = [s for s in symbols if not any(item["symbol"] == s and item.get("price", 0) > 0 for item in ta_data)]
+        if not missing: return
+        
+        try:
+            from services.twelve_data_service import twelve_data_service
+            td_data = twelve_data_service.get_quotes(missing[:7])
+            if not td_data: return
+            
+            for i, item in enumerate(ta_data):
+                sym = item["symbol"]
+                if sym in td_data and item.get("price", 0) <= 0:
+                    ta_data[i] = td_data[sym]
+        except Exception as e:
+            print(f"Commodity fallback error: {e}")
 
     def get_etf_markets(self):
         from services.ta_service import ta_service

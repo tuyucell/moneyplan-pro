@@ -72,10 +72,11 @@ class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
         }).toList();
 
         if (remoteTransactions.isNotEmpty) {
-          // Update Hive with remote data
-          for (final tx in remoteTransactions) {
-            await _box!.put(tx.id, tx.toJson());
-          }
+          // Update Hive with remote data in batch
+          final batch = {
+            for (final tx in remoteTransactions) tx.id: tx.toJson()
+          };
+          await _box!.putAll(batch);
           _loadTransactions();
         }
       }
@@ -126,49 +127,53 @@ class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
     }
   }
 
-  /// Add transaction with error handling
-  Future<void> addTransaction(WalletTransaction transaction) async {
+  /// Add multiple transactions with atomic local save and batch sync
+  Future<void> addTransactions(List<WalletTransaction> transactions) async {
     try {
-      // Wait for initialization
       await _initCompleter.future;
+      if (_box == null) throw Exception('Hive box not initialized');
 
-      if (_box == null) {
-        throw Exception('Hive box not initialized');
+      debugPrint('📥 Hive: Putting ${transactions.length} transactions');
+      for (final tx in transactions) {
+        await _box!.put(tx.id, tx.toJson());
       }
-
-      debugPrint('📥 Hive: Putting transaction ${transaction.id}');
-      await _box!.put(transaction.id, transaction.toJson());
       _loadTransactions();
 
-      // Sync to Supabase
+      // Sync to Supabase in background
       if (userId != null) {
         final client = SupabaseService.client;
-        await client.from('user_transactions').upsert({
-          'id': transaction.id,
-          'user_id': userId,
-          'amount': transaction.amount,
-          'type': transaction.type.name,
-          'category_id': transaction.categoryId,
-          'description': transaction.note,
-          'date': transaction.date.toIso8601String(),
-          'currency': transaction.currencyCode,
-          'account_id': transaction.bankAccountId,
-          'is_recurring': transaction.recurrence != RecurrenceType.none,
-          'recurrence_type': transaction.recurrence.name,
-          'recurrence_end_date':
-              transaction.recurrenceEndDate?.toIso8601String(),
-        });
+        // Supabase upsert handles batches naturally if we pass a list
+        final batch = transactions
+            .map((t) => {
+                  'id': t.id,
+                  'user_id': userId,
+                  'amount': t.amount,
+                  'type': t.type.name,
+                  'category_id': t.categoryId,
+                  'description': t.note,
+                  'date': t.date.toIso8601String(),
+                  'currency': t.currencyCode,
+                  'account_id': t.bankAccountId,
+                  'is_recurring': t.recurrence != RecurrenceType.none,
+                  'recurrence_type': t.recurrence.name,
+                  'recurrence_end_date': t.recurrenceEndDate?.toIso8601String(),
+                })
+            .toList();
+
+        await client.from('user_transactions').upsert(batch);
       }
-      debugPrint(
-          '📥 Hive: Transaction saved, state updated. Count: ${state.length}');
     } catch (e, stackTrace) {
       if (kDebugMode) {
-        debugPrint('Error adding transaction: $e');
+        debugPrint('Error adding transactions: $e');
         debugPrint('Stack trace: $stackTrace');
       }
-      // Re-throw to allow UI to handle the error
       rethrow;
     }
+  }
+
+  /// Add transaction with error handling
+  Future<void> addTransaction(WalletTransaction transaction) async {
+    await addTransactions([transaction]);
   }
 
   /// Update transaction with error handling and rollback
@@ -535,4 +540,77 @@ final activeSubscriptionsProvider = Provider<List<WalletTransaction>>((ref) {
   return monthTxs
       .where((t) => t.isSubscription && t.type == TransactionType.expense)
       .toList();
+});
+
+// Helper class for account metrics
+class AccountStats {
+  final Map<String, double> balances;
+  final double interest;
+  final double tax;
+
+  AccountStats({
+    required this.balances,
+    this.interest = 0.0,
+    this.tax = 0.0,
+  });
+}
+
+// Provider for all account statistics (Balances, Costs)
+// Returns Map<BankId, AccountStats>
+final accountStatsProvider = Provider<Map<String, AccountStats>>((ref) {
+  final transactions = ref.watch(walletProvider);
+  final accounts = ref.watch(bankAccountProvider);
+
+  final stats = <String, AccountStats>{};
+
+  // Initialize with initial balances from accounts
+  for (final acc in accounts) {
+    stats[acc.id] = AccountStats(
+      balances: {acc.currencyCode: acc.initialBalance},
+      interest: 0.0,
+      tax: 0.0,
+    );
+  }
+
+  // Apply all transactions
+  for (final tx in transactions) {
+    if (tx.bankAccountId == null) continue;
+
+    final bankId = tx.bankAccountId!;
+    if (!stats.containsKey(bankId)) {
+      stats[bankId] = AccountStats(balances: {});
+    }
+
+    final currentStats = stats[bankId]!;
+    final balances = currentStats.balances;
+    final currency = tx.currencyCode.isEmpty ? 'TRY' : tx.currencyCode;
+    final currentBalance = balances[currency] ?? 0.0;
+
+    // 1. Update Balance
+    if (tx.type == TransactionType.income) {
+      balances[currency] = currentBalance + tx.amount;
+    } else {
+      balances[currency] = currentBalance - tx.amount;
+    }
+
+    // 2. Update Costs (Interest/Tax)
+    // Note: These are already subtracted from balance above,
+    // we just track them separately for UI display.
+    var newInterest = currentStats.interest;
+    var newTax = currentStats.tax;
+
+    if (tx.categoryId == 'bank_interest') {
+      newInterest += tx.amount;
+    } else if (tx.categoryId == 'bank_tax') {
+      newTax += tx.amount;
+    }
+
+    stats[bankId] = AccountStats(
+      balances: balances,
+      interest: newInterest,
+      tax: newTax,
+    );
+  }
+
+  return stats;
 });

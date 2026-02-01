@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../models/bank_account.dart';
-import '../models/transaction_category.dart';
 import '../models/wallet_transaction.dart';
 import '../providers/wallet_provider.dart';
 import '../providers/bank_account_provider.dart';
@@ -163,6 +162,9 @@ class BankAccountsCard extends ConsumerWidget {
     final allAccounts = ref.read(bankAccountProvider);
     final allTransactions = ref.read(walletProvider);
 
+    // Capture messenger early to ensure feedback is shown even if dialog closes and unmounts context
+    final messenger = ScaffoldMessenger.of(context);
+
     // Use PaymentService to find suitable accounts
     final accountBalances = PaymentService.findPayableAccounts(
       debtAccount,
@@ -173,7 +175,7 @@ class BankAccountsCard extends ConsumerWidget {
 
     if (accountBalances.isEmpty) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           SnackBar(
             content: Text(
               'Ödeme yapılabilecek ${debtTransaction.currencyCode} hesabı bulunamadı.\n\n'
@@ -359,29 +361,26 @@ class BankAccountsCard extends ConsumerWidget {
     );
 
     debugPrint('🔍 Dialog closed. Result: $result');
-    debugPrint('🔍 Context mounted after dialog: ${context.mounted}');
 
     if (result != null) {
       debugPrint(
           '🟢 Starting payment process for amount: ${debtTransaction.amount}');
-      // We process the payment as long as we have a result.
-      // The context check is mainly for showing snackbars, but the transaction logic should proceed.
-      if (context.mounted) {
-        await _processPayment(
-            context, ref, debtTransaction, debtAccount, result);
-      }
+      // Pass the captured messenger
+      await _processPayment(
+          messenger, ref, debtTransaction, debtAccount, result);
     } else {
       debugPrint('⚠️ Payment process skipped. Result is null.');
     }
   }
 
   Future<void> _processPayment(
-    BuildContext context,
+    ScaffoldMessengerState messenger,
     WidgetRef ref,
     WalletTransaction debtTransaction,
     BankAccount debtAccount,
     AccountBalance selectedBalance,
   ) async {
+    // messenger is already captured
     final allTransactions = ref.read(walletProvider);
 
     // Create payment request
@@ -397,33 +396,28 @@ class BankAccountsCard extends ConsumerWidget {
         PaymentService.validatePayment(paymentRequest, allTransactions);
 
     if (validationError != null) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(validationError.message),
-            backgroundColor: Colors.orange,
-            duration: const Duration(seconds: 5),
-          ),
-        );
-      }
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(validationError.message),
+          backgroundColor: Colors.orange,
+          duration: const Duration(seconds: 5),
+        ),
+      );
       return;
     }
 
     try {
-      // Create payment transaction through service
-      final paymentTx = PaymentService.createPaymentTransaction(paymentRequest);
+      // Create payment transactions through service (Expense + Income)
+      final paymentTransactions =
+          PaymentService.createPaymentTransactions(paymentRequest);
 
-      debugPrint('🔵 Payment Transaction Created:');
-      debugPrint('  - ID: ${paymentTx.id}');
-      debugPrint('  - Amount: ${paymentTx.amount} ${paymentTx.currencyCode}');
       debugPrint(
-          '  - From Account: ${selectedBalance.account.name} (${selectedBalance.account.id})');
-      debugPrint('  - Linked to Debt: ${paymentTx.linkedTransactionId}');
-      debugPrint('  - Category: ${paymentTx.categoryId}');
-      debugPrint('  - isPaid: ${paymentTx.isPaid}');
+          '🔵 Payment Transactions Created: ${paymentTransactions.length}');
 
-      final messenger = ScaffoldMessenger.of(context);
-      await ref.read(walletProvider.notifier).addTransaction(paymentTx);
+      // Add transactions atomically to avoid partial state/multiple rebuilds
+      await ref
+          .read(walletProvider.notifier)
+          .addTransactions(paymentTransactions);
 
       // Mark original debt as paid if full payment
       if (paymentRequest.isFullPayment) {
@@ -444,14 +438,14 @@ class BankAccountsCard extends ConsumerWidget {
         ),
       );
     } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Ödeme hatası: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      debugPrint('❌ Payment Error: $e');
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Ödeme hatası: $e'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 5),
+        ),
+      );
     }
   }
 
@@ -643,87 +637,10 @@ class BankAccountsCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final transactions = ref.watch(walletProvider);
     final accounts = ref.watch(bankAccountProvider);
+    final bankStats = ref.watch(accountStatsProvider);
     final isVisible = ref.watch(balanceVisibilityProvider);
     final currencyService = ref.watch(currencyServiceProvider);
-
-    // Calculate balances and costs per bank, grouped by currency
-    final bankStats = <String, Map<String, dynamic>>{};
-
-    // Initialize with initial balances
-    for (final acc in accounts) {
-      bankStats[acc.id] = {
-        'balances': {
-          acc.currencyCode: acc.initialBalance
-        }, // Grouped by currency
-        'interest': 0.0,
-        'tax': 0.0
-      };
-    }
-
-    for (final tx in transactions) {
-      if (tx.bankAccountId != null) {
-        final bankId = tx.bankAccountId!;
-        if (!bankStats.containsKey(bankId)) {
-          bankStats[bankId] = {
-            'balances': <String, double>{},
-            'interest': 0.0,
-            'tax': 0.0
-          };
-        }
-
-        final balances = bankStats[bankId]!['balances'] as Map<String, double>;
-        final currency = tx.currencyCode.isEmpty ? 'TRY' : tx.currencyCode;
-
-        if (!balances.containsKey(currency)) {
-          balances[currency] = 0.0;
-        }
-
-        // Logic check:
-        // isUnpaidDebt: A regular expense tagged with CC/KMH category that hasn't been paid yet.
-        // isPaidDebt: The same expense, but now marked as paid (isPaid: true).
-        // PaymentTx: A transaction with linkedTransactionId pointing to the original debt.
-
-        final isUnpaidDebt = !tx.isPaid &&
-            tx.type == TransactionType.expense &&
-            tx.categoryId == 'bank_credit_card';
-
-        final isPaidDebt = tx.isPaid &&
-            tx.type == TransactionType.expense &&
-            tx.categoryId == 'bank_credit_card' &&
-            tx.linkedTransactionId == null; // Original debt record
-
-        if (isUnpaidDebt) {
-          // Reduces available balance (credit)
-          balances[currency] = balances[currency]! - tx.amount;
-          debugPrint(
-              '🟢 Calc [Unpaid Debt]: ${tx.amount} $currency on $bankId -> New Bal: ${balances[currency]} (ID: ${tx.id})');
-        } else if (!isPaidDebt) {
-          // Regular transactions or PAYMENT transactions (linked)
-          final amount =
-              tx.type == TransactionType.income ? tx.amount : -tx.amount;
-          balances[currency] = balances[currency]! + amount;
-          if (tx.linkedTransactionId != null) {
-            debugPrint(
-                '🔵 Calc [Payment Tx]: ${tx.amount} $currency on $bankId -> New Bal: ${balances[currency]} (Linked: ${tx.linkedTransactionId})');
-          } else {
-            // debugPrint('⚪ Calc [Regular]: ${tx.amount} $currency on $bankId -> New Bal: ${balances[currency]}');
-          }
-        } else {
-          // Paid original debts are skipped
-          debugPrint(
-              '� Calc [Skipped Paid Debt]: ${tx.amount} $currency on $bankId (ID: ${tx.id})');
-        }
-
-        if (tx.categoryId == 'bank_interest') {
-          bankStats[bankId]!['interest'] =
-              bankStats[bankId]!['interest']! + tx.amount;
-        } else if (tx.categoryId == 'bank_tax') {
-          bankStats[bankId]!['tax'] = bankStats[bankId]!['tax']! + tx.amount;
-        }
-      }
-    }
 
     final checkingAccounts = accounts
         .where((a) => a.accountType == 'Vadesiz Hesap' && a.isActive)
@@ -766,7 +683,7 @@ class BankAccountsCard extends ConsumerWidget {
     String title,
     IconData icon,
     List<BankAccount> accounts,
-    Map<String, Map<String, dynamic>> bankStats,
+    Map<String, AccountStats> bankStats,
     CurrencyService currencyService,
     bool isVisible,
   ) {
@@ -845,19 +762,19 @@ class BankAccountsCard extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
     BankAccount bank,
-    Map<String, Map<String, dynamic>> bankStats,
+    Map<String, AccountStats> bankStats,
     CurrencyService currencyService,
     bool isVisible,
   ) {
     final stats = bankStats[bank.id] ??
-        {
-          'balances': <String, double>{bank.currencyCode: 0.0},
-          'interest': 0.0,
-          'tax': 0.0
-        };
-    final balances = stats['balances'] as Map<String, double>;
-    final interest = stats['interest'] as double;
-    final tax = stats['tax'] as double;
+        AccountStats(
+          balances: {bank.currencyCode: 0.0},
+          interest: 0.0,
+          tax: 0.0,
+        );
+    final balances = stats.balances;
+    final interest = stats.interest;
+    final tax = stats.tax;
 
     final isCC = bank.accountType == 'Kredi Kartı';
     final mainCurrencyFormat = NumberFormat.currency(

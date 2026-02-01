@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 class AnalyticsService {
   final SupabaseClient _supabase;
   String? _currentSessionId;
+  final Set<String> _verifiedUserIds = {};
 
   AnalyticsService(this._supabase);
 
@@ -20,15 +21,17 @@ class AnalyticsService {
       if (user == null) return;
 
       // Check if user exists in public.users to avoid FK error
-      // TODO: Cache this check to improve performance
-      final userExists = await _supabase
-          .from('users')
-          .select('id')
-          .eq('id', user.id)
-          .maybeSingle();
+      if (!_verifiedUserIds.contains(user.id)) {
+        final userExists = await _supabase
+            .from('users')
+            .select('id')
+            .eq('id', user.id)
+            .maybeSingle();
 
-      if (userExists == null) {
-        return;
+        if (userExists == null) {
+          return;
+        }
+        _verifiedUserIds.add(user.id);
       }
 
       await _supabase.from('user_events').insert({
@@ -66,16 +69,19 @@ class AnalyticsService {
       if (user == null) return;
 
       // Check if user exists in public.users to avoid FK error
-      final userExists = await _supabase
-          .from('users')
-          .select('id')
-          .eq('id', user.id)
-          .maybeSingle();
+      if (!_verifiedUserIds.contains(user.id)) {
+        final userExists = await _supabase
+            .from('users')
+            .select('id')
+            .eq('id', user.id)
+            .maybeSingle();
 
-      if (userExists == null) {
-        debugPrint(
-            'Analytics: User ${user.id} not found in public.users, skipping session start.');
-        return;
+        if (userExists == null) {
+          debugPrint(
+              'Analytics: User ${user.id} not found in public.users, skipping session start.');
+          return;
+        }
+        _verifiedUserIds.add(user.id);
       }
 
       final response = await _supabase
