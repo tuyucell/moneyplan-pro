@@ -9,7 +9,7 @@
 
 ### 1. Kabul ve Onay
 
-Yatırım Rehberi mobil uygulamasını ("Uygulama") kullanarak bu Kullanım Şartları'nı ("Şartlar") kabul etmiş olursunuz. Bu şartları kabul etmiyorsanız, lütfen uygulamayı kullanmayın.
+MoneyPlan Pro mobil uygulamasını ("Uygulama") kullanarak bu Kullanım Şartları'nı ("Şartlar") kabul etmiş olursunuz. Bu şartları kabul etmiyorsanız, lütfen uygulamayı kullanmayın.
 
 **Hizmet Sağlayıcı:**
 - İsim: [COMPANY_NAME]
@@ -19,7 +19,7 @@ Yatırım Rehberi mobil uygulamasını ("Uygulama") kullanarak bu Kullanım Şar
 
 ### 2. Hizmet Tanımı
 
-Yatırım Rehberi, kullanıcılara şu hizmetleri sunar:
+MoneyPlan Pro, kullanıcılara şu hizmetleri sunar:
 
 - **Portföy Yönetimi:** Kripto para, hisse senedi, altın, döviz ve diğer varlıkların takibi
 - **Bütçe Yönetimi:** Gelir ve gider takibi, kategori bazlı analiz
@@ -51,13 +51,13 @@ Uygulamayı şu amaçlarla kullanamazsınız:
 #### 3.4 Fikri Mülkiyet
 - Uygulama içeriğini izinsiz kopyalayamaz, dağıtamaz veya değiştiremezsiniz
 - Ticari marka ve logoları izinsiz kullanamazsınız
-- Uygulama kodunu tersine mühendislik yaparak çözemezsiniz
+- Uygulama koordinatlarını tersine mühendislik yaparak çözemezsiniz
 
 ### 4. Yatırım Uyarısı ve Sorumluluk Reddi
 
 #### 4.1 Yatırım Tavsiyesi Değildir
 
-**ÖNEMLİ UYARI:** Yatırım Rehberi bir bilgilendirme ve takip aracıdır. Uygulama içindeki bilgiler, analizler ve AI önerileri **YATIRIM TAVSİYESİ DEĞİLDİR**.
+**ÖNEMLİ UYARI:** MoneyPlan Pro bir bilgilendirme ve takip aracıdır. Uygulama içindeki bilgiler, analizler ve AI önerileri **YATIRIM TAVSİYESİ DEĞİLDİR**.
 
 - Yatırım kararlarınızdan yalnızca siz sorumlusunuz
 - Geçmiş performans gelecekteki sonuçları garanti etmez

@@ -1,6 +1,6 @@
-# Quick Start Deployment Guide
+# MoneyPlan Pro Deployment - Quick Start
 
-## 🚀 Hızlı Başlangıç / Quick Start
+## 🚀 Hızlı Başlangıç / MoneyPlan Pro Deployment - Quick Start
 
 Bu rehber, uygulamanızı App Store ve Play Store'a yüklemek ve web sitesini yayınlamak için gereken adımları özetler.
 
@@ -12,18 +12,18 @@ Bu rehber, uygulamanızı App Store ve Play Store'a yüklemek ve web sitesini ya
 
 Aşağıdaki bilgileri hazırlayın:
 
-1. **Şirket/Kişi Bilgileri:**
-   - Şirket adı (veya adınız)
-   - Adres (KVKK zorunluluğu)
-   - E-posta adresi
-   - Telefon numarası (opsiyonel)
+1.  **Şirket/Kişi Bilgileri:**
+    - Şirket adı (veya adınız)
+    - Adres (KVKK zorunluluğu)
+    - E-posta adresi
+    - Telefon numarası (opsiyonel)
 
-2. **Domain Adı:**
-   - Almak istediğiniz domain (örn: `investguide.app`)
+2.  **Domain Adı:**
+    - Almak istediğiniz domain (örn: `investguide.app`)
 
-3. **Developer Hesapları:**
-   - Apple Developer ($99/yıl) - https://developer.apple.com
-   - Google Play Developer ($25 tek seferlik) - https://play.google.com/console
+3.  **Developer Hesapları:**
+    - Apple Developer ($99/yıl) - https://developer.apple.com
+    - Google Play Developer ($25 tek seferlik) - https://play.google.com/console
 
 ### ✅ Yasal Dokümanları Güncelleme
 
@@ -49,7 +49,7 @@ Değiştirilecek placeholder'lar:
 
 ---
 
-## 🌐 2. Web Sitesi Deployment (1-2 saat)
+## 🌐 2. MoneyPlan Pro Website Deployment (1-2 saat)
 
 ### Adım 1: GitHub'a Push
 
@@ -72,20 +72,20 @@ git push -u origin main
 
 ### Adım 2: GitHub Pages Aktifleştir
 
-1. GitHub repo → Settings → Pages
-2. Source: `main` branch, `/website` folder
-3. Save
-4. 5 dakika bekleyin
-5. Test edin: `https://KULLANICI_ADINIZ.github.io/invest-guide-app/`
+1.  GitHub repo → Settings → Pages
+2.  Source: `main` branch, `/website` folder
+3.  Save
+4.  5 dakika bekleyin
+5.  Test edin: `https://KULLANICI_ADINIZ.github.io/invest-guide-app/`
 
 ### Adım 3: Domain Al ve Cloudflare Kur
 
-1. Domain satın alın (Namecheap, GoDaddy, veya Cloudflare)
-2. Cloudflare hesabı oluşturun
-3. Domain'i Cloudflare'e ekleyin
-4. Nameserver'ları güncelleyin
-5. DNS kayıtlarını ekleyin (A records + CNAME)
-6. GitHub Pages'de custom domain ekleyin
+1.  Domain satın alın (Namecheap, GoDaddy, veya Cloudflare)
+2.  Cloudflare hesabı oluşturun
+3.  Domain'i Cloudflare'e ekleyin
+4.  Nameserver'ları güncelleyin
+5.  DNS kayıtlarını ekleyin (A records + CNAME)
+6.  GitHub Pages'de custom domain ekleyin
 
 **Detaylı rehber:** `WEBSITE_DEPLOYMENT_GUIDE.md`
 
@@ -135,17 +135,17 @@ Upload: `build/app/outputs/bundle/release/app-release.aab` → Google Play Conso
 
 ### Adım 1: Apple Developer Hesabı
 
-1. https://developer.apple.com adresinden kayıt olun ($99/yıl)
-2. Certificates, Identifiers & Profiles → App IDs oluşturun
+1.  https://developer.apple.com adresinden kayıt olun ($99/yıl)
+2.  Certificates, Identifiers & Profiles → App IDs oluşturun
 
 ### Adım 2: App Store Connect
 
-1. https://appstoreconnect.apple.com
-2. My Apps → + → New App
-3. Bilgileri doldurun:
-   - Name: Yatırım Rehberi
-   - Bundle ID: com.turgayyucel.investguide
-   - SKU: invest-guide-001
+1.  https://appstoreconnect.apple.com
+2.  My Apps → + → New App
+3.  Bilgileri doldurun:
+    - Name: Yatırım Rehberi
+    - Bundle ID: com.turgayyucel.investguide
+    - SKU: invest-guide-001
 
 ### Adım 3: Build ve Upload
 
@@ -196,7 +196,7 @@ open ios/Runner.xcworkspace
 ### App Store Connect
 
 ```
-Name: Yatırım Rehberi - Portföy & Bütçe
+Name: MoneyPlan Pro - Portföy & Bütçe
 Subtitle: Portföy & Bütçe Yönetimi
 Category: Finance (Primary), Productivity (Secondary)
 Age Rating: 17+

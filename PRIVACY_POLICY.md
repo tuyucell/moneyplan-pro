@@ -9,7 +9,7 @@
 
 ### 1. Giriş
 
-Yatırım Rehberi ("Uygulama", "biz", "bizim") olarak kullanıcılarımızın gizliliğine saygı duyuyoruz. Bu Gizlilik Politikası, kişisel verilerinizin nasıl toplandığını, kullanıldığını, saklandığını ve korunduğunu açıklar.
+MoneyPlan Pro ("Uygulama", "biz", "bizim") olarak kullanıcılarımızın gizliliğine saygı duyuyoruz. Bu Gizlilik Politikası, kişisel verilerinizin nasıl toplandığını, kullanıldığını, saklandığını ve korunduğunu açıklar.
 
 Uygulamamızı kullanarak bu Gizlilik Politikası'nı kabul etmiş olursunuz.
 
