@@ -1,250 +1,136 @@
 <!DOCTYPE html>
-<html lang="tr">
+<html lang="en" data-theme="dark">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Yatırım Rehberi - Portföy & Bütçe Yönetimi</title>
+    <title>MoneyPlan Pro | Elite Financial Intelligence</title>
     <meta name="description"
-        content="Tüm finansal hayatınızı tek bir uygulamada yönetin. Portföy takibi, bütçe yönetimi ve AI destekli yatırım analizi.">
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            line-height: 1.6;
-            color: #333;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-        }
-
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-
-        header {
-            text-align: center;
-            padding: 60px 20px;
-            color: white;
-        }
-
-        h1 {
-            font-size: 3em;
-            margin-bottom: 20px;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
-        }
-
-        .tagline {
-            font-size: 1.3em;
-            margin-bottom: 40px;
-            opacity: 0.95;
-        }
-
-        .cta-buttons {
-            display: flex;
-            gap: 20px;
-            justify-content: center;
-            flex-wrap: wrap;
-        }
-
-        .btn {
-            padding: 15px 40px;
-            font-size: 1.1em;
-            border: none;
-            border-radius: 30px;
-            cursor: pointer;
-            text-decoration: none;
-            display: inline-block;
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-
-        .btn-primary {
-            background: white;
-            color: #667eea;
-            font-weight: bold;
-        }
-
-        .btn-secondary {
-            background: rgba(255, 255, 255, 0.2);
-            color: white;
-            border: 2px solid white;
-        }
-
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
-        }
-
-        .content {
-            background: white;
-            border-radius: 20px;
-            padding: 60px 40px;
-            margin-top: 40px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-        }
-
-        .features {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 30px;
-            margin: 40px 0;
-        }
-
-        .feature {
-            text-align: center;
-            padding: 30px;
-            background: #f9fafb;
-            border-radius: 15px;
-            transition: transform 0.2s;
-        }
-
-        .feature:hover {
-            transform: translateY(-5px);
-        }
-
-        .feature-icon {
-            font-size: 3em;
-            margin-bottom: 15px;
-        }
-
-        .feature h3 {
-            color: #667eea;
-            margin-bottom: 10px;
-        }
-
-        .legal-links {
-            text-align: center;
-            margin-top: 40px;
-            padding-top: 40px;
-            border-top: 2px solid #e5e5e5;
-        }
-
-        .legal-links a {
-            color: #667eea;
-            text-decoration: none;
-            margin: 0 15px;
-            font-weight: 500;
-        }
-
-        .legal-links a:hover {
-            text-decoration: underline;
-        }
-
-        footer {
-            text-align: center;
-            padding: 40px 20px;
-            color: white;
-            margin-top: 40px;
-        }
-
-        @media (max-width: 768px) {
-            h1 {
-                font-size: 2em;
-            }
-
-            .tagline {
-                font-size: 1.1em;
-            }
-
-            .content {
-                padding: 40px 20px;
-            }
-
-            .cta-buttons {
-                flex-direction: column;
-                align-items: center;
-            }
-
-            .btn {
-                width: 100%;
-                max-width: 300px;
-            }
-        }
-    </style>
+        content="Redefine your wealth management with MoneyPlan Pro. The next-generation fintech experience.">
+    <link rel="stylesheet" href="index.css">
 </head>
 
 <body>
-    <div class="container">
-        <header>
-            <h1>🚀 Yatırım Rehberi</h1>
-            <p class="tagline">Finansal özgürlüğünüze giden yolda yanınızdayız</p>
-            <div class="cta-buttons">
-                <a href="#" class="btn btn-primary">App Store'dan İndir</a>
-                <a href="#" class="btn btn-primary">Google Play'den İndir</a>
-            </div>
-        </header>
+    <nav>
+        <div class="container nav-content">
+            <a href="index.html" class="logo-link">
+                <img src="assets/images/logo_flat.png" alt="MoneyPlan Pro" class="logo-img">
+                <span class="brand-name">MoneyPlan Pro</span>
+            </a>
 
-        <div class="content">
-            <h2 style="text-align: center; color: #667eea; margin-bottom: 40px;">Neden Yatırım Rehberi?</h2>
+            <ul class="nav-links">
+                <li><a href="#features" data-en="Features" data-tr="Özellikler">Features</a></li>
+                <li><a href="privacy.html" data-en="Privacy" data-tr="Gizlilik">Privacy</a></li>
+                <li><a href="terms.html" data-en="Terms" data-tr="Koşullar">Terms</a></li>
+            </ul>
 
-            <div class="features">
-                <div class="feature">
-                    <div class="feature-icon">📊</div>
-                    <h3>Portföy Yönetimi</h3>
-                    <p>Kripto, hisse, altın ve tüm varlıklarınızı tek yerden takip edin</p>
-                </div>
-
-                <div class="feature">
-                    <div class="feature-icon">💰</div>
-                    <h3>Bütçe Kontrolü</h3>
-                    <p>Gelir ve giderlerinizi kategorilere ayırarak analiz edin</p>
-                </div>
-
-                <div class="feature">
-                    <div class="feature-icon">🤖</div>
-                    <h3>AI Asistan</h3>
-                    <p>Yapay zeka destekli kişiselleştirilmiş yatırım önerileri</p>
-                </div>
-
-                <div class="feature">
-                    <div class="feature-icon">📧</div>
-                    <h3>Gmail Entegrasyonu</h3>
-                    <p>Finansal e-postalarınızı otomatik olarak tarayın</p>
-                </div>
-
-                <div class="feature">
-                    <div class="feature-icon">📈</div>
-                    <h3>Canlı Piyasa</h3>
-                    <p>Gerçek zamanlı borsa, kripto ve döviz verileri</p>
-                </div>
-
-                <div class="feature">
-                    <div class="feature-icon">🧮</div>
-                    <h3>Hesaplayıcılar</h3>
-                    <p>Kredi, faiz ve emeklilik hesaplama araçları</p>
-                </div>
-            </div>
-
-            <div style="background: #f0edff; padding: 30px; border-radius: 15px; margin: 40px 0; text-align: center;">
-                <h3 style="color: #667eea; margin-bottom: 15px;">✨ Tamamen Ücretsiz</h3>
-                <p>Temel özelliklerin tamamı ücretsiz. Reklamsız deneyim. Sınırsız portföy ve hesap ekleme.</p>
-            </div>
-
-            <div style="background: #fff3cd; padding: 30px; border-radius: 15px; margin: 40px 0;">
-                <h3 style="color: #856404; margin-bottom: 15px;">⚠️ Önemli Uyarı</h3>
-                <p>Yatırım Rehberi bir bilgilendirme aracıdır. Uygulama içindeki bilgiler yatırım tavsiyesi değildir.
-                    Yatırım kararlarınızdan yalnızca siz sorumlusunuz. Profesyonel bir finansal danışmana başvurmanızı
-                    öneririz.</p>
-            </div>
-
-            <div class="legal-links">
-                <a href="privacy.html">Gizlilik Politikası</a>
-                <a href="terms.html">Kullanım Şartları</a>
-                <a href="mailto:support@investguide.app">İletişim</a>
+            <div class="nav-actions">
+                <button class="action-btn" onclick="toggleTheme()" id="theme-btn">🌙</button>
+                <button class="action-btn" onclick="toggleLanguage()" id="lang-btn">TR</button>
             </div>
         </div>
+    </nav>
 
-        <footer>
-            <p>&copy; 2026 Yatırım Rehberi. Tüm hakları saklıdır.</p>
-            <p style="margin-top: 10px; opacity: 0.8;">Finansal özgürlüğünüze giden yolda yanınızdayız 💎</p>
-        </footer>
-    </div>
+    <section class="hero">
+        <div class="container hero-grid">
+            <div class="hero-text">
+                <span class="hero-tag" data-en="Next-Gen Architecture" data-tr="Yeni Nesil Mimari">Next-Gen
+                    Architecture</span>
+                <h1 data-en="Wealth Mastery" data-tr="Varlık Yönetimi">Wealth Mastery</h1>
+                <p class="hero-desc"
+                    data-en="Seamlessly track your global assets, crypto holdings, and daily cash flow with precision. Experience the elite standard of personal finance."
+                    data-tr="Küresel varlıklarınızı, kripto yatırımlarınızı ve günlük nakit akışınızı kusursuz bir hassasiyetle takip edin. Kişisel finansın elit standardını deneyimleyin.">
+                    Seamlessly track your global assets, crypto holdings, and daily cash flow with precision. Experience
+                    the elite standard of personal finance.
+                </p>
+
+                <div class="store-container">
+                    <span class="store-label" data-en="Coming Soon to Ecosystem" data-tr="Ekosisteme Çok Yakında">Coming
+                        Soon to Ecosystem</span>
+                    <div class="store-flex">
+                        <img src="assets/images/app_store.png" alt="App Store" class="store-btn-img">
+                        <img src="assets/images/google_play.png" alt="Google Play" class="store-btn-img">
+                    </div>
+                </div>
+            </div>
+
+            <div class="hero-visual">
+                <div class="mockup-container">
+                    <img src="assets/images/mockup_new.png" alt="MoneyPlan Pro iPhone 17 Pro Max Orange"
+                        class="app-mockup">
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="features" class="features">
+        <div class="container">
+            <div class="feat-header">
+                <h2 data-en="Professional Intelligence" data-tr="Profesyonel Zeka">Professional Intelligence</h2>
+                <p style="color:var(--text-dim);" data-en="Every tool you need, unified in one powerful interface."
+                    data-tr="İhtiyacınız olan her araç, tek bir güçlü arayüzde birleşti.">Every tool you need, unified
+                    in one powerful interface.</p>
+            </div>
+
+            <div class="feat-grid">
+                <div class="feat-card">
+                    <div class="feat-icon">⚡</div>
+                    <h3 data-en="Real-Time Sync" data-tr="Anlık Senkronizasyon">Real-Time Sync</h3>
+                    <p data-en="Global market data and your personal transactions are updated in sub-second precision."
+                        data-tr="Küresel piyasa verileri ve kişisel işlemleriniz saniyenin altında bir hassasiyetle güncellenir.">
+                        Global market data and your personal transactions are updated in sub-second precision.
+                    </p>
+                </div>
+                <div class="feat-card">
+                    <div class="feat-icon">🛡️</div>
+                    <h3 data-en="Stealth Security" data-tr="Üst Düzey Güvenlik">Stealth Security</h3>
+                    <p data-en="Biometric-grade encryption ensuring your financial sovereignty remains absolute."
+                        data-tr="Finansal egemenliğinizin mutlak kalmasını sağlayan biyometrik düzeyde şifreleme.">
+                        Biometric-grade encryption ensuring your financial sovereignty remains absolute.
+                    </p>
+                </div>
+                <div class="feat-card">
+                    <div class="feat-icon">💎</div>
+                    <h3 data-en="Elite Analytics" data-tr="Elit Analizler">Elite Analytics</h3>
+                    <p data-en="Deep insights into your net worth velocity and portfolio health."
+                        data-tr="Net değer hızınız ve portföy sağlığınız hakkında derinlemesine analizler.">
+                        Deep insights into your net worth velocity and portfolio health.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <script>
+        function toggleLanguage() {
+            const body = document.body;
+            const currentLang = body.dataset.lang || 'en';
+            const newLang = currentLang === 'en' ? 'tr' : 'en';
+
+            body.dataset.lang = newLang;
+            document.getElementById('lang-btn').innerText = newLang === 'en' ? 'TR' : 'EN';
+
+            document.querySelectorAll('[data-en]').forEach(el => {
+                el.innerText = el.dataset[newLang];
+            });
+        }
+
+        function toggleTheme() {
+            const html = document.documentElement;
+            const currentTheme = html.dataset.theme;
+            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+
+            html.dataset.theme = newTheme;
+            document.getElementById('theme-btn').innerText = newTheme === 'light' ? '🌙' : '☀️';
+
+            localStorage.setItem('theme', newTheme);
+        }
+
+        // Initialize Dark Theme by default
+        const savedTheme = localStorage.getItem('theme') || 'dark';
+        document.documentElement.dataset.theme = savedTheme;
+        document.getElementById('theme-btn').innerText = savedTheme === 'light' ? '🌙' : '☀️';
+    </script>
 </body>
 
 </html>
