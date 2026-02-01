@@ -14,9 +14,7 @@ MoneyPlan Pro ("Uygulama", "biz", "bizim") olarak kullanıcılarımızın gizlil
 Uygulamamızı kullanarak bu Gizlilik Politikası'nı kabul etmiş olursunuz.
 
 **İletişim Bilgileri:**
-- E-posta: [SUPPORT_EMAIL]
-- Adres: [COMPANY_ADDRESS]
-- Telefon: [PHONE_NUMBER] (opsiyonel)
+- E-posta: trgy.ycl@gmail.com veya İstanbul, Türkiye adresine yazılı olarak başvurabilirsiniz.
 
 ### 2. Toplanan Veriler
 
@@ -172,7 +170,7 @@ Verileriniz yalnızca şu durumlarda paylaşılabilir:
 
 **Haklarınızı Kullanmak İçin:**
 - Uygulama içi: Ayarlar → Gizlilik → Veri Hakları
-- E-posta: [SUPPORT_EMAIL]
+- E-posta: trgy.ycl@gmail.com
 - Yanıt süresi: 30 gün içinde
 
 ### 8. Çocukların Gizliliği
@@ -198,12 +196,11 @@ Son güncelleme tarihi her zaman en üstte belirtilir.
 ### 11. İletişim ve Şikayetler
 
 **Veri Sorumlusu:**
-[COMPANY_NAME]
-[COMPANY_ADDRESS]
-
-**İletişim:**
-- E-posta: [SUPPORT_EMAIL]
-- Telefon: [PHONE_NUMBER]
+- İsim: Turgay Yücel (Geliştirici)
+- Adres: İstanbul, Türkiye
+- E-posta: trgy.ycl@gmail.com
+- Web Sitesi: https://moneyplan.pro
+- Telefon: +90 554 660 9464
 
 **Şikayet Başvurusu:**
 - Kişisel Verileri Koruma Kurumu (KVKK): https://www.kvkk.gov.tr
@@ -220,9 +217,8 @@ Investment Guide ("App", "we", "our") respects the privacy of our users. This Pr
 By using our App, you agree to this Privacy Policy.
 
 **Contact Information:**
-- Email: [SUPPORT_EMAIL]
-- Address: [COMPANY_ADDRESS]
-- Phone: [PHONE_NUMBER] (optional)
+- Emawriting to trgy.ycl@gmail.com or the address: Istanbul, Turkey.
+- Phone: +90 554 660 9464 (optional)
 
 ### 2. Data We Collect
 
@@ -378,7 +374,7 @@ Under GDPR, you have the following rights:
 
 **To Exercise Your Rights:**
 - In-app: Settings → Privacy → Data Rights
-- Email: [SUPPORT_EMAIL]
+- Email: trgy.ycl@gmail.com
 - Response time: Within 30 days
 
 ### 8. Children's Privacy
@@ -404,12 +400,11 @@ The last update date is always indicated at the top.
 ### 11. Contact and Complaints
 
 **Data Controller:**
-[COMPANY_NAME]
-[COMPANY_ADDRESS]
-
-**Contact:**
-- Email: [SUPPORT_EMAIL]
-- Phone: [PHONE_NUMBER]
+- Name: Turgay Yücel (Developer)
+- Address: Istanbul, Turkey
+- Email: trgy.ycl@gmail.com
+- Website: https://moneyplan.pro
+- Phone: +90 554 660 9464
 
 **Complaint Submission:**
 - Data Protection Authority: Your local authority in your country

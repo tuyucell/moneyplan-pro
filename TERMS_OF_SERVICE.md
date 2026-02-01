@@ -12,10 +12,10 @@
 MoneyPlan Pro mobil uygulamasını ("Uygulama") kullanarak bu Kullanım Şartları'nı ("Şartlar") kabul etmiş olursunuz. Bu şartları kabul etmiyorsanız, lütfen uygulamayı kullanmayın.
 
 **Hizmet Sağlayıcı:**
-- İsim: [COMPANY_NAME]
-- Adres: [COMPANY_ADDRESS]
-- E-posta: [SUPPORT_EMAIL]
-- Telefon: [PHONE_NUMBER]
+- İsim: Turgay Yücel (Geliştirici)
+- Adres: İstanbul, Türkiye
+- E-posta: trgy.ycl@gmail.com
+- Telefon: +90 554 660 9464
 
 ### 2. Hizmet Tanımı
 
@@ -211,10 +211,10 @@ Bu şartları istediğimiz zaman değiştirebiliriz. Önemli değişiklikler:
 Bu şartlar Türkiye Cumhuriyeti yasalarına tabidir.
 
 #### 11.2 Yetki
-Uyuşmazlıklar için [CITY] Mahkemeleri ve İcra Daireleri yetkilidir.
+Uyuşmazlıklar için İstanbul Mahkemeleri ve İcra Daireleri yetkilidir.
 
 #### 11.3 Arabuluculuk
-Mahkemeye başvurmadan önce dostane çözüm için bizimle iletişime geçmenizi öneririz.
+Mahkemeye başvurmadan önce dostane çözüm için trgy.ycl@gmail.com adresinden bizimle iletişime geçmenizi öneririz.
 
 ### 12. Genel Hükümler
 
@@ -234,10 +234,10 @@ Bu şartları başkasına devredemezsiniz. Biz şirket satışı veya birleşme 
 
 Sorularınız veya şikayetleriniz için:
 
-**[COMPANY_NAME]**
-- Adres: [COMPANY_ADDRESS]
-- E-posta: [SUPPORT_EMAIL]
-- Telefon: [PHONE_NUMBER]
+**Turgay Yücel**
+- Adres: Istanbul, Türkiye
+- E-posta: trgy.ycl@gmail.com
+- Telefon: +90 554 660 9464
 - Web: [WEBSITE_URL]
 
 **Destek Saatleri:** Pazartesi-Cuma, 09:00-18:00 (Türkiye saati)
@@ -251,10 +251,10 @@ Sorularınız veya şikayetleriniz için:
 By using the Investment Guide mobile application ("App"), you agree to these Terms of Service ("Terms"). If you do not agree to these terms, please do not use the App.
 
 **Service Provider:**
-- Name: [COMPANY_NAME]
-- Address: [COMPANY_ADDRESS]
-- Email: [SUPPORT_EMAIL]
-- Phone: [PHONE_NUMBER]
+- Name: Turgay Yücel (Developer)
+- Address: Istanbul, Turkey
+- Email: trgy.ycl@gmail.com
+- Phone: +90 554 660 9464
 
 ### 2. Service Description
 
