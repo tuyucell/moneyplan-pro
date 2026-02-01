@@ -2,12 +2,13 @@
 /*
 
 # Allow specific folders and files
-!/website/
+!/docs/
 !/PRIVACY_POLICY.md
 !/TERMS_OF_SERVICE.md
 !/README.md
 !/QUICK_START_DEPLOYMENT.md
 !/WEBSITE_DEPLOYMENT_GUIDE.md
+!/GITHUB_PAGES_SETUP.md
 !/ANDROID_SIGNING_GUIDE.md
 !/DEPLOYMENT_READY.md
 !/deploy.sh

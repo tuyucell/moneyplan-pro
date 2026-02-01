@@ -73,7 +73,7 @@ git push -u origin main
 ### Adım 2: GitHub Pages Aktifleştir
 
 1.  GitHub repo → Settings → Pages
-2.  Source: `main` branch, `/website` folder
+2.  Source: `main` branch, `/docs` folder
 3.  Save
 4.  5 dakika bekleyin
 5.  Test edin: `https://KULLANICI_ADINIZ.github.io/invest-guide-app/`
