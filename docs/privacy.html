@@ -1,224 +1,53 @@
 <!DOCTYPE html>
-<html lang="tr">
+<html lang="en" data-theme="dark">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gizlilik Politikası - Yatırım Rehberi</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            line-height: 1.6;
-            color: #333;
-            background: #f5f5f7;
-        }
-        
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-            background: white;
-            min-height: 100vh;
-        }
-        
-        header {
-            text-align: center;
-            padding: 40px 0;
-            border-bottom: 2px solid #6B4FD8;
-        }
-        
-        h1 {
-            color: #6B4FD8;
-            font-size: 2em;
-            margin-bottom: 10px;
-        }
-        
-        .meta {
-            color: #666;
-            font-size: 0.9em;
-        }
-        
-        .content {
-            padding: 40px 20px;
-        }
-        
-        h2 {
-            color: #6B4FD8;
-            margin-top: 30px;
-            margin-bottom: 15px;
-            font-size: 1.5em;
-        }
-        
-        h3 {
-            color: #333;
-            margin-top: 20px;
-            margin-bottom: 10px;
-            font-size: 1.2em;
-        }
-        
-        p {
-            margin-bottom: 15px;
-        }
-        
-        ul, ol {
-            margin-left: 30px;
-            margin-bottom: 15px;
-        }
-        
-        li {
-            margin-bottom: 8px;
-        }
-        
-        .highlight {
-            background: #f0edff;
-            padding: 15px;
-            border-left: 4px solid #6B4FD8;
-            margin: 20px 0;
-        }
-        
-        .contact {
-            background: #f9fafb;
-            padding: 20px;
-            border-radius: 8px;
-            margin-top: 30px;
-        }
-        
-        footer {
-            text-align: center;
-            padding: 30px;
-            color: #666;
-            border-top: 1px solid #e5e5e5;
-            margin-top: 40px;
-        }
-        
-        a {
-            color: #6B4FD8;
-            text-decoration: none;
-        }
-        
-        a:hover {
-            text-decoration: underline;
-        }
-        
-        @media (max-width: 600px) {
-            .container {
-                padding: 10px;
-            }
-            
-            h1 {
-                font-size: 1.5em;
-            }
-            
-            h2 {
-                font-size: 1.3em;
-            }
-        }
-    </style>
+    <title>Privacy Policy | MoneyPlan Pro</title>
+    <link rel="stylesheet" href="index.css">
 </head>
-<body>
-    <div class="container">
-        <header>
-            <h1>Gizlilik Politikası</h1>
-            <div class="meta">
-                <p><strong>Yatırım Rehberi</strong></p>
-                <p>Son Güncelleme: 13 Ocak 2026</p>
-            </div>
-        </header>
-        
-        <div class="content">
-            <div class="highlight">
-                <p><strong>Önemli:</strong> Yatırım Rehberi olarak kullanıcılarımızın gizliliğine saygı duyuyoruz. Finansal verileriniz cihazınızda saklanır ve asla üçüncü taraflarla paylaşılmaz.</p>
-            </div>
-            
-            <h2>1. Toplanan Bilgiler</h2>
-            
-            <h3>1.1 Kullanıcı Tarafından Sağlanan Bilgiler</h3>
-            <ul>
-                <li><strong>Hesap Bilgileri:</strong> E-posta adresi, profil fotoğrafı (Google Sign-In ile)</li>
-                <li><strong>Finansal Veriler:</strong> Portföy bilgileri, banka hesapları, gelir/gider kayıtları (cihazınızda saklanır)</li>
-                <li><strong>Gmail Entegrasyonu:</strong> Finansal e-postalar (isteğe bağlı, yalnızca cihazınızda işlenir)</li>
-            </ul>
-            
-            <h3>1.2 Otomatik Olarak Toplanan Bilgiler</h3>
-            <ul>
-                <li>Uygulama kullanım istatistikleri</li>
-                <li>Hata raporları ve çökme logları</li>
-                <li>Cihaz bilgileri (model, işletim sistemi)</li>
-            </ul>
-            
-            <h2>2. Bilgilerin Kullanımı</h2>
-            <p>Topladığımız bilgileri şu amaçlarla kullanırız:</p>
-            <ul>
-                <li>Portföy yönetimi ve finansal hesaplamalar</li>
-                <li>Piyasa verilerinin gösterimi</li>
-                <li>AI tabanlı yatırım önerileri</li>
-                <li>Uygulama performansının iyileştirilmesi</li>
-                <li>Güvenlik ve hata tespiti</li>
-            </ul>
-            
-            <h2>3. Veri Saklama ve Güvenlik</h2>
-            
-            <h3>3.1 Yerel Depolama</h3>
-            <p>Tüm finansal verileriniz (portföy, hesaplar, işlemler) <strong>cihazınızda</strong> saklanır ve AES-256 ile şifrelenir. Uygulama silindiğinde tüm veriler kalıcı olarak silinir.</p>
-            
-            <h3>3.2 Bulut Depolama</h3>
-            <p>Yalnızca şu bilgiler Supabase sunucularında saklanır:</p>
-            <ul>
-                <li>Hesap bilgileri (e-posta, profil)</li>
-                <li>Favori varlıklar ve izleme listesi</li>
-                <li>Uygulama ayarları</li>
-            </ul>
-            
-            <h3>3.3 Güvenlik Önlemleri</h3>
-            <ul>
-                <li>AES-256 şifreleme</li>
-                <li>HTTPS/SSL güvenli iletişim</li>
-                <li>OAuth 2.0 kimlik doğrulama</li>
-            </ul>
-            
-            <h2>4. Üçüncü Taraf Hizmetler</h2>
-            <p>Uygulamamız şu üçüncü taraf hizmetleri kullanır:</p>
-            <ul>
-                <li><strong>Google Services:</strong> Sign-In ve Gmail API</li>
-                <li><strong>Supabase:</strong> Kimlik doğrulama ve veritabanı</li>
-                <li><strong>Piyasa Veri Sağlayıcıları:</strong> Yahoo Finance, CoinGecko, TCMB, TEFAS</li>
-            </ul>
-            
-            <div class="highlight">
-                <p><strong>Önemli:</strong> Verilerinizi asla satmayız, kiralamayız veya pazarlama amacıyla üçüncü taraflara vermeyiz.</p>
-            </div>
-            
-            <h2>5. Kullanıcı Hakları</h2>
-            <p>KVKK ve GDPR kapsamında şu haklara sahipsiniz:</p>
-            <ul>
-                <li><strong>Erişim Hakkı:</strong> Verilerinize erişim talep edebilirsiniz</li>
-                <li><strong>Düzeltme Hakkı:</strong> Yanlış bilgilerinizi düzeltebilirsiniz</li>
-                <li><strong>Silme Hakkı:</strong> Hesabınızı ve tüm verilerinizi silebilirsiniz</li>
-                <li><strong>Veri Taşınabilirliği:</strong> Verilerinizin kopyasını talep edebilirsiniz</li>
-            </ul>
-            
-            <h2>6. Çocukların Gizliliği</h2>
-            <p>Uygulamamız 18 yaş altı kullanıcılara yönelik değildir. Bilerek 18 yaş altı çocuklardan kişisel veri toplamayız.</p>
-            
-            <h2>7. Değişiklikler</h2>
-            <p>Bu Gizlilik Politikası'nı zaman zaman güncelleyebiliriz. Önemli değişiklikler olduğunda uygulama içi bildirim ve e-posta ile bilgilendiririz.</p>
-            
-            <div class="contact">
-                <h2>8. İletişim</h2>
-                <p>Gizlilik politikamız veya verileriniz hakkında sorularınız için:</p>
-                <p><strong>E-posta:</strong> <a href="mailto:support@investguide.app">support@investguide.app</a></p>
+
+<body style="padding-top: 140px;">
+    <nav>
+        <div class="container nav-content">
+            <a href="index.html" class="logo-link">
+                <img src="assets/images/logo_flat.png" alt="MoneyPlan Pro" class="logo-img">
+                <span class="brand-name">MoneyPlan Pro</span>
+            </a>
+            <div class="nav-actions">
+                <a href="index.html" class="action-btn" style="text-decoration:none;">Back to Home</a>
             </div>
         </div>
-        
-        <footer>
-            <p>&copy; 2026 Yatırım Rehberi. Tüm hakları saklıdır.</p>
-            <p><a href="terms.html">Kullanım Şartları</a> | <a href="privacy.html">Gizlilik Politikası</a></p>
-        </footer>
+    </nav>
+    <div class="container" style="max-width: 900px;">
+        <span class="hero-tag">LEGAL</span>
+        <h1 style="font-size: 3rem; margin-bottom: 2rem;">Privacy Policy</h1>
+        <div class="feat-card" style="margin-bottom: 4rem; line-height: 1.8;">
+            <p style="color: var(--text-dim);">Last updated: January 20, 2026</p>
+            <h3 style="margin: 2rem 0 1rem; color: var(--text-main);">1. Information We Collect</h3>
+            <p style="color: var(--text-dim);">MoneyPlan Pro collects limited personal information to provide financial
+                tracking services. This includes transaction data you manually enter and authentication details via
+                Google Sign-In.</p>
+
+            <h3 style="margin: 2rem 0 1rem; color: var(--text-main);">2. Payment Information</h3>
+            <p style="color: var(--text-dim);">When you purchase a Pro subscription, payments are processed through
+                Apple's App Store or Google Play Store. We do not store or have access to your credit card or financial
+                billing details.</p>
+
+            <h3 style="margin: 2rem 0 1rem; color: var(--text-main);">3. Data Usage</h3>
+            <p style="color: var(--text-dim);">Your data is used solely for organizing your personal finances. We do not
+                sell your data to third parties. Market data is provided by external APIs to enhance your experience.
+            </p>
+
+            <h3 style="margin: 2rem 0 1rem; color: var(--text-main);">5. Contact</h3>
+            <p style="color: var(--text-dim);">If you have any questions, contact us at:<br>
+                <strong>Turgay Yücel</strong><br>
+                Email: trgy.ycl@gmail.com<br>
+                Address: Istanbul, Turkey
+            </p>
+        </div>
     </div>
 </body>
+
 </html>
