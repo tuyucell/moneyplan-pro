@@ -1,89 +1,37 @@
-# Miscellaneous
-*.class
-*.log
-*.pyc
-*.swp
-.DS_Store
-.atom/
-.build/
-.buildlog/
-.history
-.svn/
-.swiftpm/
-migrate_working_dir/
+# Ignore EVERYTHING by default
+/*
 
-# IntelliJ related
-*.iml
-*.ipr
-*.iws
-.idea/
+# Allow specific folders and files
+!/website/
+!/PRIVACY_POLICY.md
+!/TERMS_OF_SERVICE.md
+!/README.md
+!/QUICK_START_DEPLOYMENT.md
+!/WEBSITE_DEPLOYMENT_GUIDE.md
+!/ANDROID_SIGNING_GUIDE.md
+!/DEPLOYMENT_READY.md
+!/deploy.sh
+!/docs/
+!/.gitignore
 
-# Flutter/Dart/Pub related
-**/doc/api/
-**/ios/Flutter/.last_build_id
-.dart_tool/
-.flutter-plugins-dependencies
-.pub-cache/
-.pub/
-/build/
-/coverage/
+# Still ignore sensitive things within allowed folders
+**/node_modules/
+**/.DS_Store
+website/.env
+website/*.log
+website/CNAME
 
-# Symbolication related
-app.*.symbols
+# Note: CNAME should generally be included if you want GitHub to manage it, 
+# but we specified it at Step 86. Let's make sure it's kept.
+!/website/CNAME
 
-# Obfuscation related
-app.*.map.json
+# If you have specific assets you want to keep
+!/assets/
+!/assets/images/
+!/assets/images/logo_flat.png
+!/assets/images/app_store.png
+!/assets/images/google_play.png
+!/assets/images/mockup_new.png
 
-# Android Studio will place build artifacts here
-/android/app/debug
-/android/app/profile
-/android/app/release
-
-# Python Backend
-backend/venv/
-backend/__pycache__/
-backend/**/__pycache__/
-backend/.pytest_cache/
-backend/*.pyc
-backend/api.log
-backend/*.log
-
-# Environment variables (IMPORTANT!)
-.env
-.env.local
-.env.production
-backend/.env
-*.env
-*.env.*
-
-# Sensitive files & Data
-*.key
-*.pem
-*.p12
-*.mobileprovision
-*.sql
-*.sqlite
-*.db
-*.csv
-
-# Android Signing
-android/key.properties
-android/upload-keystore.jks
-android/app/upload-keystore.jks
-*.jks
-*.keystore
-
-# Documentation
-docs/
-*.md
-!README.md
-!ADMIN-PANEL-README.md
-
-# macOS
-.DS_Store
-.AppleDouble
-.LSOverride
-
-# Test files
-test_*.py
-*_test.py
+# Keep the build files for web if needed
+!/build/web/
