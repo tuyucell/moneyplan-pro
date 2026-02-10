@@ -1,5 +1,7 @@
 from fastapi import FastAPI, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+import os
 from services.market_service import market_provider
 from services.crypto_service import crypto_service
 from services.bes_service import bes_service
@@ -31,7 +33,12 @@ async def shutdown_event():
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "https://tuyucel-moneyplanpro.hf.space",
+        "*"  # Allow all origins for admin panel
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -44,6 +51,16 @@ def health_check():
 @app.get("/api/v1/system/diagnostics")
 def get_diagnostics():
     return diagnostics_service.check_all()
+
+@app.get("/api/v1/config/client")
+def get_client_config():
+    """Provide runtime configuration for admin panel"""
+    return {
+        "supabase_url": settings_service.get_value("SUPABASE_URL"),
+        "supabase_anon_key": settings_service.get_value("SUPABASE_ANON_KEY"),
+        "app_name": "InvestGuide Admin Panel",
+        "app_version": "1.0.0"
+    }
 
 @app.get("/api/v1/market/summary")
 def get_market_summary():
@@ -413,6 +430,13 @@ def delete_alert(alert_id: int):
     conn.commit()
     conn.close()
     return {"status": "success"}
+
+# Serve admin panel static files (MUST be last, after all API routes)
+if os.path.exists("admin-dist"):
+    app.mount("/admin", StaticFiles(directory="admin-dist", html=True), name="admin")
+    print("✅ Admin panel mounted at /admin")
+else:
+    print("⚠️  Admin panel not found (admin-dist directory missing)")
 
 if __name__ == "__main__":
     import uvicorn
