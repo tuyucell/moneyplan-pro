@@ -7,7 +7,7 @@ let runtimeConfig: {
 } | null = null;
 
 // API Base URL - in production, this will be same domain
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || window.location.origin;
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || globalThis.location.origin;
 
 /**
  * Fetch runtime configuration from backend

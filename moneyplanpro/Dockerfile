@@ -31,8 +31,8 @@ WORKDIR /app
 
 # Copy Python requirements and install
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-RUN pip install --no-cache-dir uvicorn
+RUN pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir uvicorn
 
 # Copy backend application code
 COPY . .
