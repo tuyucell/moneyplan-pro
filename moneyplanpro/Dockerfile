@@ -8,8 +8,8 @@ WORKDIR /admin-build
 # Copy admin panel package files
 COPY admin-panel/package*.json ./
 
-# Install dependencies
-RUN npm ci --only=production
+# Install dependencies (including devDependencies for build)
+RUN npm ci
 
 # Copy admin panel source
 COPY admin-panel/ ./
