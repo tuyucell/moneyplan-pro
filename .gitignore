@@ -3,6 +3,10 @@
 
 # Allow specific folders and files
 !/docs/
+!/backend/
+!/backendv2/
+!/admin-panel/
+!/.env.example
 !/PRIVACY_POLICY.md
 !/TERMS_OF_SERVICE.md
 !/README.md
