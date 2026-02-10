@@ -1,42 +1,141 @@
-# Ignore EVERYTHING by default
-/*
+# ===================================
+# Python
+# ===================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+*.whl
+venv/
+env/
+ENV/
+pip-log.txt
+pip-delete-this-directory.txt
 
-# Allow specific folders and files
-!/docs/
-!/backend/
-!/backendv2/
-!/moneyplanpro/
-!/admin-panel/
-!/.env.example
-!/PRIVACY_POLICY.md
-!/TERMS_OF_SERVICE.md
-!/README.md
-!/QUICK_START_DEPLOYMENT.md
-!/WEBSITE_DEPLOYMENT_GUIDE.md
-!/GITHUB_PAGES_SETUP.md
-!/ANDROID_SIGNING_GUIDE.md
-!/DEPLOYMENT_READY.md
-!/deploy.sh
-!/.gitignore
+# ===================================
+# Node.js / npm
+# ===================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+.npm
 
-# Still ignore sensitive things within allowed folders
-**/node_modules/
-**/.DS_Store
-docs/.env
-docs/*.log
-docs/CNAME
-!/docs/CNAME
+# ===================================
+# Databases
+# ===================================
+*.db
+*.sqlite
+*.sqlite3
+*.db-shm
+*.db-wal
+database.sqlite
 
-# Note: /docs is for GitHub Pages
-# APP SOURCE CODE IS IGNORED ABOVE (/*)
+# ===================================
+# Logs
+# ===================================
+*.log
+logs/
+*.log.*
+api.log
 
-# If you have specific assets you want to keep
-!/assets/
-!/assets/images/
-!/assets/images/logo_flat.png
-!/assets/images/app_store.png
-!/assets/images/google_play.png
-!/assets/images/mockup_new.png
+# ===================================
+# Environment & Secrets
+# ===================================
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
 
-# Keep the build files for web if needed
-!/build/web/
+# ===================================
+# IDE / Editors
+# ===================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.iml
+
+# ===================================
+# Build artifacts
+# ===================================
+*.zip
+*.tar.gz
+*.rar
+
+# ===================================
+# Test artifacts
+# ===================================
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+coverage/
+
+# ===================================
+# Flutter/Dart
+# ===================================
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+*.g.dart
+*.freezed.dart
+
+# ===================================
+# iOS
+# ===================================
+ios/Flutter/flutter_export_environment.sh
+ios/Flutter/Generated.xcconfig
+ios/Pods/
+ios/.symlinks/
+ios/build/
+
+# ===================================
+# Android
+# ===================================
+android/.gradle/
+android/captures/
+android/gradlew
+android/gradlew.bat
+android/local.properties
+android/.idea/
+android/build/
+*.jks
+*.keystore
+
+# ===================================
+# Specific to this project
+# ===================================
+# Old backend versions (archived)
+_archive/
+
+# Analysis/debug files
+analysis_*.txt
+analyze_results.txt
+markets_*.txt
+*_debug.txt
+
+# Calendar data files
+*.json
+!package.json
+!package-lock.json
+!tsconfig*.json
+
+# ===================================
+# Keep these important files
+# ===================================
+!.env.example
+!.gitignore
+!README.md
