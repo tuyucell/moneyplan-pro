@@ -31,15 +31,17 @@ class DiagnosticsService:
     def check_onesignal(self):
         app_id = settings_service.get_value("ONESIGNAL_APP_ID")
         api_key = settings_service.get_value("ONESIGNAL_REST_API_KEY")
-        if not app_id or not api_key: return {"status": "missing", "message": "Keys missing"}
+        if not app_id or not api_key:
+            return {"status": "missing", "message": "Keys missing"}
         
         try:
-            url = f"https://onesignal.com/api/v1/apps/{app_id}"
-            headers = {"Authorization": f"Basic {api_key}"}
+            # OneSignal REST API Key is already the full key, use Bearer auth
+            url = f"https://api.onesignal.com/apps/{app_id}"
+            headers = {"Authorization": f"Bearer {api_key}"}
             resp = requests.get(url, headers=headers, timeout=5)
             if resp.status_code == 200:
                 return {"status": "ok", "message": "App verified"}
-            return {"status": "error", "message": f"Status {resp.status_code}: {resp.text[:50]}"}
+            return {"status": "error", "message": f"Status {resp.status_code}: {resp.text[:100]}"}
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
@@ -61,12 +63,16 @@ class DiagnosticsService:
 
     def check_fmp(self):
         key = settings_service.get_value("FMP_API_KEY")
-        if not key: return {"status": "missing"}
+        if not key:
+            return {"status": "missing", "message": "Key not configured"}
         try:
-            resp = requests.get(f"https://financialmodelingprep.com/api/v3/quote/AAPL?apikey={key}", timeout=5)
-            if resp.status_code == 200: return {"status": "ok"}
-            return {"status": "error"}
-        except: return {"status": "error"}
+            # FMP v4 API (v3 deprecated as of Aug 2025)
+            resp = requests.get(f"https://financialmodelingprep.com/api/v4/price-target?symbol=AAPL&apikey={key}", timeout=5)
+            if resp.status_code == 200:
+                return {"status": "ok", "message": "API key valid"}
+            return {"status": "error", "message": f"Status {resp.status_code}"}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
 
     def check_twelve_data(self):
         key = settings_service.get_value("TWELVEAPI_TOKEN")
