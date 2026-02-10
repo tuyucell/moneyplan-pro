@@ -15,21 +15,18 @@ class DiagnosticsService:
 
     def check_binance(self):
         key = settings_service.get_value("BINANCE_API_KEY")
-        if not key: return {"status": "missing", "message": "Key not found in ENV or DB"}
+        if not key:
+            return {"status": "missing", "message": "Key not found in ENV or DB"}
         
         try:
-            # Check account status (requires key) or just a simple weighted request
-            url = "https://api.binance.com/api/v3/account"
-            headers = {"X-MBX-APIKEY": key}
-            # Note: This might fail if the key doesn't have permissions, 
-            # but it confirms if the key is 'accepted' as a format.
-            # Alternately, use a public one with the key to check rate limit headers
-            resp = requests.get("https://api.binance.com/api/v3/ping", headers=headers, timeout=5)
+            # Use a simple public endpoint to check connectivity
+            # If key exists, connectivity is assumed OK (key validity checked on actual use)
+            resp = requests.get("https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT", timeout=5)
             if resp.status_code == 200:
-                return {"status": "ok", "message": "Connection successful"}
-            return {"status": "error", "message": f"Status {resp.status_code}"}
+                return {"status": "ok", "message": "Key configured, API reachable"}
+            return {"status": "error", "message": f"API unreachable (Status {resp.status_code})"}
         except Exception as e:
-            return {"status": "error", "message": str(e)}
+            return {"status": "error", "message": f"Connection failed: {str(e)}"}
 
     def check_onesignal(self):
         app_id = settings_service.get_value("ONESIGNAL_APP_ID")
