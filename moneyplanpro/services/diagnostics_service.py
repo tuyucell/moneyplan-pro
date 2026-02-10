@@ -65,14 +65,9 @@ class DiagnosticsService:
         key = settings_service.get_value("FMP_API_KEY")
         if not key:
             return {"status": "missing", "message": "Key not configured"}
-        try:
-            # FMP v4 API (v3 deprecated as of Aug 2025)
-            resp = requests.get(f"https://financialmodelingprep.com/api/v4/price-target?symbol=AAPL&apikey={key}", timeout=5)
-            if resp.status_code == 200:
-                return {"status": "ok", "message": "API key valid"}
-            return {"status": "error", "message": f"Status {resp.status_code}"}
-        except Exception as e:
-            return {"status": "error", "message": str(e)}
+        # Note: FMP free tier deprecated most endpoints as of Aug 2025
+        # Key existence is checked, but API calls may fail with legacy errors
+        return {"status": "warning", "message": "Key configured (free tier endpoints deprecated)"}
 
     def check_twelve_data(self):
         key = settings_service.get_value("TWELVEAPI_TOKEN")
