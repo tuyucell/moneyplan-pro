@@ -1,7 +1,5 @@
 from fastapi import FastAPI, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-import os
 from services.market_service import market_provider
 from services.crypto_service import crypto_service
 from services.bes_service import bes_service
@@ -430,13 +428,6 @@ def delete_alert(alert_id: int):
     conn.commit()
     conn.close()
     return {"status": "success"}
-
-# Serve admin panel static files (MUST be last, after all API routes)
-if os.path.exists("admin-dist"):
-    app.mount("/admin", StaticFiles(directory="admin-dist", html=True), name="admin")
-    print("✅ Admin panel mounted at /admin")
-else:
-    print("⚠️  Admin panel not found (admin-dist directory missing)")
 
 if __name__ == "__main__":
     import uvicorn
