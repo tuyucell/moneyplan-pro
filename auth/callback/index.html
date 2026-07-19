@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="tr" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'unsafe-inline'; img-src 'self' data:; connect-src https://fadzhvakdivhisnmfyqn.supabase.co; base-uri 'none'; form-action 'self'">
+  <title>Şifre Belirle | MoneyPlan Pro</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b0f1a;
+      --surface: rgba(23, 28, 41, 0.92);
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --primary: #6366f1;
+      --accent: #10b981;
+      --danger: #fb7185;
+      --border: rgba(255, 255, 255, 0.1);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      overflow-x: hidden;
+      background:
+        radial-gradient(circle at 18% 15%, rgba(99, 102, 241, 0.2), transparent 34%),
+        radial-gradient(circle at 82% 80%, rgba(16, 185, 129, 0.14), transparent 36%),
+        var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    .card {
+      width: min(100%, 480px);
+      padding: 36px;
+      border: 1px solid var(--border);
+      border-radius: 28px;
+      background: var(--surface);
+      box-shadow: 0 30px 80px rgba(0, 0, 0, 0.42);
+      backdrop-filter: blur(20px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 30px;
+      color: var(--text);
+      text-decoration: none;
+      font-size: 20px;
+      font-weight: 800;
+    }
+
+    .brand img {
+      width: 42px;
+      height: 42px;
+      object-fit: contain;
+      filter: drop-shadow(0 0 12px rgba(99, 102, 241, 0.45));
+    }
+
+    h1 { margin: 0 0 10px; font-size: 30px; letter-spacing: -0.03em; }
+    .intro { margin: 0 0 26px; color: var(--muted); line-height: 1.65; }
+
+    form { display: none; gap: 18px; }
+    form.ready { display: grid; }
+
+    label { display: grid; gap: 8px; font-size: 14px; font-weight: 650; }
+
+    input {
+      width: 100%;
+      padding: 14px 16px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      outline: none;
+      background: rgba(11, 15, 26, 0.76);
+      color: var(--text);
+      font: inherit;
+    }
+
+    input:focus { border-color: var(--primary); box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15); }
+
+    button {
+      min-height: 50px;
+      border: 0;
+      border-radius: 14px;
+      background: linear-gradient(135deg, var(--primary), #4f46e5);
+      color: white;
+      font: inherit;
+      font-weight: 750;
+      cursor: pointer;
+      transition: transform 160ms ease, opacity 160ms ease;
+    }
+
+    button:hover { transform: translateY(-1px); }
+    button:disabled { cursor: wait; opacity: 0.65; transform: none; }
+
+    .status {
+      margin-top: 18px;
+      padding: 13px 15px;
+      border: 1px solid var(--border);
+      border-radius: 13px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .status.error { border-color: rgba(251, 113, 133, 0.35); color: var(--danger); }
+    .status.success { border-color: rgba(16, 185, 129, 0.4); color: var(--accent); }
+    .home { display: inline-block; margin-top: 22px; color: var(--muted); text-decoration: none; }
+    .home:hover { color: var(--text); }
+
+    @media (max-width: 520px) {
+      .card { padding: 28px 22px; border-radius: 22px; }
+      h1 { font-size: 26px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <a class="brand" href="/" aria-label="MoneyPlan Pro ana sayfa">
+      <img src="../../assets/images/logo_flat.png" alt="">
+      <span>MoneyPlan Pro</span>
+    </a>
+
+    <h1>Şifrenizi belirleyin</h1>
+    <p class="intro">Davetinizi tamamlamak ve MoneyPlan Pro hesabınıza güvenli biçimde giriş yapmak için yeni bir şifre oluşturun.</p>
+
+    <form id="password-form">
+      <label>
+        Yeni şifre
+        <input id="password" type="password" minlength="8" autocomplete="new-password" required>
+      </label>
+      <label>
+        Yeni şifreyi doğrula
+        <input id="password-confirm" type="password" minlength="8" autocomplete="new-password" required>
+      </label>
+      <button id="submit-button" type="submit">Şifreyi kaydet</button>
+    </form>
+
+    <div id="status" class="status" role="status" aria-live="polite">Güvenli davet bağlantısı doğrulanıyor…</div>
+    <a class="home" href="/">← Ana sayfaya dön</a>
+  </main>
+
+  <script type="module">
+    import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+
+    const supabase = createClient(
+      "https://fadzhvakdivhisnmfyqn.supabase.co",
+      "sb_publishable_l9-UK9xkD4sV5PBYGuZnaA_-FD-k_hB",
+      { auth: { detectSessionInUrl: true, persistSession: false } }
+    );
+
+    const form = document.getElementById("password-form");
+    const password = document.getElementById("password");
+    const passwordConfirm = document.getElementById("password-confirm");
+    const submitButton = document.getElementById("submit-button");
+    const status = document.getElementById("status");
+
+    function setStatus(message, type = "") {
+      status.textContent = message;
+      status.className = `status ${type}`.trim();
+    }
+
+    async function resolveSession() {
+      const { data, error } = await supabase.auth.getSession();
+      if (error) throw error;
+      if (data.session) return data.session;
+
+      return await new Promise((resolve) => {
+        const timeout = window.setTimeout(() => resolve(null), 3000);
+        const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+          if (!session) return;
+          window.clearTimeout(timeout);
+          listener.subscription.unsubscribe();
+          resolve(session);
+        });
+      });
+    }
+
+    try {
+      const session = await resolveSession();
+      if (!session) {
+        throw new Error("Davet bağlantısı geçersiz veya süresi dolmuş. Lütfen yeni bir davet isteyin.");
+      }
+
+      window.history.replaceState({}, document.title, window.location.pathname);
+      form.classList.add("ready");
+      setStatus("Davet doğrulandı. En az 8 karakterli yeni şifrenizi belirleyebilirsiniz.", "success");
+    } catch (error) {
+      setStatus(error.message || "Davet doğrulanamadı.", "error");
+    }
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+
+      if (password.value.length < 8) {
+        setStatus("Şifre en az 8 karakter olmalıdır.", "error");
+        return;
+      }
+
+      if (password.value !== passwordConfirm.value) {
+        setStatus("Şifreler eşleşmiyor.", "error");
+        return;
+      }
+
+      submitButton.disabled = true;
+      setStatus("Şifreniz güvenli biçimde kaydediliyor…");
+
+      const { error } = await supabase.auth.updateUser({ password: password.value });
+      if (error) {
+        submitButton.disabled = false;
+        setStatus(error.message || "Şifre kaydedilemedi.", "error");
+        return;
+      }
+
+      password.value = "";
+      passwordConfirm.value = "";
+      form.remove();
+      await supabase.auth.signOut({ scope: "local" });
+      setStatus("Şifreniz oluşturuldu. Artık MoneyPlan Pro uygulamasında e-posta ve yeni şifrenizle giriş yapabilirsiniz.", "success");
+    });
+  </script>
+</body>
+</html>
