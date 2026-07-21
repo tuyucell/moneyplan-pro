@@ -6,9 +6,54 @@ import json
 
 class FeatureFlagService:
     """Service for managing feature flags"""
-    
+
+    # SQL sabit — tekrar eden sorgu (SonarLint S1192)
+    _SQL_GET_FLAGS = "SELECT value FROM settings WHERE key = 'feature_flags'"
+    _SQL_GET_FLAGS_WITH_TS = "SELECT value, updated_at FROM settings WHERE key = 'feature_flags'"
+
     # Default feature flags (fallback if DB is empty)
     DEFAULT_FLAGS = {
+        "crypto_market_data": {
+            "id": "crypto_market_data",
+            "name": "Kripto Piyasa Verileri",
+            "description": "CoinGecko kaynaklı kripto fiyatları ve grafikler (15 dk önbellek)",
+            "is_pro": False,
+            "is_enabled": True,
+            "daily_free_limit": None,
+            "metadata": {
+                "provider": "CoinGecko",
+                "attribution_url": "https://www.coingecko.com/en/api",
+                "attribution_text": "Powered by CoinGecko",
+                "cache_minutes": 15,
+            },
+        },
+        "live_market_data": {
+            "id": "live_market_data",
+            "name": "Canlı Piyasa Verileri",
+            "description": "BIST, fon, hisse, döviz, haber ve teknik analiz ekranları",
+            "is_pro": False,
+            "is_enabled": False,
+            "daily_free_limit": None,
+            "metadata": {"release_blocker": "commercial_data_license"}
+        },
+        "gmail_import": {
+            "id": "gmail_import",
+            "name": "Gmail İçe Aktarma",
+            "description": "Google OAuth ile e-posta işlemlerini cüzdana aktarma",
+            "is_pro": True,
+            "is_enabled": False,
+            "daily_free_limit": 0,
+            "metadata": {"release_blocker": "google_oauth_verification"}
+        },
+        "ai_features": {
+            "id": "ai_features",
+            "name": "AI Eğitim Özellikleri",
+            "description": "Gemini kullanan analiz, ekstre okuma ve eğitim özetleri",
+            "is_pro": True,
+            "is_enabled": False,
+            "daily_free_limit": 0,
+            "metadata": {"release_blocker": "gemini_key_and_terms"}
+        },
         "ai_analyst": {
             "id": "ai_analyst",
             "name": "AI Portföy Analisti",
@@ -109,7 +154,7 @@ class FeatureFlagService:
         try:
             # Get from settings table
             result = db.execute(
-                "SELECT value, updated_at FROM settings WHERE key = 'feature_flags'"
+                FeatureFlagService._SQL_GET_FLAGS_WITH_TS
             ).fetchone()
             
             if result:
@@ -131,6 +176,28 @@ class FeatureFlagService:
                 await FeatureFlagService._initialize_defaults(db)
                 flags_data = FeatureFlagService.DEFAULT_FLAGS
                 version = int(datetime.now().timestamp())
+
+            # Add newly introduced flags without overwriting choices already
+            # made in the dashboard.
+            missing_flags = {
+                flag_id: flag_data
+                for flag_id, flag_data in FeatureFlagService.DEFAULT_FLAGS.items()
+                if flag_id not in flags_data
+            }
+            if missing_flags:
+                now = datetime.now()
+                for flag_id, flag_data in missing_flags.items():
+                    flags_data[flag_id] = {
+                        **flag_data,
+                        "created_at": now.isoformat(),
+                        "updated_at": now.isoformat()
+                    }
+                db.execute(
+                    "UPDATE settings SET value = ?, updated_at = ? WHERE key = 'feature_flags'",
+                    (json.dumps(flags_data), now)
+                )
+                db.commit()
+                version = int(now.timestamp())
             
             # Convert to FeatureFlag objects
             features = {}
@@ -146,7 +213,7 @@ class FeatureFlagService:
             return FeatureFlagsResponse(
                 features=features,
                 version=version,
-                cached_until=datetime.now() + timedelta(hours=1)  # Cache for 1 hour
+                cached_until=datetime.now() + timedelta(minutes=5)
             )
         finally:
             db.close()
@@ -178,13 +245,13 @@ class FeatureFlagService:
         try:
             # Get current flags
             result = db.execute(
-                "SELECT value FROM settings WHERE key = 'feature_flags'"
+                FeatureFlagService._SQL_GET_FLAGS
             ).fetchone()
             
             if not result:
                 await FeatureFlagService._initialize_defaults(db)
                 result = db.execute(
-                    "SELECT value FROM settings WHERE key = 'feature_flags'"
+                    FeatureFlagService._SQL_GET_FLAGS
                 ).fetchone()
             
             flags_data = json.loads(result[0])
@@ -242,3 +309,28 @@ class FeatureFlagService:
             return True
         
         return False
+
+    @staticmethod
+    def is_enabled_sync(flag_id: str, default: bool = False) -> bool:
+        """Read a global kill switch for synchronous FastAPI dependencies."""
+        from database import get_db_connection
+
+        db = get_db_connection()
+        try:
+            result = db.execute(
+                FeatureFlagService._SQL_GET_FLAGS
+            ).fetchone()
+            if result:
+                flags_data = json.loads(result[0])
+                flag = flags_data.get(flag_id)
+                if flag is not None:
+                    return bool(flag.get("is_enabled", False))
+
+            fallback = FeatureFlagService.DEFAULT_FLAGS.get(flag_id)
+            if fallback is not None:
+                return bool(fallback.get("is_enabled", False))
+            return default
+        except (TypeError, json.JSONDecodeError):
+            return default
+        finally:
+            db.close()
