@@ -1,7 +1,30 @@
 import sqlite3
 import os
 from datetime import datetime
-import sqlite3
+
+
+_APP_DIRECTORY = os.path.dirname(os.path.abspath(__file__))
+
+
+def _resolve_data_directory() -> tuple[str, bool]:
+    """Return a writable database directory and whether it survives Space restarts.
+
+    Hugging Face Spaces' repository filesystem is ephemeral. A read-write
+    Storage Bucket can be mounted at /data (or an operator can provide an
+    explicit MONEYPLAN_DATA_DIR), so prefer that location for mutable runtime
+    state such as dashboard settings, feature flags and notification history.
+    """
+    configured_directory = os.getenv("MONEYPLAN_DATA_DIR")
+    candidate = configured_directory or (
+        "/data" if os.path.isdir("/data") else _APP_DIRECTORY
+    )
+    try:
+        os.makedirs(candidate, exist_ok=True)
+        return candidate, candidate != _APP_DIRECTORY
+    except OSError:
+        # Local development must remain usable when a configured volume has not
+        # been mounted yet. Diagnostics reports this fallback as non-persistent.
+        return _APP_DIRECTORY, False
 
 # Register datetime adapters for SQLite
 def adapt_datetime(dt):
@@ -17,7 +40,26 @@ sqlite3.register_adapter(datetime, adapt_datetime)
 sqlite3.register_converter("TIMESTAMP", convert_datetime)
 sqlite3.register_converter("timestamp", convert_datetime)
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "invest_guide.db")
+DATA_DIRECTORY, USING_PERSISTENT_STORAGE = _resolve_data_directory()
+DB_PATH = os.path.join(DATA_DIRECTORY, "invest_guide.db")
+
+
+def get_storage_status():
+    """Expose deployment-safe storage state without leaking a filesystem path."""
+    if USING_PERSISTENT_STORAGE:
+        return {
+            "status": "ok",
+            "persistent": True,
+            "message": "Runtime settings are stored on the configured data volume.",
+        }
+    return {
+        "status": "warning",
+        "persistent": False,
+        "message": (
+            "Runtime settings use ephemeral Space storage. Mount a writable "
+            "Storage Bucket and set MONEYPLAN_DATA_DIR to its mount path."
+        ),
+    }
 
 def init_db():
     conn = sqlite3.connect(DB_PATH)

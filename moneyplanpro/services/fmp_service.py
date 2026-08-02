@@ -4,12 +4,15 @@ from services.settings_service import settings_service
 
 class FmpService:
     def __init__(self):
-        self.api_key = settings_service.get_value("FMP_API_KEY", "7c217dd8a15590c1920935cb48e8c7f9")
         self.base_url = "https://financialmodelingprep.com/api/v3"
         # 1 saatlik liste cache'i (Listeler çok sık değişmez)
         self.LIST_TTL = 3600 
         # 5 dakikalık fiyat cache'i (Limit 250 olduğu için her saniye soramayız)
         self.PRICE_TTL = 300 
+
+    @property
+    def api_key(self):
+        return settings_service.get_value("FMP_API_KEY")
 
     def get_stocks_dynamic(self):
         """
@@ -63,6 +66,9 @@ class FmpService:
         Endpoint: /historical-price-full/{symbol}
         Limit: Ücretsiz tier için kısıtlı olabilir (son 5 yıl genelde açık)
         """
+        if not self.api_key:
+            return []
+
         # Cache süresi uzun tutulmalı (Limit koruması)
         cache_key = f"fmp_history_{symbol}_{period}"
         cached = cache.get(cache_key)
@@ -133,6 +139,8 @@ class FmpService:
         """
         Hisse Tarayıcı (Screener): Dinamik liste oluşturur.
         """
+        if not self.api_key:
+            return []
         try:
             url = f"{self.base_url}/stock-screener?limit={limit}&apikey={self.api_key}"
             if country: url += f"&country={country}"
@@ -151,6 +159,8 @@ class FmpService:
         """
         Batch Request: Virgülle ayırıp tek seferde sorar (1 Kredi harcar).
         """
+        if not self.api_key:
+            return []
         str_syms = ",".join(symbols_list)
         # Cache Check yapmıyoruz çünkü üst metodlar zaten cacheleyecek veya anlık gerekebilir.
         # Ama yine de 60sn cache koyabiliriz.

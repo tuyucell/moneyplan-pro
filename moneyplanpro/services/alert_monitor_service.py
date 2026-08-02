@@ -6,6 +6,7 @@ from datetime import datetime
 from services.market_service import market_provider
 from services.notification_service import notification_service
 from services.settings_service import settings_service
+from services.feature_flag_service import FeatureFlagService
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -40,7 +41,10 @@ class AlertMonitorService:
                 is_enabled = settings_service.get_value("ALERT_MONITOR_ENABLED", "1") == "1"
                 interval = int(settings_service.get_value("ALERT_MONITOR_INTERVAL_SEC", "60"))
 
-                if is_enabled:
+                if (
+                    is_enabled
+                    and FeatureFlagService.is_enabled_sync("live_market_data")
+                ):
                     self._check_supabase_alerts()
 
                 # Sleep until next check

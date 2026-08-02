@@ -25,12 +25,68 @@ class FeatureFlagService:
                 "attribution_url": "https://www.coingecko.com/en/api",
                 "attribution_text": "Powered by CoinGecko",
                 "cache_minutes": 15,
+                "commercial_plan_required": True,
+                "release_blocker": "coingecko_commercial_license",
+            },
+        },
+        "market_ticker": {
+            "id": "market_ticker",
+            "name": "Kripto Kayan Yazısı",
+            "description": "CoinGecko kaynaklı kripto fiyatlarının üstteki kayan akışı",
+            "is_pro": False,
+            "is_enabled": True,
+            "daily_free_limit": None,
+            "metadata": {
+                "provider": "CoinGecko",
+                "depends_on": "crypto_market_data",
+                "source_scope": "crypto_only",
+                "policy_version": 2,
+            },
+        },
+        "market_news": {
+            "id": "market_news",
+            "name": "Piyasa Haberleri",
+            "description": "Yazılı yayın izni doğrulanmış finans haber akışı",
+            "is_pro": False,
+            "is_enabled": False,
+            "daily_free_limit": None,
+            "metadata": {
+                "source_scope": "licensed_news_only",
+                "release_blocker": "news_republication_permission",
+                "policy_version": 2,
+            },
+        },
+        "financial_calendar": {
+            "id": "financial_calendar",
+            "name": "Finansal Takvim",
+            "description": "Yönetim panelinden girilen, kaynağı doğrulanmış etkinlikler",
+            "is_pro": False,
+            "is_enabled": False,
+            "daily_free_limit": None,
+            "metadata": {
+                "source_scope": "admin_curated_official_events",
+                "release_blocker": "calendar_source_process",
+                "policy_version": 2,
+            },
+        },
+        "financial_calendar_fxstreet": {
+            "id": "financial_calendar_fxstreet",
+            "name": "FXStreet Takvim Yedeği",
+            "description": "Finansal takvim boşsa FXStreet verisini yedek kaynak olarak kullanır",
+            "is_pro": False,
+            "is_enabled": False,
+            "daily_free_limit": None,
+            "metadata": {
+                "depends_on": "financial_calendar",
+                "provider": "FXStreet",
+                "release_blocker": "fxstreet_api_license_and_credentials",
+                "source_scope": "disabled_unlicensed_fallback",
             },
         },
         "live_market_data": {
             "id": "live_market_data",
             "name": "Canlı Piyasa Verileri",
-            "description": "BIST, fon, hisse, döviz, haber ve teknik analiz ekranları",
+            "description": "BIST, fon, hisse, döviz, altın ve teknik analiz ekranları",
             "is_pro": False,
             "is_enabled": False,
             "daily_free_limit": None,
@@ -145,6 +201,35 @@ class FeatureFlagService:
             "metadata": {}
         }
     }
+
+    @staticmethod
+    def _apply_release_policy(flags_data: dict, now: Optional[datetime] = None) -> bool:
+        """Apply one-time safety defaults without blocking later admin choices."""
+        changed = False
+        policy_time = now or datetime.now()
+
+        for flag_id in ("market_ticker", "market_news", "financial_calendar"):
+            default_flag = FeatureFlagService.DEFAULT_FLAGS[flag_id]
+            current_flag = flags_data.get(flag_id)
+            if not current_flag:
+                continue
+
+            metadata = current_flag.get("metadata") or {}
+            if metadata.get("policy_version", 0) >= 2:
+                continue
+
+            current_flag.update({
+                "name": default_flag["name"],
+                "description": default_flag["description"],
+                "is_pro": default_flag["is_pro"],
+                "is_enabled": default_flag["is_enabled"],
+                "daily_free_limit": default_flag["daily_free_limit"],
+                "metadata": default_flag["metadata"],
+                "updated_at": policy_time.isoformat(),
+            })
+            changed = True
+
+        return changed
     
     @staticmethod
     async def get_all_flags() -> FeatureFlagsResponse:
@@ -184,14 +269,25 @@ class FeatureFlagService:
                 for flag_id, flag_data in FeatureFlagService.DEFAULT_FLAGS.items()
                 if flag_id not in flags_data
             }
+            now = datetime.now()
+            flags_changed = bool(missing_flags)
             if missing_flags:
-                now = datetime.now()
                 for flag_id, flag_data in missing_flags.items():
                     flags_data[flag_id] = {
                         **flag_data,
                         "created_at": now.isoformat(),
                         "updated_at": now.isoformat()
                     }
+
+            # One-time release policy migration. News redistribution and the old
+            # unauthenticated calendar fallback must be explicitly reviewed
+            # before an administrator can enable them again.
+            flags_changed = (
+                FeatureFlagService._apply_release_policy(flags_data, now)
+                or flags_changed
+            )
+
+            if flags_changed:
                 db.execute(
                     "UPDATE settings SET value = ?, updated_at = ? WHERE key = 'feature_flags'",
                     (json.dumps(flags_data), now)
@@ -322,6 +418,13 @@ class FeatureFlagService:
             ).fetchone()
             if result:
                 flags_data = json.loads(result[0])
+                if FeatureFlagService._apply_release_policy(flags_data):
+                    now = datetime.now()
+                    db.execute(
+                        "UPDATE settings SET value = ?, updated_at = ? WHERE key = 'feature_flags'",
+                        (json.dumps(flags_data), now),
+                    )
+                    db.commit()
                 flag = flags_data.get(flag_id)
                 if flag is not None:
                     return bool(flag.get("is_enabled", False))

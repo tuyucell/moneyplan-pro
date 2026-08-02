@@ -52,17 +52,8 @@ class TradingViewService:
                         if analysis:
                             formatted = self._format_analysis(orig_sym, analysis)
                             if formatted: results.append(formatted)
-                        else:
-                            results.append({
-                                "symbol": orig_sym,
-                                "name": orig_sym,
-                                "price": 0.0,
-                                "change_percent": 0.0,
-                                "recommendation": "NEUTRAL",
-                                "volume": 0,
-                                "market_cap": 0,
-                                "logo_url": ""
-                            })
+                        # Missing provider data is omitted. A zero placeholder
+                        # would be indistinguishable from a real market price.
                             
             except Exception as e:
                 print(f"TA Batch Error ({screener}): {e}")
@@ -147,7 +138,8 @@ class TradingViewService:
                 "recommendation": (analysis.summary.get("RECOMMENDATION") or "NEUTRAL").upper(),
                 "volume": float(indicators.get("volume") or 0.0),
                 "market_cap": 0,
-                "logo_url": f"https://s3-symbol-logo.tradingview.com/{symbol.lower()}.svg" 
+                "logo_url": f"https://s3-symbol-logo.tradingview.com/{symbol.lower()}.svg",
+                "source": "TradingView Technical Analysis",
             }
         except Exception:
             return None

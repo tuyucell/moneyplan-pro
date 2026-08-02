@@ -7,13 +7,16 @@ from services.settings_service import settings_service
 
 class TwelveDataService:
     def __init__(self):
-        self.api_key = settings_service.get_value("TWELVEAPI_TOKEN")
         self.base_url = "https://api.twelvedata.com"
         self.TTL = 60 # 1 minute cache for individual symbols
         self.master_list_path = "backend/data/twelve_symbols.json"
         
         # Ensure data directory exists
         os.makedirs("backend/data", exist_ok=True)
+
+    @property
+    def api_key(self):
+        return settings_service.get_value("TWELVEAPI_TOKEN")
 
     def sync_symbols(self):
         """

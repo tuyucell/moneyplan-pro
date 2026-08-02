@@ -60,6 +60,31 @@ def require_crypto_market_data():
         )
 
 
+def require_market_ticker():
+    if not FeatureFlagService.is_enabled_sync("market_ticker"):
+        raise HTTPException(
+            status_code=503,
+            detail="Market ticker is temporarily unavailable.",
+        )
+    require_crypto_market_data()
+
+
+def require_market_news():
+    if not FeatureFlagService.is_enabled_sync("market_news"):
+        raise HTTPException(
+            status_code=503,
+            detail="Market news is temporarily unavailable.",
+        )
+
+
+def require_financial_calendar():
+    if not FeatureFlagService.is_enabled_sync("financial_calendar"):
+        raise HTTPException(
+            status_code=503,
+            detail="Financial calendar is temporarily unavailable.",
+        )
+
+
 def require_market_asset_data(symbol: str):
     """Allow CoinGecko-backed crypto detail/chart requests independently."""
     if crypto_service.is_crypto_identifier(symbol):
@@ -205,10 +230,10 @@ def get_client_config():
 
 @app.get(
     "/api/v1/market/summary",
-    dependencies=[Depends(require_live_market_data)],
+    dependencies=[Depends(require_market_ticker)],
 )
 def get_market_summary():
-    return market_provider.get_market_summary()
+    return crypto_service.get_ticker_summary()
 
 @app.get(
     "/api/v1/market/history/{symbol}",
@@ -279,7 +304,7 @@ def get_bond_markets():
 
 @app.get(
     "/api/v1/market/calendar",
-    dependencies=[Depends(require_live_market_data)],
+    dependencies=[Depends(require_financial_calendar)],
 )
 def get_market_calendar(country_code: str = "ALL"):
     return market_provider.get_calendar(country_code)
@@ -378,7 +403,7 @@ def get_tcmb_rates():
 
 @app.get(
     "/api/v1/news",
-    dependencies=[Depends(require_live_market_data)],
+    dependencies=[Depends(require_market_news)],
 )
 def get_latest_news(limit: int = 20):
     return news_service.get_latest_news(limit)

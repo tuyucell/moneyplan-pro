@@ -3,7 +3,7 @@ import requests
 import time
 import os
 import json
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from utils.cache import cache
 from utils.network import SafeRequest
 from services.twelve_data_service import twelve_data_service
@@ -17,14 +17,22 @@ TTL_MARKET = 60
 
 DATE_FMT_TR = '%d/%m/%Y'
 
-# Kullanıcının sağladığı "Gerçekçi Fallback" değerleri (Ocak 2026 Projeksiyonu/Güncel)
-FALLBACK_DATA = {
-    "bist100": {"price": 12200.0, "change_percent": 0.5},
-    "dolar": {"price": 43.04, "change_percent": 0.1},
-    "euro": {"price": 50.09, "change_percent": -0.05},
-    "bitcoin": {"price": 90000.0, "change_percent": 1.2},
-    "gram_altin": {"price": 4500.0, "change_percent": 0.3},
-    "ons_altin": {"price": 3250.0, "change_percent": 0.2} # Ons Altın tahmini
+TOP_FUND_CATALOG = {
+    "TCD": "Tacirler Portföy Değişken Fon",
+    "AFT": "Ak Portföy Yeni Teknolojiler Yabancı Hisse",
+    "YAY": "Yapı Kredi Portföy Yeni Teknolojiler Yabancı Hisse",
+    "TTE": "İş Portföy BIST Teknoloji Ağırlıklı Hisse",
+    "IPB": "İstanbul Portföy Birinci Değişken Fon",
+    "AES": "Ak Portföy Petrol Yabancı BYF Fon Sepeti",
+    "IDH": "İş Portföy İhracatçı Şirketler Hisse Senedi",
+    "KZL": "Kuveyt Türk Portföy Altın Katılım Fonu",
+    "MAC": "Marmara Capital Portföy Hisse Senedi Fonu",
+    "GMR": "Global MD Portföy Birinci Hisse Senedi Fonu",
+    "TCA": "Ziraat Portföy Altın Katılım Fonu",
+    "ZJ1": "Ziraat Portföy Birinci Kira Sertifikası Katılım",
+    "HMB": "HSBC Portföy Çoklu Varlık Değişken Fon",
+    "MPK": "Mükafaat Portföy Katılım Fonu",
+    "IIH": "İstanbul Portföy Üçüncü Hisse Senedi Fonu",
 }
 
 DEFAULT_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -41,17 +49,18 @@ class MarketDataProvider:
         2. Yahoo (Global Varlıklar - Fallback)
         3. Fallback (Sıfır dönmemesi için gerçekçi veriler)
         """
-        cache_key = "market_summary_ultimate_v3"
+        cache_key = "market_summary_live_only_v1"
         cached = cache.get(cache_key)
         if cached:
             return cached
 
-        # Başlangıçta fallback değerlerini kopyala
-        res = {k: v.copy() for k, v in FALLBACK_DATA.items()}
+        # Never manufacture a price. Missing providers remain absent so the
+        # client can show an honest "data unavailable" state.
+        res = {}
         
         try:
             self._update_from_mynet(res)
-            self._update_from_yahoo_if_needed(res)
+            self._update_from_yahoo(res)
             self._calculate_gram_gold_if_needed(res)
         except Exception as e:
             print(f"Error in get_market_summary: {e}")
@@ -68,16 +77,20 @@ class MarketDataProvider:
                 if val["price"] > 0:
                     res[k] = val
 
-    def _update_from_yahoo_if_needed(self, res):
-        """Global varlıklar için Yahoo fallback kontrolü yap."""
-        symbols_to_check = []
-        if res["bitcoin"]["price"] == FALLBACK_DATA["bitcoin"]["price"]:
-            symbols_to_check.append(("bitcoin", "BTC-USD"))
-        if res["ons_altin"]["price"] == FALLBACK_DATA["ons_altin"]["price"]:
-            symbols_to_check.append(("ons_altin", "GC=F"))
-        
-        if not symbols_to_check:
-            return
+    def _update_from_yahoo(self, res):
+        """Fill only missing summary fields from a live secondary source."""
+        symbol_map = {
+            "bist100": "XU100.IS",
+            "dolar": "TRY=X",
+            "euro": "EURTRY=X",
+            "bitcoin": "BTC-USD",
+            "ons_altin": "GC=F",
+        }
+        symbols_to_check = [
+            (key, symbol)
+            for key, symbol in symbol_map.items()
+            if key not in res
+        ]
 
         with ThreadPoolExecutor(max_workers=2) as executor:
             futures = {executor.submit(self._fetch_yahoo, sym): key for key, sym in symbols_to_check}
@@ -92,13 +105,23 @@ class MarketDataProvider:
 
     def _calculate_gram_gold_if_needed(self, res):
         """Gram Altın anlık hesaplamasını yap (Eğer Mynet'ten gelmediyse)."""
-        if res["gram_altin"]["price"] == FALLBACK_DATA["gram_altin"]["price"]:
-            u_p = res["dolar"]["price"]
-            o_p = res["ons_altin"]["price"]
-            if u_p > 0 and o_p > 0:
+        if "gram_altin" not in res:
+            u_p = res.get("dolar", {}).get("price")
+            o_p = res.get("ons_altin", {}).get("price")
+            if (
+                isinstance(u_p, (int, float))
+                and isinstance(o_p, (int, float))
+                and u_p > 0
+                and o_p > 0
+            ):
                 res["gram_altin"] = {
                     "price": round((o_p / 31.1035) * u_p, 2),
-                    "change_percent": res["ons_altin"]["change_percent"]
+                    "change_percent": res["ons_altin"].get(
+                        "change_percent", 0.0
+                    ),
+                    "source": (
+                        "Calculated from Yahoo Finance USD/TRY and gold ounce"
+                    ),
                 }
 
     def _fetch_all_from_mynet(self):
@@ -133,7 +156,8 @@ class MarketDataProvider:
                     try:
                         extracted[local_key] = {
                             "price": float(price_str),
-                            "change_percent": float(change_str)
+                            "change_percent": float(change_str),
+                            "source": "Mynet",
                         }
                     except Exception:
                         pass
@@ -161,7 +185,8 @@ class MarketDataProvider:
                 if p and pre:
                     return {
                         "price": round(p, 2),
-                        "change_percent": round(((p - pre) / pre * 100), 2)
+                        "change_percent": round(((p - pre) / pre * 100), 2),
+                        "source": "Yahoo Finance",
                     }
         except Exception:
             pass
@@ -179,17 +204,29 @@ class MarketDataProvider:
             cursor.execute(query, tuple(params))
             rows = cursor.fetchall()
             conn.close()
-            
-            formatted = self._format_calendar_rows(rows)
-            
-            # Fallback: Eğer veri yoksa veya çok azsa simülasyon verisi üret
-            if len(formatted) < 5:
-                formatted = self._apply_calendar_fallback(formatted, country_code)
 
+            formatted = self._format_calendar_rows(rows)
+            if (
+                len(formatted) < 5
+                and self._is_fxstreet_calendar_enabled()
+            ):
+                return self._apply_calendar_fallback(formatted, country_code)
             return formatted
         except Exception as e:
             print(f"Calendar DB Error: {e}")
-            return self._generate_fallback_calendar(country_code)
+            if self._is_fxstreet_calendar_enabled():
+                return self._generate_fallback_calendar(country_code)
+            return []
+
+    @staticmethod
+    def _is_fxstreet_calendar_enabled():
+        """The unlicensed fallback stays inert until explicitly enabled."""
+        from services.feature_flag_service import FeatureFlagService
+
+        return FeatureFlagService.is_enabled_sync(
+            "financial_calendar_fxstreet",
+            default=False,
+        )
 
     def _build_calendar_query(self, country_code):
         """Takvim sorgusunu ülke koduna göre inşa eder."""
@@ -255,100 +292,132 @@ class MarketDataProvider:
         return formatted
 
     def _apply_calendar_fallback(self, formatted, country_code):
-        """Eksik takvim verileri için fallback işletir ve sıralar."""
+        """Append the optional FXStreet fallback and sort the result."""
         from datetime import datetime
+
         formatted.extend(self._generate_fallback_calendar(country_code))
-        # Tarihe göre sırala
-        def sort_key(x):
+
+        def sort_key(item):
             try:
-                return datetime.strptime(f"{datetime.now().year} {x['date']} {x['time']}", "%Y %d %B %H:%M")
+                return datetime.strptime(
+                    f"{datetime.now().year} {item['date']} {item['time']}",
+                    "%Y %d %B %H:%M",
+                )
             except Exception:
                 return datetime.now()
-        
+
         formatted.sort(key=sort_key)
         return formatted
 
     def _generate_fallback_calendar(self, country_code):
         """
-        FXStreet API üzerinden gerçek verileri çeler.
-        Fallback olarak simülasyon yerine gerçek canlı veri kullanılır.
+        Fetch FXStreet calendar data only when the dedicated release flag is on.
+
+        This legacy web endpoint is intentionally disabled by default. It must
+        not be enabled in production before API licensing and credentials are
+        confirmed.
         """
         try:
             from datetime import datetime, timedelta
-            import requests
 
             start_date = datetime.now()
             end_date = start_date + timedelta(days=7)
-            
-            url = f"https://calendar-api.fxstreet.com/en/api/v1/eventDates/{start_date.strftime('%Y-%m-%d')}/{end_date.strftime('%Y-%m-%d')}"
+            url = (
+                "https://calendar-api.fxstreet.com/en/api/v1/eventDates/"
+                f"{start_date.strftime('%Y-%m-%d')}/"
+                f"{end_date.strftime('%Y-%m-%d')}"
+            )
             headers = {
                 "Accept": "application/json",
                 "Origin": "https://www.fxstreet.com",
                 "Referer": "https://www.fxstreet.com/",
-                "User-Agent": "Mozilla/5.0"
+                "User-Agent": "Mozilla/5.0",
             }
-            
-            resp = requests.get(url, headers=headers, timeout=10)
-            if resp.status_code != 200:
-                print(f"FXStreet API Error: {resp.status_code}")
+
+            response = requests.get(url, headers=headers, timeout=10)
+            if response.status_code != 200:
+                print(f"FXStreet API Error: {response.status_code}")
                 return []
-                
-            data = resp.json()
+
             events = []
-            
-            for item in data:
+            for item in response.json():
                 event = self._parse_fxstreet_event(item, country_code)
                 if event:
                     events.append(event)
-            
             return events
-
-        except Exception as e:
-            print(f"FXStreet Integration Error: {e}")
+        except Exception as error:
+            print(f"FXStreet Integration Error: {error}")
             return []
 
     def _parse_fxstreet_event(self, item, filter_country):
-        """Tek bir FXStreet event objesini parse eder."""
+        """Convert a single FXStreet event to the client calendar format."""
         from datetime import datetime, timedelta
-        
-        c_code = item.get("countryCode", "US")
-        if filter_country and filter_country.upper() != "ALL":
-            if filter_country.upper() != c_code:
-                return None
 
-        code_map = {
-            "US": 5, "TR": 63, "EU": 72, "EMU": 72, "GB": 12, "UK": 12, 
-            "DE": 4, "CA": 6, "JP": 37, "AU": 7, "CN": 51, "RU": 56
+        country_code = item.get("countryCode", "US")
+        if (
+            filter_country
+            and filter_country.upper() != "ALL"
+            and filter_country.upper() != country_code
+        ):
+            return None
+
+        country_ids = {
+            "US": 5,
+            "TR": 63,
+            "EU": 72,
+            "EMU": 72,
+            "GB": 12,
+            "UK": 12,
+            "DE": 4,
+            "CA": 6,
+            "JP": 37,
+            "AU": 7,
+            "CN": 51,
+            "RU": 56,
         }
-        months_tr = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", 
-                   "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"]
-        
-        dt_str = item.get("dateUtc", "")
-        if not dt_str: return None
+        months_tr = [
+            "Ocak",
+            "Şubat",
+            "Mart",
+            "Nisan",
+            "Mayıs",
+            "Haziran",
+            "Temmuz",
+            "Ağustos",
+            "Eylül",
+            "Ekim",
+            "Kasım",
+            "Aralık",
+        ]
+        date_value = item.get("dateUtc", "")
+        if not date_value:
+            return None
 
         try:
-            dt = datetime.strptime(dt_str, "%Y-%m-%dT%H:%M:%SZ") + timedelta(hours=3)
-            vol = item.get("volatility", "LOW")
-            if vol == "HIGH":
-                impact = "High"
-            elif vol == "MEDIUM":
-                impact = "Medium"
-            else:
-                impact = "Low"
-            
+            event_time = (
+                datetime.strptime(date_value, "%Y-%m-%dT%H:%M:%SZ")
+                + timedelta(hours=3)
+            )
+            volatility = item.get("volatility", "LOW")
+            impact = {
+                "HIGH": "High",
+                "MEDIUM": "Medium",
+            }.get(volatility, "Low")
             return {
                 "id": item.get("id"),
-                "date": f"{dt.day} {months_tr[dt.month-1]}",
-                "time": dt.strftime("%H:%M"),
+                "date": f"{event_time.day} {months_tr[event_time.month - 1]}",
+                "time": event_time.strftime("%H:%M"),
                 "title": item.get("name"),
                 "impact": impact,
                 "actual": str(item.get("actual") or ""),
                 "forecast": str(item.get("consensus") or ""),
                 "previous": str(item.get("previous") or ""),
                 "unit": item.get("unit", ""),
-                "country_id": code_map.get(c_code, 0),
-                "flag_url": f"https://flagcdn.com/w40/{c_code.lower()}.png",
-                "currency": item.get("currencyCode", "")
+                "country_id": country_ids.get(country_code, 0),
+                "flag_url": (
+                    f"https://flagcdn.com/w40/{country_code.lower()}.png"
+                ),
+                "currency": item.get("currencyCode", ""),
             }
         except Exception:
             return None
@@ -380,7 +449,7 @@ class MarketDataProvider:
             return False
     
     def get_history(self, symbol, period="1mo", interval="1d"):
-        """Fetches historical data from various sources (InvestPy, Yahoo, FMP)."""
+        """Fetches historical data from free sources (InvestPy and Yahoo)."""
         try:
             # 1. InvestPy Source
             history = self._get_history_from_investpy(symbol, period)
@@ -389,13 +458,7 @@ class MarketDataProvider:
         except Exception as e:
             print(f"InvestPy Error ({symbol}): {e}")
 
-        # 2. FMP Fallback
-        from services.fmp_service import fmp_service
-        history = fmp_service.get_history(symbol, period)
-        if history:
-            return history
-        
-        # 3. Yahoo Finance Fallback
+        # 2. Yahoo Finance Fallback
         return self._get_history_from_yahoo(symbol, period, interval)
 
     def _get_history_from_investpy(self, symbol, period):
@@ -458,10 +521,7 @@ class MarketDataProvider:
             tefas_data = self._get_tefas_data(symbol)
             if tefas_data: return tefas_data
             
-        from services.fmp_service import fmp_service
         from services.ta_service import ta_service
-        fmp_data = fmp_service.get_quote(symbol)
-        if fmp_data and fmp_data.get("price", 0) > 0: return fmp_data
 
         try:
             import yfinance as yf
@@ -489,9 +549,9 @@ class MarketDataProvider:
                 "high_24h": ta_data.get("high", 0), "low_24h": ta_data.get("low", 0),
                 "open_24h": ta_data.get("open", 0), "source": "TradingView TA"
             }
-        return {"price": 0.0}
+        return {"symbol": symbol, "data_status": "unavailable"}
 
-    def _fetch_tefas_direct(self, symbol, start_date=None):
+    def _fetch_tefas_direct(self, symbol, start_date=None, timeout=10):
         """
         TEFAS Resmi Sitesinden Direkt Veri Çekme (Libraryless Fallback)
         Endpoint: https://www.tefas.gov.tr/api/DB/BindHistoryInfo
@@ -517,7 +577,7 @@ class MarketDataProvider:
                 "User-Agent": DEFAULT_USER_AGENT,
                 "X-Requested-With": "XMLHttpRequest"
             }
-            resp = requests.post(url, data=payload, headers=headers, timeout=10)
+            resp = requests.post(url, data=payload, headers=headers, timeout=timeout)
             if resp.status_code == 200:
                 data = resp.json()
                 if "data" in data and len(data["data"]) > 0:
@@ -578,36 +638,25 @@ class MarketDataProvider:
         except Exception: pass
         return None
 
-    def _get_tefas_data(self, symbol):
+    def _get_tefas_data(self, symbol, direct_only=False):
         from datetime import datetime, timedelta
         start_date_limit = (datetime.now() - timedelta(days=7)).strftime(DATE_FMT_TR)
-        df = self._fetch_fund_from_investpy(symbol, start_date=start_date_limit)
-        
-        # Fon isimleri için manuel mapping (Premium görünüm için)
-        FUND_NAME_MAP = {
-            "TCD": "Tacirler Portföy Değişken Fon",
-            "AFT": "Ak Portföy Yeni Teknolojiler Yabancı Hisse",
-            "YAY": "Yapı Kredi Por. Yeni Teknolojiler Yab. Hisse",
-            "TTE": "İş Portföy BIST Teknoloji Ağırlıklı Hisse",
-            "IPB": "İstanbul Portföy Birinci Değişken Fon",
-            "AES": "Ak Portföy Petrol Yabancı BYF Fon Sepeti",
-            "IDH": "İş Portföy İhracatçı Şirketler Hisse Senedi",
-            "KZL": "Kuveyt Türk Portföy Altın Katılım Fonu",
-            "MAC": "Marmara Capital Portföy Hisse Senedi Fonu",
-            "GMR": "Global MD Portföy Birinci Hisse Senedi Fonu",
-            "TCA": "Ziraat Portföy Altın Katılım Fonu",
-            "ZJ1": "Ziraat Portföy Birinci Kira Sertifikası Katılım",
-            "HMB": "HSBC Portföy Çoklu Varlık Değişken Fon",
-            "MPK": "Mükafaat Portföy Katılım Katılım Fonu",
-            "IIH": "İstanbul Portföy Üçüncü Hisse Senedi Fonu",
-            "KUB": "Kuveyt Türk Sürdürülebilirlik Katılım Fonu",
-            "GSP": "Azimut Portföy Sky Hisse Senedi Fonu",
-            "HKH": "Hedef Portföy Katılım Hisse Senedi Fonu",
-            "TI3": "İş Portföy İşte Kadın Hisse Senedi Fonu",
-            "DBH": "Deniz Portföy Eurobond (USD) Borçlanma Araçları"
-        }
-        
-        full_name = FUND_NAME_MAP.get(symbol.upper(), f"{symbol} Yatırım Fonu")
+        if direct_only:
+            df = self._fetch_tefas_direct(
+                symbol,
+                start_date=start_date_limit,
+                timeout=4,
+            )
+        else:
+            df = self._fetch_fund_from_investpy(
+                symbol,
+                start_date=start_date_limit,
+            )
+
+        full_name = TOP_FUND_CATALOG.get(
+            symbol.upper(),
+            f"{symbol} Yatırım Fonu",
+        )
 
         if df is not None and not df.empty:
             last_row = df.iloc[-1]
@@ -723,10 +772,14 @@ class MarketDataProvider:
                 elif sym in uk_stocks: item["country"] = "UK"
                 else: item["country"] = "Global"
         
-        return ta_data if ta_data else []
+        return [
+            item
+            for item in (ta_data or [])
+            if item.get("price", 0) > 0
+        ]
 
     def get_commodity_markets(self):
-        cache_key = "commodity_markets_ultimate_v7"
+        cache_key = "commodity_markets_live_only_v1"
         cached = cache.get(cache_key)
         if cached: return cached
         from services.ta_service import ta_service
@@ -750,23 +803,57 @@ class MarketDataProvider:
                         if sym in td_data and item.get("price", 0) <= 0:
                             ta_data[i] = td_data[sym]
         
-        cache.set(cache_key, ta_data, ttl_seconds=300)
-        return ta_data if ta_data else []
+        live_data = [item for item in ta_data if item.get("price", 0) > 0]
+        cache.set(cache_key, live_data, ttl_seconds=300)
+        return live_data
 
     def get_etf_markets(self):
         from services.ta_service import ta_service
         symbols = ["SPY", "QQQ", "VOO", "GLD", "SLV", "VTI", "IVV", "ARKK"]
-        return ta_service.get_multiple_analysis(symbols)
+        return [
+            item
+            for item in ta_service.get_multiple_analysis(symbols)
+            if item.get("price", 0) > 0
+        ]
 
     def get_bond_markets(self):
         from services.ta_service import ta_service
         symbols = ["TLT", "BND", "AGG", "SHY", "IEF", "LQD", "HYG"]
-        return ta_service.get_multiple_analysis(symbols)
+        return [
+            item
+            for item in ta_service.get_multiple_analysis(symbols)
+            if item.get("price", 0) > 0
+        ]
 
     def get_top_funds(self):
-        symbols = ["TCD", "AFT", "YAY", "TTE", "IPB", "AES", "IDH", "KZL", "MAC", "GMR", "TCA", "ZJ1", "HMB", "MPK", "IIH"]
-        results = self._fetch_batch_details(symbols)
-        return results if results else []
+        cache_key = "tefas_top_funds_live_only_v1"
+        cached = cache.get(cache_key)
+        if cached:
+            return cached
+
+        symbols = list(TOP_FUND_CATALOG)
+        live_results = {}
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            future_to_sym = {
+                executor.submit(self._get_tefas_data, symbol, True): symbol
+                for symbol in symbols
+            }
+            for future in as_completed(future_to_sym):
+                symbol = future_to_sym[future]
+                try:
+                    result = future.result()
+                    if result and result.get("price", 0) > 0:
+                        live_results[symbol] = result
+                except Exception:
+                    pass
+
+        results = [
+            live_results[symbol]
+            for symbol in symbols
+            if symbol in live_results
+        ]
+        cache.set(cache_key, results, ttl_seconds=900)
+        return results
 
     def _fetch_batch_details(self, symbols):
         results = []
