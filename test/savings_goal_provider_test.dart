@@ -10,7 +10,7 @@ void main() {
 
   test('clear all waits for loading and cannot restore an old savings goal',
       () async {
-    final oldGoal = SavingsGoal(
+    const oldGoal = SavingsGoal(
       id: 'old-goal',
       name: 'Eski Birikim',
       targetAmount: 100000,

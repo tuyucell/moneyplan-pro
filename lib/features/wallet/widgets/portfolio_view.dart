@@ -13,6 +13,7 @@ import 'package:moneyplan_pro/core/providers/language_provider.dart';
 import 'package:moneyplan_pro/features/wallet/providers/bes_provider.dart';
 import 'package:moneyplan_pro/core/services/currency_service.dart';
 import 'package:moneyplan_pro/core/services/remote_config_service.dart';
+import 'package:moneyplan_pro/features/wallet/providers/savings_goal_provider.dart';
 
 class PortfolioView extends ConsumerWidget {
   const PortfolioView({super.key});
@@ -23,6 +24,7 @@ class PortfolioView extends ConsumerWidget {
     final lc = language.code;
     final portfolioAssets = ref.watch(portfolioProvider);
     final besAccount = ref.watch(besProvider);
+    final savingsPlans = ref.watch(savingsGoalProvider);
     final liveMarketDataEnabled = ref
         .watch(featureEnabledProvider('live_market_data'))
         .maybeWhen(data: (enabled) => enabled, orElse: () => false);
@@ -30,7 +32,7 @@ class PortfolioView extends ConsumerWidget {
         .watch(featureEnabledProvider('crypto_market_data'))
         .maybeWhen(data: (enabled) => enabled, orElse: () => false);
 
-    if (portfolioAssets.isEmpty && besAccount == null) {
+    if (portfolioAssets.isEmpty && besAccount == null && savingsPlans.isEmpty) {
       return _buildEmptyState(context, lc);
     }
 
@@ -111,6 +113,18 @@ class PortfolioView extends ConsumerWidget {
       }
     }
 
+    final savingsPlans = ref.watch(savingsGoalProvider);
+    for (final plan in savingsPlans) {
+      final value = currencyService.convertToTRY(
+        plan.currentAmount,
+        plan.currencyCode,
+      );
+      totalValueTRY += value;
+      // User-entered balance is the cost baseline. Estimated maturity return
+      // is shown on the plan detail and is not booked as realized profit here.
+      totalCostTRY += value;
+    }
+
     // Convert TRY totals to Display Currency
     final totalValueDisplay =
         currencyService.convertFromTRY(totalValueTRY, displayCurrency);
@@ -181,7 +195,10 @@ class PortfolioView extends ConsumerWidget {
               const SizedBox(width: 12),
               _buildSummaryStat(
                   AppStrings.tr(AppStrings.assetCount, lc),
-                  assets.length.toString(),
+                  (assets.length +
+                          savingsPlans.length +
+                          (besAccount == null ? 0 : 1))
+                      .toString(),
                   Colors.white.withValues(alpha: 0.2)),
             ],
           ),

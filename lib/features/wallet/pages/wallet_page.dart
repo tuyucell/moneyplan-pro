@@ -44,6 +44,7 @@ import '../widgets/yearly_monthly_breakdown.dart';
 import '../widgets/portfolio_view.dart';
 import 'package:moneyplan_pro/features/wallet/widgets/ai_analyst_summary_widget.dart';
 import '../widgets/savings_goals_widget.dart';
+import 'package:moneyplan_pro/features/wallet/services/savings_plan_ledger_service.dart';
 import 'package:moneyplan_pro/features/alerts/presentation/pages/alerts_page.dart';
 import 'package:moneyplan_pro/features/wallet/pages/import_statement_page.dart';
 import '../widgets/bank_accounts_card.dart';
@@ -393,7 +394,9 @@ class _WalletPageState extends ConsumerState<WalletPage>
               children: [
                 const SizedBox(height: 20),
                 _buildCollapsibleSection(
-                  title: AppStrings.tr(AppStrings.savingsAccounts, lc),
+                  title: lc == 'tr'
+                      ? 'Birikim, BES & Sigorta'
+                      : 'Savings, Pension & Insurance',
                   isVisible: _showSavings,
                   icon: Icons.account_balance_wallet,
                   onToggle: () => setState(() => _showSavings = !_showSavings),
@@ -1053,6 +1056,7 @@ class _WalletPageState extends ConsumerState<WalletPage>
     switch (scope) {
       case _FinancialResetScope.transactions:
         await wallet.clearAllTransactions();
+        await _restoreSavingsPlanLedgerSources();
         return;
       case _FinancialResetScope.cashBalances:
         for (final account in bankAccounts.where(
@@ -1080,6 +1084,19 @@ class _WalletPageState extends ConsumerState<WalletPage>
           ref.read(portfolioProvider.notifier).clearAll(),
         ]);
         return;
+    }
+  }
+
+  Future<void> _restoreSavingsPlanLedgerSources() async {
+    final wallet = ref.read(walletProvider.notifier);
+    final accounts = ref.read(bankAccountProvider);
+    for (final plan in ref.read(savingsGoalProvider)) {
+      await SavingsPlanLedgerService.sync(
+        plan: plan,
+        wallet: wallet,
+        transactions: ref.read(walletProvider),
+        accounts: accounts,
+      );
     }
   }
 

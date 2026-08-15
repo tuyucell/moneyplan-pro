@@ -19,7 +19,11 @@ class SavingsGoalNotifier extends StateNotifier<List<SavingsGoal>> {
       final jsonString = prefs.getString(_prefsKey);
       if (jsonString != null) {
         final List<dynamic> jsonList = json.decode(jsonString);
-        state = jsonList.map((e) => SavingsGoal.fromJson(e)).toList();
+        state = jsonList
+            .map((e) => SavingsGoal.fromJson(Map<String, dynamic>.from(e)))
+            .map((goal) => goal.accrueUntil(DateTime.now()))
+            .toList();
+        await _saveGoals();
       } else {
         state = [];
       }
@@ -41,11 +45,24 @@ class SavingsGoalNotifier extends StateNotifier<List<SavingsGoal>> {
     }
   }
 
-  Future<void> addGoal(String name, double target, int color,
+  Future<SavingsGoal> addGoal(String name, double target, int color,
       {double currentAmount = 0,
       double? interestRate,
       DateTime? maturityDate,
-      String currencyCode = 'TRY'}) async {
+      String currencyCode = 'TRY',
+      SavingsPlanType planType = SavingsPlanType.savings,
+      double periodicContribution = 0,
+      ContributionPeriod contributionPeriod = ContributionPeriod.monthly,
+      SavingsFundingMethod fundingMethod = SavingsFundingMethod.cash,
+      String? paymentAccountId,
+      bool automaticPayment = false,
+      bool createWalletExpense = false,
+      DateTime? contractStartDate,
+      int? contractYears,
+      int paymentDay = 1,
+      double governmentContributionRate = 20,
+      double estimatedAnnualReturnRate = 0,
+      double annualProfitShareRate = 0}) async {
     await _initCompleter.future;
     final newGoal = SavingsGoal.create(
       name: name,
@@ -55,9 +72,23 @@ class SavingsGoalNotifier extends StateNotifier<List<SavingsGoal>> {
       interestRate: interestRate,
       maturityDate: maturityDate,
       currencyCode: currencyCode,
+      planType: planType,
+      periodicContribution: periodicContribution,
+      contributionPeriod: contributionPeriod,
+      fundingMethod: fundingMethod,
+      paymentAccountId: paymentAccountId,
+      automaticPayment: automaticPayment,
+      createWalletExpense: createWalletExpense,
+      contractStartDate: contractStartDate,
+      contractYears: contractYears,
+      paymentDay: paymentDay,
+      governmentContributionRate: governmentContributionRate,
+      estimatedAnnualReturnRate: estimatedAnnualReturnRate,
+      annualProfitShareRate: annualProfitShareRate,
     );
     state = [...state, newGoal];
     await _saveGoals();
+    return newGoal;
   }
 
   Future<void> updateGoalAmount(String id, double newAmount) async {
@@ -86,6 +117,29 @@ class SavingsGoalNotifier extends StateNotifier<List<SavingsGoal>> {
           goal
     ];
     await _saveGoals();
+  }
+
+  Future<void> updateGoal(SavingsGoal updatedGoal) async {
+    await _initCompleter.future;
+    state = [
+      for (final goal in state)
+        if (goal.id == updatedGoal.id) updatedGoal else goal,
+    ];
+    await _saveGoals();
+  }
+
+  Future<SavingsGoal?> syncGoal(String id, {DateTime? asOf}) async {
+    await _initCompleter.future;
+    SavingsGoal? synced;
+    state = [
+      for (final goal in state)
+        if (goal.id == id)
+          synced = goal.accrueUntil(asOf ?? DateTime.now())
+        else
+          goal,
+    ];
+    await _saveGoals();
+    return synced;
   }
 
   Future<void> deleteGoal(String id) async {

@@ -10,6 +10,10 @@ import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 import 'package:moneyplan_pro/core/i18n/app_strings.dart';
 import 'package:moneyplan_pro/core/providers/language_provider.dart';
+import 'package:moneyplan_pro/core/services/currency_service.dart';
+import 'package:moneyplan_pro/features/wallet/models/bank_account.dart';
+import 'package:moneyplan_pro/features/wallet/providers/bank_account_provider.dart';
+import 'package:moneyplan_pro/features/wallet/widgets/savings_plan_editor_dialog.dart';
 
 class SavingsGoalDetailPage extends ConsumerStatefulWidget {
   final SavingsGoal goal;
@@ -46,8 +50,12 @@ class _SavingsGoalDetailPageState extends ConsumerState<SavingsGoalDetailPage> {
       return const SizedBox.shrink();
     }
 
-    final currencyFormat =
-        NumberFormat.currency(locale: 'tr_TR', symbol: '₺', decimalDigits: 2);
+    final currencyService = ref.watch(currencyServiceProvider);
+    final currencyFormat = NumberFormat.currency(
+      locale: upToDateGoal.currencyCode == 'TRY' ? 'tr_TR' : 'en_US',
+      symbol: currencyService.getSymbol(upToDateGoal.currencyCode),
+      decimalDigits: 2,
+    );
     final progress = upToDateGoal.progressPercentage;
 
     return Scaffold(
@@ -68,8 +76,10 @@ class _SavingsGoalDetailPageState extends ConsumerState<SavingsGoalDetailPage> {
           IconButton(
             icon: Icon(Icons.edit_outlined,
                 color: AppColors.textSecondary(context)),
-            onPressed: () =>
-                _showEditGoalDialog(context, ref, upToDateGoal, lc),
+            onPressed: () => showSavingsPlanEditor(
+              context,
+              existing: upToDateGoal,
+            ),
           )
         ],
       ),
@@ -96,7 +106,7 @@ class _SavingsGoalDetailPageState extends ConsumerState<SavingsGoalDetailPage> {
                   Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.savings_outlined,
+                      Icon(_planIcon(upToDateGoal.planType),
                           size: 48, color: Color(upToDateGoal.colorValue)),
                       const SizedBox(height: 8),
                       Text(
@@ -127,13 +137,28 @@ class _SavingsGoalDetailPageState extends ConsumerState<SavingsGoalDetailPage> {
                 Expanded(
                   child: _buildStatCard(
                       context,
-                      AppStrings.tr(AppStrings.goalTarget, lc),
-                      currencyFormat.format(upToDateGoal.targetAmount),
+                      upToDateGoal.isContractPlan
+                          ? (lc == 'tr' ? 'Vade tahmini' : 'Maturity estimate')
+                          : AppStrings.tr(AppStrings.goalTarget, lc),
+                      currencyFormat.format(upToDateGoal.isContractPlan
+                          ? upToDateGoal.projectedValueAtMaturity()
+                          : upToDateGoal.targetAmount),
                       Color(upToDateGoal.colorValue)),
                 ),
               ],
             ),
             const SizedBox(height: 32),
+
+            if (upToDateGoal.isContractPlan) ...[
+              _buildContractCard(
+                context,
+                ref,
+                upToDateGoal,
+                currencyFormat,
+                lc,
+              ),
+              const SizedBox(height: 24),
+            ],
 
             // Actions
             ElevatedButton.icon(
@@ -198,6 +223,138 @@ class _SavingsGoalDetailPageState extends ConsumerState<SavingsGoalDetailPage> {
     );
   }
 
+  IconData _planIcon(SavingsPlanType type) => switch (type) {
+        SavingsPlanType.savings => Icons.savings_outlined,
+        SavingsPlanType.bes => Icons.account_balance_outlined,
+        SavingsPlanType.lifeInsurance => Icons.health_and_safety_outlined,
+      };
+
+  Widget _buildContractCard(
+    BuildContext context,
+    WidgetRef ref,
+    SavingsGoal goal,
+    NumberFormat currencyFormat,
+    String lc,
+  ) {
+    final account =
+        _findAccount(ref.read(bankAccountProvider), goal.paymentAccountId);
+    final period = switch (goal.contributionPeriod) {
+      ContributionPeriod.monthly => 'Aylık',
+      ContributionPeriod.quarterly => '3 aylık',
+      ContributionPeriod.semiAnnual => '6 aylık',
+      ContributionPeriod.yearly => 'Yıllık',
+    };
+    final method = goal.fundingMethod == SavingsFundingMethod.creditCard
+        ? 'Kredi kartı'
+        : (account == null ? 'Nakit' : 'Banka hesabı');
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface(context),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border(context)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            goal.planType == SavingsPlanType.bes
+                ? 'BES plan bilgileri'
+                : 'Poliçe bilgileri',
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          ),
+          const SizedBox(height: 12),
+          _detailRow(
+            'Düzenli ödeme',
+            '$period ${currencyFormat.format(goal.periodicContribution)}',
+          ),
+          _detailRow(
+            'Ödeme',
+            '$method${account == null ? '' : ' · ${account.name}'}',
+          ),
+          _detailRow(
+            'Sözleşme bitişi',
+            goal.contractEndDate == null
+                ? '-'
+                : DateFormat('dd.MM.yyyy').format(goal.contractEndDate!),
+          ),
+          _detailRow(
+            'Tahmini fon getirisi',
+            '%${goal.estimatedAnnualReturnRate.toStringAsFixed(2)} / yıl',
+          ),
+          if (goal.planType == SavingsPlanType.bes)
+            _detailRow(
+              'Devlet katkısı',
+              '%${goal.governmentContributionRate.toStringAsFixed(2)} · biriken ${currencyFormat.format(goal.governmentContributionBalance)}',
+            ),
+          if (goal.planType == SavingsPlanType.lifeInsurance)
+            _detailRow(
+              'Kâr payı',
+              '%${goal.annualProfitShareRate.toStringAsFixed(2)} · biriken ${currencyFormat.format(goal.profitShareBalance)}',
+            ),
+          _detailRow(
+            'Cüzdan kaydı',
+            goal.createWalletExpense ? 'Düzenli gider açık' : 'Kapalı',
+          ),
+          if (goal.automaticPayment) ...[
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: () async {
+                final before = goal.currentAmount;
+                final synced = await ref
+                    .read(savingsGoalProvider.notifier)
+                    .syncGoal(goal.id);
+                if (!context.mounted) return;
+                final changed =
+                    synced != null && synced.currentAmount != before;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(changed
+                        ? 'Tamamlanan dönemler ve tahmini getiriler işlendi.'
+                        : 'Plan zaten güncel.'),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.sync),
+              label: Text(lc == 'tr'
+                  ? 'Aylık değerlemeyi senkronize et'
+                  : 'Sync valuation'),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _detailRow(String label, String value) => Padding(
+        padding: const EdgeInsets.only(bottom: 7),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Text(label, style: const TextStyle(color: Colors.grey)),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                value,
+                textAlign: TextAlign.end,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ),
+      );
+
+  BankAccount? _findAccount(List<BankAccount> accounts, String? id) {
+    if (id == null) return null;
+    for (final account in accounts) {
+      if (account.id == id) return account;
+    }
+    return null;
+  }
+
   Widget _buildStatCard(
       BuildContext context, String title, String value, Color color) {
     return Container(
@@ -245,8 +402,10 @@ class _SavingsGoalDetailPageState extends ConsumerState<SavingsGoalDetailPage> {
                 controller: controller,
                 keyboardType: TextInputType.number,
                 decoration: InputDecoration(
-                    labelText: '${AppStrings.tr(AppStrings.balance, lc)} (₺)',
-                    prefixText: '₺ ',
+                    labelText:
+                        '${AppStrings.tr(AppStrings.balance, lc)} (${goal.currencyCode})',
+                    prefixText:
+                        '${ref.read(currencyServiceProvider).getSymbol(goal.currencyCode)} ',
                     border: const OutlineInputBorder()),
                 autofocus: true,
               ),
@@ -298,12 +457,30 @@ class _SavingsGoalDetailPageState extends ConsumerState<SavingsGoalDetailPage> {
                       .updateGoalAmount(goal.id, goal.currentAmount + amount);
 
                   if (deductFromWallet) {
+                    final account = _findAccount(
+                      ref.read(bankAccountProvider),
+                      goal.paymentAccountId,
+                    );
                     final transaction = WalletTransaction(
                       id: const Uuid().v4(),
-                      categoryId: 'savings',
+                      categoryId: switch (goal.planType) {
+                        SavingsPlanType.bes => 'bes',
+                        SavingsPlanType.lifeInsurance => 'insurance_life',
+                        SavingsPlanType.savings => 'savings',
+                      },
                       amount: amount,
                       date: DateTime.now(),
                       type: TransactionType.expense,
+                      bankAccountId: account?.id,
+                      currencyCode: goal.currencyCode,
+                      paymentMethod: switch (goal.fundingMethod) {
+                        SavingsFundingMethod.creditCard =>
+                          PaymentMethod.creditCard,
+                        SavingsFundingMethod.cash => account == null
+                            ? PaymentMethod.cash
+                            : PaymentMethod.bankTransfer,
+                      },
+                      linkedTransactionId: 'savings-plan:${goal.id}',
                       note:
                           '${goal.name} ${AppStrings.tr(AppStrings.savingsAddNote, lc)}',
                     );
@@ -349,8 +526,10 @@ class _SavingsGoalDetailPageState extends ConsumerState<SavingsGoalDetailPage> {
                 controller: controller,
                 keyboardType: TextInputType.number,
                 decoration: InputDecoration(
-                    labelText: '${AppStrings.tr(AppStrings.balance, lc)} (₺)',
-                    prefixText: '₺ ',
+                    labelText:
+                        '${AppStrings.tr(AppStrings.balance, lc)} (${goal.currencyCode})',
+                    prefixText:
+                        '${ref.read(currencyServiceProvider).getSymbol(goal.currencyCode)} ',
                     border: const OutlineInputBorder()),
                 autofocus: true,
               ),
@@ -405,6 +584,8 @@ class _SavingsGoalDetailPageState extends ConsumerState<SavingsGoalDetailPage> {
                       amount: amount,
                       date: DateTime.now(),
                       type: TransactionType.income,
+                      currencyCode: goal.currencyCode,
+                      linkedTransactionId: 'savings-plan:${goal.id}',
                       note:
                           '${goal.name} ${AppStrings.tr(AppStrings.savingsWithdrawNote, lc)}',
                     );
@@ -424,110 +605,6 @@ class _SavingsGoalDetailPageState extends ConsumerState<SavingsGoalDetailPage> {
           ],
         );
       }),
-    );
-  }
-
-  void _showEditGoalDialog(
-      BuildContext context, WidgetRef ref, SavingsGoal goal, String lc) {
-    final nameController = TextEditingController(text: goal.name);
-    final targetController =
-        TextEditingController(text: goal.targetAmount.toString());
-    var selectedColor = goal.colorValue;
-
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setState) {
-          return AlertDialog(
-            title: Text(AppStrings.tr(AppStrings.editGoal, lc)),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: nameController,
-                    decoration: InputDecoration(
-                        labelText: AppStrings.tr(AppStrings.goalName, lc),
-                        border: const OutlineInputBorder()),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: targetController,
-                    decoration: InputDecoration(
-                        labelText:
-                            '${AppStrings.tr(AppStrings.goalTarget, lc)} (₺)',
-                        border: const OutlineInputBorder()),
-                    keyboardType: TextInputType.number,
-                  ),
-                  const SizedBox(height: 16),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(AppStrings.tr(AppStrings.selectColor, lc),
-                        style: const TextStyle(fontWeight: FontWeight.bold)),
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    children: [
-                      0xFFFFA726, // Orange
-                      0xFFEF5350, // Red
-                      0xFF42A5F5, // Blue
-                      0xFF66BB6A, // Green
-                      0xFFAB47BC, // Purple
-                      0xFF26C6DA, // Cyan
-                    ].map((colorValue) {
-                      final isSelected = selectedColor == colorValue;
-                      return GestureDetector(
-                        onTap: () => setState(() => selectedColor = colorValue),
-                        child: Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: Color(colorValue),
-                            shape: BoxShape.circle,
-                            border: isSelected
-                                ? Border.all(
-                                    color: AppColors.textPrimary(context),
-                                    width: 2)
-                                : null,
-                          ),
-                          child: isSelected
-                              ? const Icon(Icons.check, color: Colors.white)
-                              : null,
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: Text(AppStrings.tr(AppStrings.cancel, lc))),
-              ElevatedButton(
-                onPressed: () async {
-                  final name = nameController.text.trim();
-                  final target = double.tryParse(targetController.text) ?? 0;
-                  if (name.isNotEmpty && target > 0) {
-                    await ref
-                        .read(savingsGoalProvider.notifier)
-                        .updateGoalDetails(goal.id,
-                            name: name,
-                            targetAmount: target,
-                            colorValue: selectedColor);
-                    if (context.mounted) Navigator.pop(ctx);
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white),
-                child: Text(AppStrings.tr(AppStrings.save, lc)),
-              ),
-            ],
-          );
-        },
-      ),
     );
   }
 }

@@ -713,12 +713,17 @@ class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
 
       var shouldGenerate = false;
 
+      final sourceMonth =
+          DateTime(transaction.date.year, transaction.date.month);
+      final elapsedMonths = (targetDate.year - sourceMonth.year) * 12 +
+          targetDate.month -
+          sourceMonth.month;
       if (transaction.recurrence == RecurrenceType.monthly) {
-        // Her ay tekrarlanır (başlangıç ayı hariç - o zaten mevcut)
-        if (targetDate
-            .isAfter(DateTime(transaction.date.year, transaction.date.month))) {
-          shouldGenerate = true;
-        }
+        shouldGenerate = elapsedMonths > 0;
+      } else if (transaction.recurrence == RecurrenceType.quarterly) {
+        shouldGenerate = elapsedMonths > 0 && elapsedMonths % 3 == 0;
+      } else if (transaction.recurrence == RecurrenceType.semiAnnual) {
+        shouldGenerate = elapsedMonths > 0 && elapsedMonths % 6 == 0;
       } else if (transaction.recurrence == RecurrenceType.yearly) {
         // Her yıl aynı ayda tekrarlanır (başlangıç yılı hariç - o zaten mevcut)
         if (targetDate.month == transaction.date.month &&

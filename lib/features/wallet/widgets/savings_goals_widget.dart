@@ -3,12 +3,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:moneyplan_pro/core/constants/colors.dart';
 import 'package:moneyplan_pro/core/utils/responsive.dart';
 import 'package:moneyplan_pro/features/wallet/providers/savings_goal_provider.dart';
+import 'package:moneyplan_pro/features/wallet/providers/wallet_provider.dart';
 import 'package:moneyplan_pro/features/wallet/pages/savings_goal_detail_page.dart';
 import 'package:intl/intl.dart';
 import 'package:moneyplan_pro/core/i18n/app_strings.dart';
 import 'package:moneyplan_pro/core/providers/language_provider.dart';
 import 'package:moneyplan_pro/core/providers/balance_visibility_provider.dart';
 import 'package:moneyplan_pro/core/services/currency_service.dart';
+import 'package:moneyplan_pro/features/wallet/models/savings_goal.dart';
+import 'package:moneyplan_pro/features/wallet/widgets/savings_plan_editor_dialog.dart';
 
 class SavingsGoalsWidget extends ConsumerWidget {
   const SavingsGoalsWidget({super.key});
@@ -23,14 +26,14 @@ class SavingsGoalsWidget extends ConsumerWidget {
     final isVisible = ref.watch(balanceVisibilityProvider);
 
     if (goals.isEmpty) {
-      return _buildAddGoalButton(context, lc, currencyService, displayCurrency);
+      return _buildAddGoalButton(context, lc);
     }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SizedBox(
-          height: context.isTablet ? 170 : 150,
+          height: context.isTablet ? 190 : 174,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             itemCount: goals.length + 1,
@@ -48,9 +51,7 @@ class SavingsGoalsWidget extends ConsumerWidget {
     );
   }
 
-  Widget _buildAddGoalButton(BuildContext context, String lc,
-      CurrencyService currencyService, String displayCurrency) {
-    final symbol = currencyService.getSymbol(displayCurrency);
+  Widget _buildAddGoalButton(BuildContext context, String lc) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
@@ -65,17 +66,19 @@ class SavingsGoalsWidget extends ConsumerWidget {
               size: 48, color: AppColors.primary.withValues(alpha: 0.5)),
           const SizedBox(height: 12),
           Text(
-            AppStrings.tr(AppStrings.noSavingsAccounts, lc),
+            lc == 'tr' ? 'Henüz birikim planı yok' : 'No savings plan yet',
             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
           ),
           const SizedBox(height: 4),
           Text(
-            AppStrings.tr(AppStrings.addAccountInstruction, lc),
+            lc == 'tr'
+                ? 'Birikim hesabı, BES veya hayat sigortası ekleyin.'
+                : 'Add savings, pension or life insurance.',
             style: const TextStyle(color: Colors.grey, fontSize: 13),
           ),
           const SizedBox(height: 16),
           ElevatedButton.icon(
-            onPressed: () => _showAddGoalDialog(context, null, lc, symbol),
+            onPressed: () => showSavingsPlanEditor(context),
             icon: const Icon(Icons.add),
             label: Text(AppStrings.tr(AppStrings.addAccount, lc)),
             style: ElevatedButton.styleFrom(
@@ -91,12 +94,8 @@ class SavingsGoalsWidget extends ConsumerWidget {
   }
 
   Widget _buildAddSmallCard(BuildContext context, WidgetRef? ref, String lc) {
-    final currencyService = ref?.read(currencyServiceProvider);
-    final displayCurrency = ref?.read(investDisplayCurrencyProvider) ?? 'TRY';
-    final symbol = currencyService?.getSymbol(displayCurrency) ?? '₺';
-
     return InkWell(
-      onTap: () => _showAddGoalDialog(context, ref, lc, symbol),
+      onTap: () => showSavingsPlanEditor(context),
       borderRadius: BorderRadius.circular(16),
       child: Container(
         width: 100,
@@ -124,7 +123,7 @@ class SavingsGoalsWidget extends ConsumerWidget {
   Widget _buildGoalCard(
       BuildContext context,
       WidgetRef ref,
-      dynamic goal,
+      SavingsGoal goal,
       String lc,
       CurrencyService currencyService,
       String displayCurrency,
@@ -172,10 +171,10 @@ class SavingsGoalsWidget extends ConsumerWidget {
                     color: Color(goal.colorValue).withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(Icons.savings,
+                  child: Icon(_planIcon(goal.planType),
                       size: 16, color: Color(goal.colorValue)),
                 ),
-                if (goal.interestRate != null)
+                if (goal.interestRate != null || goal.isContractPlan)
                   Container(
                     padding:
                         const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -186,7 +185,7 @@ class SavingsGoalsWidget extends ConsumerWidget {
                           color: Colors.green.withValues(alpha: 0.3)),
                     ),
                     child: Text(
-                      '%${goal.interestRate}',
+                      _planBadge(goal, lc),
                       style: const TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.bold,
@@ -213,6 +212,16 @@ class SavingsGoalsWidget extends ConsumerWidget {
                   color: AppColors.textPrimary(context),
                   fontWeight: FontWeight.bold),
             ),
+            if (goal.isContractPlan && goal.periodicContribution > 0)
+              Text(
+                '${_periodLabel(goal.contributionPeriod, lc)} · ${goal.currencyCode} ${goal.periodicContribution.toStringAsFixed(goal.periodicContribution.truncateToDouble() == goal.periodicContribution ? 0 : 2)}',
+                style: TextStyle(
+                  fontSize: 10,
+                  color: AppColors.textSecondary(context),
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             if (goal.maturityDate != null) ...[
               const SizedBox(height: 6),
               Text(
@@ -228,173 +237,25 @@ class SavingsGoalsWidget extends ConsumerWidget {
     );
   }
 
-  void _showAddGoalDialog(
-      BuildContext context, WidgetRef? ref, String lc, String currencySymbol) {
-    if (ref == null && context.mounted) return;
-    final notNullRef = ref!;
+  IconData _planIcon(SavingsPlanType type) => switch (type) {
+        SavingsPlanType.savings => Icons.savings,
+        SavingsPlanType.bes => Icons.account_balance,
+        SavingsPlanType.lifeInsurance => Icons.health_and_safety,
+      };
 
-    final nameController = TextEditingController();
-    final balanceController =
-        TextEditingController(); // Renamed for clarity, maps to currentAmount
-    final interestController = TextEditingController();
-    DateTime? selectedDate;
+  String _planBadge(SavingsGoal goal, String lc) => switch (goal.planType) {
+        SavingsPlanType.savings => '%${goal.interestRate ?? 0}',
+        SavingsPlanType.bes =>
+          'BES +%${goal.governmentContributionRate.toStringAsFixed(0)}',
+        SavingsPlanType.lifeInsurance => lc == 'tr' ? 'HAYAT' : 'LIFE',
+      };
 
-    final currencyService = notNullRef.read(currencyServiceProvider);
-    final availableCurrencies = currencyService.getAvailableCurrencies();
-    var selectedCurrency = notNullRef.read(investDisplayCurrencyProvider);
-    var selectedColor = 0xFFFFA726;
-
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          title: Text(AppStrings.tr(AppStrings.addAccount, lc)),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nameController,
-                  decoration: InputDecoration(
-                      labelText: AppStrings.tr(AppStrings.enterAccountName, lc),
-                      border: const OutlineInputBorder()),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      flex: 2,
-                      child: TextField(
-                        controller: balanceController,
-                        decoration: InputDecoration(
-                            labelText: AppStrings.tr(AppStrings.balance, lc),
-                            border: const OutlineInputBorder()),
-                        keyboardType: TextInputType.number,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      flex: 1,
-                      child: DropdownButtonFormField<String>(
-                        initialValue: selectedCurrency,
-                        decoration: const InputDecoration(
-                          border: OutlineInputBorder(),
-                          contentPadding: EdgeInsets.symmetric(horizontal: 10),
-                        ),
-                        items: availableCurrencies
-                            .map((c) =>
-                                DropdownMenuItem(value: c, child: Text(c)))
-                            .toList(),
-                        onChanged: (val) {
-                          if (val != null) {
-                            setState(() => selectedCurrency = val);
-                          }
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: interestController,
-                        decoration: InputDecoration(
-                            labelText:
-                                AppStrings.tr(AppStrings.interestRate, lc),
-                            border: const OutlineInputBorder()),
-                        keyboardType: TextInputType.number,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: InkWell(
-                        onTap: () async {
-                          final picked = await showDatePicker(
-                              context: context,
-                              initialDate:
-                                  DateTime.now().add(const Duration(days: 30)),
-                              firstDate: DateTime.now(),
-                              lastDate: DateTime.now()
-                                  .add(const Duration(days: 3650)));
-                          if (picked != null) {
-                            setState(() => selectedDate = picked);
-                          }
-                        },
-                        child: InputDecorator(
-                          decoration: InputDecoration(
-                            labelText: AppStrings.tr(AppStrings.maturity, lc),
-                            border: const OutlineInputBorder(),
-                          ),
-                          child: Text(
-                            selectedDate != null
-                                ? DateFormat('dd.MM').format(selectedDate!)
-                                : AppStrings.tr(AppStrings.select, lc),
-                            style: const TextStyle(fontSize: 14),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: Text(AppStrings.tr(AppStrings.cancel, lc))),
-            Consumer(
-              builder: (context, ref, child) {
-                return ElevatedButton(
-                  onPressed: () {
-                    final name = nameController.text.trim();
-                    final balance =
-                        double.tryParse(balanceController.text) ?? 0;
-                    final interest = double.tryParse(interestController.text);
-
-                    if (name.isNotEmpty) {
-                      // We use 'target' as placeholder or 0 since it's a deposit account mainly
-                      // But effectively for 'SavingsGoal' logic we might want target to be balance * interest?
-                      // For now let's set target same as balance or higher.
-                      // Actually SavingsGoal requires targetAmount. Let's set it to balance * 1.5 arbitrary or 0 if allowed (but progress bar might break).
-                      // Let's treat target as 'Goal' if user wants, but for this context 'targetAmount' logic is less relevant.
-                      // We'll set targetAmount to balance for now to show "full" or just hide progress bar logic in new card.
-
-                      ref.read(savingsGoalProvider.notifier).addGoal(
-                            name,
-                            balance > 0 ? balance : 1000,
-                            selectedColor,
-                            currentAmount: balance,
-                            interestRate: interest,
-                            maturityDate: selectedDate,
-                            currencyCode: selectedCurrency,
-                          );
-                      // Update current amount immediately?
-                      // addGoal in provider creates with currentAmount=0 usually in default create method.
-                      // Wait, I updated addGoal only to pass interest/maturity, but it calls SavingsGoal.create which has currentAmount=0 default.
-                      // I should have updated addGoal logic to accept currentAmount or update it after.
-                      // Let's assume for now user edits balance later or I fix provider in next step.
-                      // Actually, let's fix provider to accept currentAmount in addGoal first or simply update it here if possible.
-                      // Accessing the last added item is risky.
-
-                      // FIX: I will update the provider code to accept initial amount or assume 0.
-                      // But for "Bank Account", starting with 0 is weird.
-                      // I'll make a second call to update amount if needed, or just let user update it.
-                      // Ideally I modify provider addGoal again.
-                      Navigator.pop(ctx);
-                    }
-                  },
-                  child: Text(AppStrings.tr(AppStrings.save, lc)),
-                );
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  String _periodLabel(ContributionPeriod period, String lc) => switch (period) {
+        ContributionPeriod.monthly => lc == 'tr' ? 'Aylık' : 'Monthly',
+        ContributionPeriod.quarterly => lc == 'tr' ? '3 aylık' : 'Quarterly',
+        ContributionPeriod.semiAnnual => lc == 'tr' ? '6 aylık' : 'Semiannual',
+        ContributionPeriod.yearly => lc == 'tr' ? 'Yıllık' : 'Yearly',
+      };
 
   void _showDeleteConfirmation(
       BuildContext context, WidgetRef ref, dynamic goal, String lc) {
@@ -408,9 +269,15 @@ class SavingsGoalsWidget extends ConsumerWidget {
               onPressed: () => Navigator.pop(ctx),
               child: Text(AppStrings.tr(AppStrings.cancel, lc))),
           TextButton(
-            onPressed: () {
-              ref.read(savingsGoalProvider.notifier).deleteGoal(goal.id);
-              Navigator.pop(ctx);
+            onPressed: () async {
+              if (ref.read(walletProvider).any(
+                  (transaction) => transaction.id == goal.ledgerSourceId)) {
+                await ref
+                    .read(walletProvider.notifier)
+                    .deleteTransaction(goal.ledgerSourceId);
+              }
+              await ref.read(savingsGoalProvider.notifier).deleteGoal(goal.id);
+              if (ctx.mounted) Navigator.pop(ctx);
             },
             style: TextButton.styleFrom(foregroundColor: AppColors.error),
             child: Text(AppStrings.tr(AppStrings.remove, lc)),

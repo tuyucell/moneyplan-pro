@@ -8,6 +8,8 @@ enum TransactionType {
 enum RecurrenceType {
   none,
   monthly,
+  quarterly,
+  semiAnnual,
   yearly,
 }
 
