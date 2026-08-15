@@ -44,7 +44,7 @@ void main() {
 
       if (currencies.isEmpty) {
         debugPrint(
-            'Warning: Backend server might be down. Skipping payload verification.');
+            'TCMB payload unavailable as expected while live_market_data is disabled.');
         return;
       }
 
