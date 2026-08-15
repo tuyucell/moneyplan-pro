@@ -16,6 +16,7 @@ import 'package:moneyplan_pro/features/auth/presentation/widgets/auth_prompt_dia
 import 'package:moneyplan_pro/features/alerts/presentation/pages/alerts_page.dart';
 import 'package:moneyplan_pro/features/notifications/presentation/pages/notification_preferences_page.dart';
 import 'package:go_router/go_router.dart';
+import 'package:moneyplan_pro/features/wallet/widgets/wallet_quick_guide.dart';
 
 class ProfilePage extends ConsumerWidget {
   const ProfilePage({super.key});
@@ -120,6 +121,15 @@ class ProfilePage extends ConsumerWidget {
             const SizedBox(height: 24),
             _buildSectionHeader(
                 context, AppStrings.tr(AppStrings.sectionOther, lc)),
+            _buildSettingsTile(
+              context,
+              icon: Icons.menu_book_outlined,
+              title: lc == 'tr' ? 'Kullanım Rehberi' : 'User Guide',
+              subtitle: lc == 'tr'
+                  ? 'Gelir, gider, kart ve KMH kullanımı'
+                  : 'Income, expenses, cards, and overdrafts',
+              onTap: () => showWalletQuickGuide(context, languageCode: lc),
+            ),
             _buildSettingsTile(
               context,
               icon: Icons.help_outline,

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:moneyplan_pro/core/utils/responsive.dart';
 import 'package:moneyplan_pro/core/constants/colors.dart';
@@ -37,6 +38,7 @@ import '../widgets/wallet_chart.dart';
 import '../widgets/wallet_view_toggle.dart';
 import '../widgets/wallet_selector.dart';
 import '../widgets/wallet_calendar.dart';
+import '../widgets/wallet_quick_guide.dart';
 import '../widgets/wallet_subscription_list.dart';
 import '../widgets/yearly_monthly_breakdown.dart';
 import '../widgets/portfolio_view.dart';
@@ -107,7 +109,23 @@ class _WalletPageState extends ConsumerState<WalletPage>
             properties: {'screen': 'WalletPage'},
             screenName: 'WalletPage',
           );
+      unawaited(_maybeShowWalletQuickGuide());
     });
+  }
+
+  Future<void> _maybeShowWalletQuickGuide() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool(walletQuickGuidePreferenceKey) == true) return;
+
+    // Mark before opening so rebuilds or route changes cannot stack sheets.
+    await prefs.setBool(walletQuickGuidePreferenceKey, true);
+    await Future<void>.delayed(const Duration(milliseconds: 350));
+    if (!mounted) return;
+
+    await showWalletQuickGuide(
+      context,
+      languageCode: ref.read(languageProvider).code,
+    );
   }
 
   NumberFormat _getCurrencyFormat(String code) {
@@ -222,9 +240,21 @@ class _WalletPageState extends ConsumerState<WalletPage>
                 _showExportOptions(lc);
               } else if (value == 'delete') {
                 _showClearAllDataDialog(lc);
+              } else if (value == 'guide') {
+                showWalletQuickGuide(context, languageCode: lc);
               }
             },
             itemBuilder: (context) => [
+              PopupMenuItem(
+                value: 'guide',
+                child: Row(
+                  children: [
+                    const Icon(Icons.menu_book_outlined, size: 20),
+                    const SizedBox(width: 12),
+                    Text(lc == 'tr' ? 'Kullanım Rehberi' : 'User Guide'),
+                  ],
+                ),
+              ),
               PopupMenuItem(
                 value: 'export',
                 child: Row(

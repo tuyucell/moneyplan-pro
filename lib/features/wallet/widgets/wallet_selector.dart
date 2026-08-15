@@ -38,8 +38,12 @@ class WalletSelector extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final language = ref.watch(languageProvider);
     final lc = language.code;
-    
-    final title = isYearlyView 
+
+    final now = DateTime.now();
+    final isCurrentPeriod = isYearlyView
+        ? selectedDate.year == now.year
+        : selectedDate.year == now.year && selectedDate.month == now.month;
+    final title = isYearlyView
         ? '${selectedDate.year} ${AppStrings.tr(AppStrings.yearly, lc)}'
         : '${_getMonthName(selectedDate.month, lc)} ${selectedDate.year}';
 
@@ -50,37 +54,74 @@ class WalletSelector extends ConsumerWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.border(context)),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          IconButton(
-            icon: const Icon(Icons.chevron_left, color: AppColors.primary),
-            onPressed: () {
-              if (isYearlyView) {
-                onDateChanged(DateTime(selectedDate.year - 1, selectedDate.month));
-              } else {
-                onDateChanged(DateTime(selectedDate.year, selectedDate.month - 1));
-              }
-            },
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              IconButton(
+                tooltip: lc == 'tr' ? 'Önceki dönem' : 'Previous period',
+                icon: const Icon(Icons.chevron_left, color: AppColors.primary),
+                onPressed: () {
+                  if (isYearlyView) {
+                    onDateChanged(
+                        DateTime(selectedDate.year - 1, selectedDate.month));
+                  } else {
+                    onDateChanged(
+                        DateTime(selectedDate.year, selectedDate.month - 1));
+                  }
+                },
+              ),
+              Flexible(
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary(context),
+                  ),
+                ),
+              ),
+              IconButton(
+                tooltip: lc == 'tr' ? 'Sonraki dönem' : 'Next period',
+                icon: const Icon(Icons.chevron_right, color: AppColors.primary),
+                onPressed: () {
+                  if (isYearlyView) {
+                    onDateChanged(
+                        DateTime(selectedDate.year + 1, selectedDate.month));
+                  } else {
+                    onDateChanged(
+                        DateTime(selectedDate.year, selectedDate.month + 1));
+                  }
+                },
+              ),
+            ],
           ),
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary(context),
+          if (!isCurrentPeriod)
+            TextButton.icon(
+              key: const Key('wallet-current-period-button'),
+              onPressed: () => onDateChanged(now),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                minimumSize: const Size(0, 28),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+                textStyle: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              icon: const Icon(Icons.my_location_rounded, size: 13),
+              label: Text(
+                isYearlyView
+                    ? (lc == 'tr' ? 'Bu yıla dön' : 'Back to this year')
+                    : (lc == 'tr' ? 'Bu aya dön' : 'Back to this month'),
+              ),
             ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.chevron_right, color: AppColors.primary),
-            onPressed: () {
-              if (isYearlyView) {
-                onDateChanged(DateTime(selectedDate.year + 1, selectedDate.month));
-              } else {
-                onDateChanged(DateTime(selectedDate.year, selectedDate.month + 1));
-              }
-            },
-          ),
         ],
       ),
     );

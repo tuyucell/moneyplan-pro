@@ -47,13 +47,25 @@ class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
 
     try {
       _box = await Hive.openBox<Map>(_boxName);
+      if (!mounted) {
+        _finishInitialization();
+        return;
+      }
       await _loadSyncMetadata();
+      if (!mounted) {
+        _finishInitialization();
+        return;
+      }
       _loadTransactions();
 
       // Sync with Supabase if logged in
       if (userId != null) {
         final client = SupabaseService.client;
         await _retryPendingRemoteClear();
+        if (!mounted) {
+          _finishInitialization();
+          return;
+        }
 
         if (_pendingRemoteClear) {
           _finishInitialization();
@@ -64,6 +76,10 @@ class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
             .from('user_transactions')
             .select('*')
             .eq('user_id', userId!);
+        if (!mounted) {
+          _finishInitialization();
+          return;
+        }
 
         final remoteTransactions = response.map((json) {
           return WalletTransaction(
@@ -108,12 +124,21 @@ class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
             for (final tx in remoteTransactions) tx.id: tx.toJson()
           };
           await _box!.putAll(batch);
+          if (!mounted) {
+            _finishInitialization();
+            return;
+          }
           _loadTransactions();
         }
         await _retryPendingRemoteDeletes();
+        if (!mounted) {
+          _finishInitialization();
+          return;
+        }
       }
 
       _finishInitialization();
+      if (!mounted) return;
       try {
         await _syncStatementCharges();
       } catch (error, stackTrace) {
@@ -127,6 +152,10 @@ class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
       if (kDebugMode) {
         debugPrint('Error initializing Hive: $e');
         debugPrint('Stack trace: $stackTrace');
+      }
+      if (!mounted) {
+        _finishInitialization();
+        return;
       }
       state = []; // Set empty state on error
       _isInitialized = true;
@@ -201,7 +230,9 @@ class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
   @override
   void dispose() {
     _statementChargeTimer?.cancel();
-    _box?.close();
+    // Hive boxes are process-wide and can be reused by a replacement provider.
+    // Closing here races with that provider when accounts/auth refresh at startup.
+    _finishInitialization();
     super.dispose();
   }
 
@@ -251,7 +282,7 @@ class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
 
   /// Load transactions from Hive with error handling
   void _loadTransactions() {
-    if (_box == null) return;
+    if (_box == null || !mounted) return;
 
     try {
       final transactions = _box!.values
@@ -266,13 +297,14 @@ class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
 
       // Sort by date descending
       transactions.sort((a, b) => b.date.compareTo(a.date));
+      if (!mounted) return;
       state = transactions;
     } catch (e, stackTrace) {
       if (kDebugMode) {
         debugPrint('Error loading transactions: $e');
         debugPrint('Stack trace: $stackTrace');
       }
-      state = []; // Set empty state on error
+      if (mounted) state = []; // Set empty state on error
     }
   }
 
