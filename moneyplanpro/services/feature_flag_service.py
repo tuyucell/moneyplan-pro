@@ -92,6 +92,21 @@ class FeatureFlagService:
             "daily_free_limit": None,
             "metadata": {"release_blocker": "commercial_data_license"}
         },
+        "tcmb_reference_rates": {
+            "id": "tcmb_reference_rates",
+            "name": "TCMB Referans Kurları",
+            "description": "Cüzdan hesaplamaları için sabah/akşam yenilenen tarihli gösterge kurları",
+            "is_pro": False,
+            "is_enabled": True,
+            "daily_free_limit": None,
+            "metadata": {
+                "provider": "TCMB",
+                "source_scope": "wallet_reference_calculations_only",
+                "refresh_times": ["08:00", "16:45"],
+                "timezone": "Europe/Istanbul",
+                "release_blocker": "tcmb_commercial_permission_confirmation",
+            },
+        },
         "gmail_import": {
             "id": "gmail_import",
             "name": "Gmail İçe Aktarma",

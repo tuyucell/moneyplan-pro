@@ -1002,10 +1002,20 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
     final cleanAmount =
         _amountController.text.replaceAll('.', '').replaceAll(',', '');
 
+    final amount = double.parse(cleanAmount);
+    final existing = widget.transaction;
+    final currencyService = ref.read(currencyServiceProvider);
+    final keepsExistingSnapshot =
+        existing?.currencyCode == _selectedCurrencyCode;
+    final exchangeRate = _selectedCurrencyCode == 'TRY'
+        ? null
+        : (keepsExistingSnapshot ? existing?.exchangeRateToTRY : null) ??
+            currencyService.rateToTRY(_selectedCurrencyCode);
+
     final transaction = WalletTransaction(
       id: widget.transaction?.id ?? const Uuid().v4(),
       categoryId: finalCategory.id,
-      amount: double.parse(cleanAmount),
+      amount: amount,
       date: _selectedDate,
       note: _noteController.text.isEmpty ? null : _noteController.text,
       type: _selectedType,
@@ -1017,6 +1027,16 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
       isPaid: _isPaidThisMonth,
       isSubscription: _isSubscription,
       currencyCode: _selectedCurrencyCode,
+      exchangeRateToTRY: exchangeRate,
+      exchangeRateDate: exchangeRate == null
+          ? null
+          : (keepsExistingSnapshot ? existing?.exchangeRateDate : null) ??
+              currencyService.rateDate ??
+              DateTime.now(),
+      exchangeRateSource: exchangeRate == null
+          ? null
+          : (keepsExistingSnapshot ? existing?.exchangeRateSource : null) ??
+              currencyService.source,
       // Ödeme yöntemi ve bakiye hesaplama
       paymentMethod:
           _isPaidByCard ? PaymentMethod.autoPayment : PaymentMethod.cash,

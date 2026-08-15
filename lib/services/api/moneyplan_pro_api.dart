@@ -75,6 +75,25 @@ class MoneyPlanProApi {
     }
   }
 
+  /// Cüzdan hesaplamalarında kullanılan tarihli TCMB referans kurları.
+  /// Bu uç canlı piyasa ekranından bağımsızdır ve backend'in sabah/akşam
+  /// yenilediği son doğrulanmış kuru döndürür.
+  static Future<Map<String, dynamic>?> getTcmbReferenceRates() async {
+    try {
+      final response = await http
+          .get(Uri.parse('$_baseUrl/currencies/tcmb/reference'))
+          .timeout(const Duration(seconds: 15));
+      if (response.statusCode == 200) {
+        final decoded = json.decode(response.body);
+        return decoded is Map<String, dynamic> ? decoded : null;
+      }
+      return null;
+    } catch (e) {
+      debugPrint('API Error (TCMB Reference): $e');
+      return null;
+    }
+  }
+
   /// En çok kazandıran fonları getirir
   static Future<List<dynamic>> getTopFunds() async {
     try {

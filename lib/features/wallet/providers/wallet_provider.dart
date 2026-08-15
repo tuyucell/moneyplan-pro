@@ -93,6 +93,12 @@ class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
               orElse: () => TransactionType.expense,
             ),
             currencyCode: json['currency'] as String? ?? 'TRY',
+            exchangeRateToTRY:
+                (json['exchange_rate_to_try'] as num?)?.toDouble(),
+            exchangeRateDate: json['exchange_rate_date'] != null
+                ? DateTime.tryParse(json['exchange_rate_date'] as String)
+                : null,
+            exchangeRateSource: json['exchange_rate_source'] as String?,
             bankAccountId: json['account_id'] as String?,
             recurrence: json['is_recurring'] == true
                 ? RecurrenceType.values.firstWhere(
@@ -345,6 +351,9 @@ class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
                   'description': t.note,
                   'date': t.date.toIso8601String(),
                   'currency': t.currencyCode,
+                  'exchange_rate_to_try': t.exchangeRateToTRY,
+                  'exchange_rate_date': t.exchangeRateDate?.toIso8601String(),
+                  'exchange_rate_source': t.exchangeRateSource,
                   'account_id': t.bankAccountId,
                   'is_recurring': t.recurrence != RecurrenceType.none,
                   'recurrence_type': t.recurrence.name,
@@ -406,6 +415,9 @@ class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
           'description': transaction.note,
           'date': transaction.date.toIso8601String(),
           'currency': transaction.currencyCode,
+          'exchange_rate_to_try': transaction.exchangeRateToTRY,
+          'exchange_rate_date': transaction.exchangeRateDate?.toIso8601String(),
+          'exchange_rate_source': transaction.exchangeRateSource,
           'account_id': transaction.bankAccountId,
           'is_recurring': transaction.recurrence != RecurrenceType.none,
           'recurrence_type': transaction.recurrence.name,
@@ -632,13 +644,19 @@ class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
         final instance = instancesTargetMonth.firstWhere((t) => t.id == id);
 
         // Materialize it in Hive with the new status
-        await addTransaction(instance.copyWith(isPaid: isPaid));
+        await addTransaction(_withRateSnapshot(
+          instance.copyWith(isPaid: isPaid),
+          shouldSnapshot: isPaid,
+        ));
       } else {
         // Check if it already exists in state
         final exists = state.any((t) => t.id == id);
         if (exists) {
           final transaction = state.firstWhere((t) => t.id == id);
-          await updateTransaction(transaction.copyWith(isPaid: isPaid));
+          await updateTransaction(_withRateSnapshot(
+            transaction.copyWith(isPaid: isPaid),
+            shouldSnapshot: isPaid,
+          ));
         } else {
           // If not found in state but called with a normal ID, it might be a newly added transaction
           // that hasn't synced to state yet, but this is rare.
@@ -816,6 +834,37 @@ class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
       bankAccountList: accounts,
       converter: (amount, currencyCode) =>
           _currencyService.convertToTRY(amount, currencyCode),
+      transactionConverter: _convertTransactionToTRY,
+    );
+  }
+
+  double _convertTransactionToTRY(WalletTransaction transaction) {
+    if (transaction.currencyCode == 'TRY') return transaction.amount;
+    final snapshot = transaction.exchangeRateToTRY;
+    if (snapshot != null && snapshot > 0) {
+      return transaction.amount * snapshot;
+    }
+    return _currencyService.convertToTRY(
+      transaction.amount,
+      transaction.currencyCode,
+    );
+  }
+
+  WalletTransaction _withRateSnapshot(
+    WalletTransaction transaction, {
+    required bool shouldSnapshot,
+  }) {
+    if (!shouldSnapshot ||
+        transaction.currencyCode == 'TRY' ||
+        transaction.exchangeRateToTRY != null) {
+      return transaction;
+    }
+    final rate = _currencyService.rateToTRY(transaction.currencyCode);
+    if (rate == null || rate <= 0) return transaction;
+    return transaction.copyWith(
+      exchangeRateToTRY: rate,
+      exchangeRateDate: _currencyService.rateDate ?? DateTime.now(),
+      exchangeRateSource: _currencyService.source,
     );
   }
 

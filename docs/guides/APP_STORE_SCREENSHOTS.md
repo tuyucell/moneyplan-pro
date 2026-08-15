@@ -17,10 +17,12 @@
 | --- | --- | --- | --- |
 | 1 | Onboarding | Paranı tek yerden yönet | Hazır |
 | 2 | Aylık özet | Gelirini, giderini ve kalan bütçeni gör | Hazır |
-| 3 | Birikim hedefleri | Hedef koy, ilerlemeni takip et | Bekliyor |
-| 4 | Piyasalar | Kripto, haber ve ekonomik takvimi takip et | Yakalanacak |
-| 5 | İzleme | Takip ettiğin varlıkları tek listede gör | Yakalanacak |
-| 6 | Araçlar | Bütçe ve finans hesaplayıcılarını kullan | Yakalanacak |
+| 3 | Birikim planları | Birikim, BES ve hayat sigortası planlarını izle | Hazır |
+| 4 | Araçlar | Bütçe ve finans hesaplayıcılarını kullan | Hazır |
+
+İlk 1.0 gönderim seti yukarıdaki dört görseldir. İzleme listesi boş durumda
+olduğu, piyasa/haber/takvim özellikleri ise lisans doğrulaması beklediği için bu
+ekranlar mevcut mağaza setine dahil edilmez.
 
 ## İçerik kuralları
 
@@ -36,16 +38,17 @@ Hazır görseller `docs/app-store/screenshots/iphone-6.9/` altında sıra numara
 
 - `01-manage-your-money.png` (mevcut onboarding)
 - `02-monthly-overview.png` (mevcut aylık özet)
-- `03-savings-goals.png`
-- `04-markets.jpg` (mevcut final Piyasalar ekranı)
-- `05-watchlist.png`
-- `06-financial-tools.png`
+- `03-savings-plans.jpg` (anonim kurgusal BES/hayat planları)
+- `04-financial-tools.jpg`
+
+Lisansı doğrulanmamış piyasa özelliklerini gösteren eski yakalamalar yanlışlıkla
+yüklenmemesi için `docs/app-store/screenshots/archive/` altına taşındı.
 
 6,3 inç QA/referans görselleri `docs/app-store/screenshots/iphone-6.3/`
 altında tutulur. İlk gerçek yakalama:
 
 - `06-financial-tools.jpg` — iPhone 17 Pro, `1206 × 2622`, opak JPEG
-- `04-markets.jpg` — iPhone 17 Pro, `1206 × 2622`, opak JPEG
+- Piyasa görseli lisans doğrulanana kadar arşivdedir ve yüklenmemelidir.
 
 Kurgusal simülatör işlemleri gerektiğinde
 `tool/seed_app_store_demo.dart` ile yeniden üretilebilir. Araç güvenlik için

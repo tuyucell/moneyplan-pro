@@ -153,8 +153,8 @@ class _SavingsPlanEditorDialogState
         !eligibleAccounts.any((account) => account.id == _paymentAccountId)) {
       _paymentAccountId = null;
     }
-    final currencies =
-        ref.read(currencyServiceProvider).getAvailableCurrencies();
+    final currencyService = ref.watch(currencyServiceProvider);
+    final currencies = currencyService.getAvailableCurrencies();
 
     return AlertDialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 24),
@@ -246,6 +246,17 @@ class _SavingsPlanEditorDialogState
                   ),
                 ],
               ),
+              if (_currency != 'TRY') ...[
+                const SizedBox(height: 6),
+                Text(
+                  currencyService.rateDate == null
+                      ? 'TCMB referans kuru yükleniyor. Bankanın gerçek çekim tutarı farklı olabilir.'
+                      : 'TCMB ${DateFormat('dd.MM.yyyy').format(currencyService.rateDate!)} satış kuru${currencyService.isStale ? ' • son kayıtlı kur' : ''}. Bankanın gerçek çekim tutarı farklı olabilir.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.textSecondary(context),
+                      ),
+                ),
+              ],
               const SizedBox(height: 12),
               if (!_isContract) ...[
                 _numberField(_target, 'Hedef tutar (isteğe bağlı)'),

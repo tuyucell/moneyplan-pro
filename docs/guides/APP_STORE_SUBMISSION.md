@@ -10,7 +10,7 @@ kopyalanacak içerikleri ve son kalite kontrolünü bir arada tutar.
 | Uygulama adı | MoneyPlan Pro |
 | Bundle ID | `pro.moneyplan.app` |
 | Sürüm | `1.0.0` |
-| Build | `8` |
+| Build | `19` |
 | Birincil kategori | Finance |
 | İkincil kategori | Education |
 | Destek e-postası | trgy.ycl@gmail.com |
@@ -22,11 +22,11 @@ kopyalanacak içerikleri ve son kalite kontrolünü bir arada tutar.
 Aşağıdaki metni App Store Connect'teki **Notes** alanına yapıştırın:
 
 > MoneyPlan Pro is a budgeting and financial-literacy app. It does not provide
-> investment advice or guaranteed returns. Market data can be delayed and is
-> shown for education and tracking. Crypto market data is provided by CoinGecko
-> and is labelled in the app. Account creation is optional for exploring the
-> app; users can create an account with email or Sign in with Apple to sync
-> data. Users can permanently delete their account and associated cloud data
+> investment advice or guaranteed returns. Foreign-currency conversions use a
+> dated TCMB indicative selling rate and can differ from the amount charged by
+> a user's bank. Unlicensed market, news, and calendar features are disabled in
+> this release. Users can create an account with email or Sign in with Apple.
+> Users can permanently delete their account and associated cloud data
 > from Profile > Delete Account and Data.
 
 İnceleme için giriş gerekiyorsa, gerçek kullanıcı verisi içermeyen ayrı bir
@@ -48,16 +48,19 @@ Information** alanına girin.
 
 - [ ] İlk açılış, kayıt/giriş ve Apple ile giriş
 - [ ] Gelir, gider ve düzenli işlem ekleme/düzenleme/silme
-- [ ] Bütçe özeti ve birikim hedefleri
-- [ ] Piyasalar: CoinGecko verisi, ticker, haberler ve ekonomik takvim
-- [ ] İzleme listesi ve iPhone widget'ı
+- [ ] Bütçe özeti, limit grafiği ve ayrı veri sıfırlama akışları
+- [ ] Birikim, BES ve hayat sigortası ekleme/düzenleme/silme
+- [ ] USD planında TCMB kur tarihi, çevrimdışı son kur ve gerçek banka tutarı uyarısı
+- [ ] Lisans bekleyen piyasa, haber ve takvim flag’lerinin kapalı olduğu doğrulaması
+- [ ] İzleme listesi ve iPhone cüzdan widget'ı
 - [ ] Bildirim izni ver/reddet ve ayarlardan değiştirme
 - [ ] Hesap ve veri silme
 - [ ] Abonelik satın alma ve geri yükleme (TestFlight sandbox)
 
 ## Yayın öncesi kural
 
-`live_market_data`, `gmail_import` ve `ai_features` App Store metninde veya
+`live_market_data`, `crypto_market_data`, `market_ticker`, `market_news`,
+`financial_calendar`, `gmail_import` ve `ai_features` App Store metninde veya
 ekran görüntülerinde ancak o sürümde gerçekten etkin ve denetlenmişse yer
-almalıdır. 1.0 için etkin olan piyasa yüzeyleri ticker, finans haberleri,
-ekonomik takvim ve CoinGecko kripto verileridir.
+almalıdır. Mevcut 1.0 adayında lisans/izin bekleyen piyasa, haber ve ekonomik
+takvim yüzeyleri vaat edilmemelidir.

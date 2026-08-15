@@ -1,6 +1,6 @@
 # MoneyPlan Pro — Piyasa Verisi Lisans Kontrolü
 
-Son kontrol: 20 Temmuz 2026
+Son kontrol: 15 Ağustos 2026
 
 Bu belge teknik/hukuki ön incelemedir; lisans veren kurumdan alınmış yazılı izin veya hukuk görüşü yerine geçmez.
 
@@ -14,7 +14,7 @@ Bu belge teknik/hukuki ön incelemedir; lisans veren kurumdan alınmış yazıl�
 | Twelve Data | Global hisse/veri yedeği | Basic dahil bireysel planlar kişisel/dahili ve ticari olmayan kullanım içindir. Ticari gösterim Business planı ve bazı borsalar için ek izin gerektirir. | Ücretsiz katman mağaza sürümünde devre dışı kalmalı. |
 | TradingView | Teknik analiz ve bazı fiyatlar | Koşullar ayrı sözleşme olmadan ticari servis/API kullanımını ve veri sağlayıcı izni olmadan üçüncü taraf ürünleri kısıtlar. | Ticari sözleşme olmadan backend veri kaynağı olarak kullanılmamalı. |
 | Borsa İstanbul verisi | BIST fiyatları/endeksleri | Veriyi kullanıcıya dağıtmak için Dağıtıcı veya Alt Dağıtıcı lisansı gerekir. Gecikmeli veri de yetkili dağıtıcı üzerinden lisanslanır. | Yetkili dağıtıcıyla sözleşme yapılmadan canlı BIST verisi yayımlanmamalı. |
-| TCMB | Döviz kurları | Kaynak gösterilerek yayımlanabilir; TCMB kullanım şartları ticari kullanımın yazılı izne tabi olduğunu belirtir. | Monetize edilen uygulama için yazılı izin alınmalı veya canlı kur özelliği kapatılmalı. |
+| TCMB | Cüzdan içindeki yabancı para hesaplamalarında, tarihli resmî gösterge satış kuru | TCMB SSS belgesi `today.xml` dosyasının uygulamalar tarafından otomatik kullanılabildiğini açıklar; genel kullanım şartları ticari kullanım için ayrıca yazılı izin gerektirir. Veri gerçek zamanlı değildir. | 08.00/16.45 kontrolü, son başarılı kur ve görünür kaynak/tarih desteği hazır. Monetize edilen yayın öncesi yazılı izin teyidi alınmalı; alınmazsa `tcmb_reference_rates` uzaktan kapatılmalı. |
 | Yahoo Finance | Global piyasa yedeği/grafikler | Kullanılan Finance uçları resmi ve sözleşmeli bir geliştirici ürünü olarak belgelenmiyor. Genel Yahoo API şartları tek başına Finance verisini yeniden dağıtma hakkı sağlamaz. | Yazılı lisans olmadan mağaza sürümünde kullanılmamalı. |
 | Mynet Finans | BIST/döviz/altın ve haber kazıma | MoneyPlan Pro'ya veri yeniden dağıtım hakkı veren bir API sözleşmesi bulunmuyor. | HTML kazıma mağaza sürümünde kullanılmamalı. |
 | TEFAS | Fon fiyatları | Kamuya açık web sayfası, otomatik çekme ve ticari yeniden dağıtım izni anlamına gelmez; belgelenmiş bir lisans alınmadı. | Yazılı izin veya lisanslı sağlayıcı olmadan canlı fon verisi yayımlanmamalı. |
@@ -32,6 +32,7 @@ Bu belge teknik/hukuki ön incelemedir; lisans veren kurumdan alınmış yazıl�
 - Borsa İstanbul veri lisanslama: https://www.borsaistanbul.com/sss/veri-dagitim-ve-endeks-lisanslama
 - Borsa İstanbul veri yayını: https://www.borsaistanbul.com/veriler/veri-yayini
 - TCMB kullanım şartları: https://www.tcmb.gov.tr/wps/wcm/connect/TR/TCMB%2BTR/Bottom%2BMenu/Diger/Kullanim%2BSartlari
+- TCMB kur dosyaları ve otomatik kullanım SSS: https://www.tcmb.gov.tr/wps/wcm/connect/bab69efb-d66c-45b5-91c6-1533886acd6e/GenelAg-SSS.pdf
 - Yahoo Developer API Terms: https://legal.yahoo.com/us/en/yahoo/terms/product-atos/apiforydn/index.html
 
 ## Önerilen ilk sürüm kararı

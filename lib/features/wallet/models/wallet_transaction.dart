@@ -16,6 +16,9 @@ class WalletTransaction {
   final bool isSubscription; // Bir abonelik mi? (Netflix, Spotify vb.)
 
   final String currencyCode; // Para birimi (TRY, USD, EUR vb.)
+  final double? exchangeRateToTRY; // İşlem gerçekleştiğinde sabitlenen kur
+  final DateTime? exchangeRateDate;
+  final String? exchangeRateSource;
 
   // Duplicate önleme için
   final PaymentMethod paymentMethod; // Nakit, Kart, Banka Transferi
@@ -41,6 +44,9 @@ class WalletTransaction {
     this.recurrenceEndDate,
     this.isSubscription = false,
     this.currencyCode = 'TRY',
+    this.exchangeRateToTRY,
+    this.exchangeRateDate,
+    this.exchangeRateSource,
     this.paymentMethod = PaymentMethod.cash,
     this.excludeFromBalance = false,
     this.linkedTransactionId,
@@ -75,6 +81,9 @@ class WalletTransaction {
       'recurrenceEndDate': recurrenceEndDate?.toIso8601String(),
       'isSubscription': isSubscription,
       'currencyCode': currencyCode,
+      'exchangeRateToTRY': exchangeRateToTRY,
+      'exchangeRateDate': exchangeRateDate?.toIso8601String(),
+      'exchangeRateSource': exchangeRateSource,
       'paymentMethod': paymentMethod.name,
       'excludeFromBalance': excludeFromBalance,
       'linkedTransactionId': linkedTransactionId,
@@ -109,6 +118,11 @@ class WalletTransaction {
           : null,
       isSubscription: json['isSubscription'] as bool? ?? false,
       currencyCode: json['currencyCode'] as String? ?? 'TRY',
+      exchangeRateToTRY: (json['exchangeRateToTRY'] as num?)?.toDouble(),
+      exchangeRateDate: json['exchangeRateDate'] != null
+          ? DateTime.tryParse(json['exchangeRateDate'] as String)
+          : null,
+      exchangeRateSource: json['exchangeRateSource'] as String?,
       paymentMethod: json['paymentMethod'] != null
           ? PaymentMethod.values.firstWhere(
               (e) => e.name == json['paymentMethod'],
@@ -136,6 +150,9 @@ class WalletTransaction {
     DateTime? recurrenceEndDate,
     bool? isSubscription,
     String? currencyCode,
+    double? exchangeRateToTRY,
+    DateTime? exchangeRateDate,
+    String? exchangeRateSource,
     PaymentMethod? paymentMethod,
     bool? excludeFromBalance,
     String? linkedTransactionId,
@@ -156,6 +173,9 @@ class WalletTransaction {
       recurrenceEndDate: recurrenceEndDate ?? this.recurrenceEndDate,
       isSubscription: isSubscription ?? this.isSubscription,
       currencyCode: currencyCode ?? this.currencyCode,
+      exchangeRateToTRY: exchangeRateToTRY ?? this.exchangeRateToTRY,
+      exchangeRateDate: exchangeRateDate ?? this.exchangeRateDate,
+      exchangeRateSource: exchangeRateSource ?? this.exchangeRateSource,
       paymentMethod: paymentMethod ?? this.paymentMethod,
       excludeFromBalance: excludeFromBalance ?? this.excludeFromBalance,
       linkedTransactionId: linkedTransactionId ?? this.linkedTransactionId,

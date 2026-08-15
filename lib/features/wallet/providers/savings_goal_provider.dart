@@ -4,26 +4,46 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:moneyplan_pro/features/wallet/models/savings_goal.dart';
+import 'package:moneyplan_pro/core/providers/common_providers.dart';
+import 'package:moneyplan_pro/features/auth/data/models/user_model.dart';
+import 'package:moneyplan_pro/features/auth/presentation/providers/auth_providers.dart';
 
 class SavingsGoalNotifier extends StateNotifier<List<SavingsGoal>> {
-  SavingsGoalNotifier() : super([]) {
+  SavingsGoalNotifier({SharedPreferences? preferences, this.userId})
+      : _preferences = preferences,
+        super([]) {
     _loadGoals();
   }
 
-  static const String _prefsKey = 'user_savings_goals';
+  static const String _legacyPrefsKey = 'user_savings_goals';
+  final SharedPreferences? _preferences;
+  final String? userId;
   final Completer<void> _initCompleter = Completer<void>();
+
+  String get _prefsKey => 'user_savings_goals_${userId ?? 'guest'}';
+
+  Future<SharedPreferences> get _prefs async =>
+      _preferences ?? await SharedPreferences.getInstance();
 
   Future<void> _loadGoals() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final jsonString = prefs.getString(_prefsKey);
+      final prefs = await _prefs;
+      var jsonString = prefs.getString(_prefsKey);
+      // One-time migration for installations created before local data was
+      // scoped by Supabase user. Never expose that legacy value to guests or
+      // to a second account after it has been claimed.
+      if (jsonString == null && userId != null) {
+        jsonString = prefs.getString(_legacyPrefsKey);
+        if (jsonString != null) {
+          await prefs.setString(_prefsKey, jsonString);
+          await prefs.remove(_legacyPrefsKey);
+        }
+      }
       if (jsonString != null) {
         final List<dynamic> jsonList = json.decode(jsonString);
         state = jsonList
             .map((e) => SavingsGoal.fromJson(Map<String, dynamic>.from(e)))
-            .map((goal) => goal.accrueUntil(DateTime.now()))
             .toList();
-        await _saveGoals();
       } else {
         state = [];
       }
@@ -37,7 +57,7 @@ class SavingsGoalNotifier extends StateNotifier<List<SavingsGoal>> {
 
   Future<void> _saveGoals() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = await _prefs;
       final jsonString = json.encode(state.map((e) => e.toJson()).toList());
       await prefs.setString(_prefsKey, jsonString);
     } catch (e) {
@@ -157,5 +177,10 @@ class SavingsGoalNotifier extends StateNotifier<List<SavingsGoal>> {
 
 final savingsGoalProvider =
     StateNotifierProvider<SavingsGoalNotifier, List<SavingsGoal>>((ref) {
-  return SavingsGoalNotifier();
+  final authState = ref.watch(authNotifierProvider);
+  final userId = authState is AuthAuthenticated ? authState.user.id : null;
+  return SavingsGoalNotifier(
+    preferences: ref.watch(sharedPreferencesProvider),
+    userId: userId,
+  );
 });

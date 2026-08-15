@@ -100,6 +100,7 @@ class MonthlySummary {
     int month, {
     List<BankAccount>? bankAccountList,
     double Function(double amount, String currencyCode)? converter,
+    double Function(WalletTransaction transaction)? transactionConverter,
   }) {
     // 1. Calculate Initial Balance (Brought Forward)
     // - Sum of initial balances of CASH accounts (Exclude Credit Cards)
@@ -162,8 +163,10 @@ class MonthlySummary {
       final effectiveDate = account?.balanceEffectiveDate ?? account?.createdAt;
       if (effectiveDate != null && tx.date.isBefore(effectiveDate)) continue;
 
-      final normalizedAmount =
-          converter != null ? converter(tx.amount, tx.currencyCode) : tx.amount;
+      final normalizedAmount = transactionConverter?.call(tx) ??
+          (converter != null
+              ? converter(tx.amount, tx.currencyCode)
+              : tx.amount);
 
       if (tx.type == TransactionType.income) {
         initialBalance += normalizedAmount;
@@ -213,8 +216,8 @@ class MonthlySummary {
       final amount = transaction.amount;
 
       // Normalize amount for TRY-based totals
-      final normalizedAmount =
-          converter != null ? converter(amount, currency) : amount;
+      final normalizedAmount = transactionConverter?.call(transaction) ??
+          (converter != null ? converter(amount, currency) : amount);
 
       // Identify if this affects CASH balance
       final isCashAccount = transaction.bankAccountId == null ||

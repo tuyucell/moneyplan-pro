@@ -52,6 +52,14 @@ def require_live_market_data():
         )
 
 
+def require_tcmb_reference_rates():
+    if not FeatureFlagService.is_enabled_sync("tcmb_reference_rates"):
+        raise HTTPException(
+            status_code=503,
+            detail="TCMB reference rates are temporarily unavailable.",
+        )
+
+
 def require_crypto_market_data():
     if not FeatureFlagService.is_enabled_sync("crypto_market_data"):
         raise HTTPException(
@@ -105,11 +113,13 @@ def require_ai_features():
 async def startup_event():
     # Start the price alert monitor in the background
     alert_monitor_service.start()
+    tcmb_service.start_scheduler()
 
 @app.on_event("shutdown")
 async def shutdown_event():
     # Stop the price alert monitor
     alert_monitor_service.stop()
+    tcmb_service.stop_scheduler()
 
 app.add_middleware(
     CORSMiddleware,
@@ -400,6 +410,21 @@ def get_bes_funds():
 )
 def get_tcmb_rates():
     return market_provider.get_tcmb_currencies()
+
+
+@app.get(
+    "/api/v1/currencies/tcmb/reference",
+    dependencies=[Depends(require_tcmb_reference_rates)],
+)
+def get_tcmb_reference_rates():
+    """Cached daily TCMB reference rates used by wallet calculations."""
+    payload = tcmb_service.get_reference_rates()
+    if payload is None:
+        raise HTTPException(
+            status_code=503,
+            detail="TCMB reference rates are temporarily unavailable.",
+        )
+    return payload
 
 @app.get(
     "/api/v1/news",

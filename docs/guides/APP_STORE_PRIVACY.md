@@ -24,6 +24,18 @@ Bu belge, `ios/Runner/PrivacyInfo.xcprivacy`, uygulama içi gizlilik metni ve Ap
 
 Tüm türler için `tracking = false` kullanılmalıdır.
 
+## Yerel ve bulut saklama sınırı
+
+- Gelir/gider kayıtları, banka/kart yapılandırmaları ve desteklenen portföy
+  kayıtları oturum sahibine bağlı olarak Supabase ile eşitlenebilir.
+- Birikim hedefleri, BES ve geri ödemeli hayat sigortası planları bu sürümde
+  cihazda, Supabase kullanıcı kimliğine göre ayrılmış yerel alanda saklanır.
+- Çıkış yapan bir hesabın yerel planları başka bir hesaba gösterilmez. Hesap ve
+  verileri silme işlemi cihazdaki bu kayıtları da kaldırır.
+- TCMB referans kuru kişisel veri değildir; yalnızca kullanıcı tarafından
+  girilen yabancı para tutarlarının tahmini TRY karşılığını hesaplamak için
+  kullanılır.
+
 ## İşleyiciler
 
 - Supabase: kimlik doğrulama, veritabanı ve cihaz push kayıtları

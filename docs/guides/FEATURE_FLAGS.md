@@ -120,6 +120,7 @@ if (isAvailable) {
 | `credit_card_assistant` | Kredi Kartı Asistanı | ❌ | ∞ |
 | `crypto_market_data` | CoinGecko Kripto Verileri | ❌ | ∞ |
 | `market_ticker` | CoinGecko Kripto Kayan Yazısı | ❌ | ∞ |
+| `tcmb_reference_rates` | TCMB Cüzdan Referans Kurları | ❌ | ∞ |
 | `market_news` | Lisanslı Piyasa Haberleri | ❌ | ∞ |
 | `financial_calendar` | Yönetilen Finansal Takvim | ❌ | ∞ |
 | `financial_calendar_fxstreet` | FXStreet Takvim Yedeği | ❌ | ∞ |
@@ -133,6 +134,11 @@ if (isAvailable) {
 `market_ticker`, yalnızca CoinGecko ticari kullanım hakkı olan bir plan
 etkinleştirildikten sonra açılmalıdır. Bu üst seviye flag'ler mobil arayüzü ve
 backend endpoint'lerini birlikte kapatır.
+
+`tcmb_reference_rates`, canlı piyasa ekranı değildir; cüzdanın tarihli gösterge
+satış kuru dönüşümünü yönetir. TCMB ticari kullanım teyidi olumsuzsa bu flag
+dashboard'dan kapatılmalı; mobil uygulama son doğrulanmış yerel kuru yalnızca
+çevrimdışı devamlılık için gösterir ve yeni kur çekmez.
 
 ## 🔧 Configuration
 

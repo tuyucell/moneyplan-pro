@@ -22,6 +22,8 @@ Bu liste, refaktör sonrası yapılacak geliştirmeleri ve eksikleri takip etmek
   - [x] Bozuk `ios` gitlink'inden etkilenmemesi için GitHub Pages kaynağı temiz `gh-pages` dalının köküne taşındı.
 - [x] **Dashboard ayar kalıcılığı:** HF Storage Bucket `tuyucel/moneyplanpro-storage`, Space'e `/data` yolunda okuma-yazma olarak bağlandı. Backend bu mount'u otomatik algılıyor; canlı teşhis `persistent: true` doğrulamasını döndürüyor. API anahtarları ve Supabase bootstrap secret'ları HF Secrets'ta kalmalı.
 - [x] **Yanıltıcı/demo finans verileri:** BES simülasyonu, sabit fiyat fallback'leri, sahte sparklines ve widget örnek fiyatları kaldırıldı; yalnızca pozitif canlı fiyatlar gösteriliyor.
+  - [x] Cüzdan hesaplamalarındaki sabit USD/EUR/GBP örnek kurları kaldırıldı; tarihli TCMB satış kuru, son başarılı çevrimdışı kayıt ve 08.00/16.45 yenileme pencereleri eklendi.
+  - [ ] TCMB ticari kullanım izni yazılı teyit edilecek; teyit alınmazsa `tcmb_reference_rates` flag’i mağaza sürümünde kapatılacak.
   - [x] Gerçek sağlayıcısı olmayan örnek faiz/kripto reklamları mağaza sürümünde devre dışı bırakıldı.
   - [x] Kaynakların ön lisans incelemesi `docs/guides/DATA_LICENSING.md` içinde tamamlandı.
   - [x] İlk yayın kararı uygulandı: geniş piyasa kategori ekranlarını açan `live_market_data` uzaktan yönetilen flag'i varsayılan kapalı.
@@ -47,11 +49,15 @@ Bu liste, refaktör sonrası yapılacak geliştirmeleri ve eksikleri takip etmek
   - [ ] App Store ekran görüntüleri açıkça fiktif test verisiyle hazırlanacak.
     - [x] 6,9 inç iPhone için ilk onboarding görseli hazırlandı (`1320 × 2868`).
     - [x] Kurgusal gelir/gider verisiyle aylık özet görseli hazırlandı.
-    - [x] Piyasalar ekranı; ticker, ekonomik takvim ve haber akışı görünür şekilde 6,9 inç olarak yakalandı.
-    - [ ] Birikim hedefleri, izleme ve araçlar görselleri hazırlanacak.
+    - [x] Birikim/BES/hayat sigortası görseli anonim kurgusal plan adlarıyla hazırlandı.
+    - [x] Finansal araçlar görseli 6,9 inç opak JPEG olarak hazırlandı.
+    - [x] Lisans bekleyen piyasa ekranı final setten çıkarılıp arşivlendi.
+    - [x] Boş izleme ekranı 1.0 mağaza setinden çıkarıldı.
     - [ ] Tam set App Store Connect'e yüklenecek.
 - [x] **iOS hedefleri — kod:** Widget minimum iOS 15’e indirildi; uygulama ve widget test kapsamı olmadığı için iPhone-only dağıtıma alındı.
 - [ ] **Kalite kapısı:**
+  - [x] Birikim/BES/hayat sigortası yerel kayıtları Supabase kullanıcı kimliğine göre ayrıldı; eski tekil anahtar bir kez mevcut kullanıcıya taşınıyor.
+  - [x] Uygulama açılışında ödenmemiş dönemleri kendiliğinden birikmiş bakiye sayma kaldırıldı; değerleme kullanıcı senkronizasyonuyla ilerliyor.
   - [x] Widget testi ve uygulama kapanışındaki asenkron kaynak temizliği düzeltildi.
   - [x] `flutter analyze`, tam `flutter test` ve backend direnç testleri hatasız geçiyor.
   - [x] iPhone 17 Pro / iOS 26.5 ve Pixel 7 Pro / Android 11 emülatörlerinde temiz kurulum, ana sekmeler, fonlar, finansal takvim, Bitcoin detay/grafik ve Pro ekranı duman testleri geçti.
