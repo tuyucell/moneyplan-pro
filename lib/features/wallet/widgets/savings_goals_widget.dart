@@ -72,8 +72,8 @@ class SavingsGoalsWidget extends ConsumerWidget {
           const SizedBox(height: 4),
           Text(
             lc == 'tr'
-                ? 'Birikim hesabı, BES veya hayat sigortası ekleyin.'
-                : 'Add savings, pension or life insurance.',
+                ? 'Birikim, BES, hayat sigortası veya tasarruf finansman planı ekleyin.'
+                : 'Add savings, pension, life insurance or financing plans.',
             style: const TextStyle(color: Colors.grey, fontSize: 13),
           ),
           const SizedBox(height: 16),
@@ -222,10 +222,10 @@ class SavingsGoalsWidget extends ConsumerWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
-            if (goal.maturityDate != null) ...[
+            if (goal.contractEndDate != null) ...[
               const SizedBox(height: 6),
               Text(
-                '${AppStrings.tr(AppStrings.maturity, lc)}: ${DateFormat('dd.MM.yyyy').format(goal.maturityDate!)}',
+                '${AppStrings.tr(AppStrings.maturity, lc)}: ${DateFormat('dd.MM.yyyy').format(goal.contractEndDate!)}',
                 style: TextStyle(
                     fontSize: 10, color: AppColors.textSecondary(context)),
               ),
@@ -241,6 +241,7 @@ class SavingsGoalsWidget extends ConsumerWidget {
         SavingsPlanType.savings => Icons.savings,
         SavingsPlanType.bes => Icons.account_balance,
         SavingsPlanType.lifeInsurance => Icons.health_and_safety,
+        SavingsPlanType.savingsFinance => Icons.handshake,
       };
 
   String _planBadge(SavingsGoal goal, String lc) => switch (goal.planType) {
@@ -248,6 +249,7 @@ class SavingsGoalsWidget extends ConsumerWidget {
         SavingsPlanType.bes =>
           'BES +%${goal.governmentContributionRate.toStringAsFixed(0)}',
         SavingsPlanType.lifeInsurance => lc == 'tr' ? 'HAYAT' : 'LIFE',
+        SavingsPlanType.savingsFinance => lc == 'tr' ? 'FİNANSMAN' : 'FINANCE',
       };
 
   String _periodLabel(ContributionPeriod period, String lc) => switch (period) {

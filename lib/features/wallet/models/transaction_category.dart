@@ -59,6 +59,11 @@ class TransactionCategory {
         type: TransactionType.income,
         icon: Icons.card_giftcard),
     TransactionCategory(
+        id: 'financing_inflow',
+        name: 'Tasarruf Finansman Teslimatı',
+        type: TransactionType.income,
+        icon: Icons.real_estate_agent),
+    TransactionCategory(
         id: 'other_income',
         name: 'Diğer Gelir',
         type: TransactionType.income,
@@ -319,6 +324,24 @@ class TransactionCategory {
         type: TransactionType.expense,
         icon: Icons.account_balance_wallet,
         isSaving: true),
+    TransactionCategory(
+        id: 'savings_finance',
+        name: 'Tasarruf Finansman',
+        type: TransactionType.expense,
+        icon: Icons.handshake),
+    TransactionCategory(
+        id: 'savings_finance_principal',
+        name: 'Ana Para Taksiti',
+        type: TransactionType.expense,
+        icon: Icons.payments_outlined,
+        parentId: 'savings_finance',
+        isSaving: true),
+    TransactionCategory(
+        id: 'savings_finance_fee',
+        name: 'Organizasyon Bedeli',
+        type: TransactionType.expense,
+        icon: Icons.receipt_long,
+        parentId: 'savings_finance'),
     TransactionCategory(
         id: 'other_expense',
         name: 'Diğer Giderler',

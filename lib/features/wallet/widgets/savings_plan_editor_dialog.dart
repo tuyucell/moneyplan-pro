@@ -49,10 +49,15 @@ class _SavingsPlanEditorDialogState
   late final TextEditingController _periodic;
   late final TextEditingController _interest;
   late final TextEditingController _years;
+  late final TextEditingController _months;
   late final TextEditingController _paymentDay;
   late final TextEditingController _governmentRate;
   late final TextEditingController _returnRate;
   late final TextEditingController _profitShare;
+  late final TextEditingController _minimumDeliveryMonths;
+  late final TextEditingController _deliveryThresholdRate;
+  late final TextEditingController _organizationFeeRate;
+  late final TextEditingController _organizationFeePaid;
 
   late SavingsPlanType _type;
   late ContributionPeriod _period;
@@ -63,6 +68,7 @@ class _SavingsPlanEditorDialogState
   late bool _createWalletExpense;
   late DateTime _startDate;
   DateTime? _maturityDate;
+  DateTime? _plannedDeliveryDate;
   bool _saving = false;
 
   @override
@@ -75,11 +81,13 @@ class _SavingsPlanEditorDialogState
     _currency = plan?.currencyCode ??
         (_type == SavingsPlanType.lifeInsurance ? 'USD' : 'TRY');
     _paymentAccountId = plan?.paymentAccountId;
-    _automaticPayment =
-        plan?.automaticPayment ?? _type != SavingsPlanType.savings;
+    _automaticPayment = plan?.automaticPayment ??
+        (_type != SavingsPlanType.savings &&
+            _type != SavingsPlanType.savingsFinance);
     _createWalletExpense = plan?.createWalletExpense ?? false;
     _startDate = plan?.contractStartDate ?? DateTime.now();
     _maturityDate = plan?.maturityDate;
+    _plannedDeliveryDate = plan?.plannedDeliveryDate;
     _name = TextEditingController(text: plan?.name ?? '');
     _balance = TextEditingController(text: _number(plan?.currentAmount));
     _target = TextEditingController(text: _number(plan?.targetAmount));
@@ -89,6 +97,10 @@ class _SavingsPlanEditorDialogState
     _years = TextEditingController(
       text: plan?.contractYears?.toString() ??
           (_type == SavingsPlanType.lifeInsurance ? '10' : ''),
+    );
+    _months = TextEditingController(
+      text: plan?.contractMonths?.toString() ??
+          (_type == SavingsPlanType.savingsFinance ? '25' : ''),
     );
     _paymentDay = TextEditingController(
       text: (plan?.paymentDay ?? DateTime.now().day.clamp(1, 28)).toString(),
@@ -101,6 +113,18 @@ class _SavingsPlanEditorDialogState
     );
     _profitShare = TextEditingController(
       text: _number(plan?.annualProfitShareRate),
+    );
+    _minimumDeliveryMonths = TextEditingController(
+      text: (plan?.minimumDeliveryMonths ?? 6).toString(),
+    );
+    _deliveryThresholdRate = TextEditingController(
+      text: _number(plan?.deliveryThresholdRate ?? 50),
+    );
+    _organizationFeeRate = TextEditingController(
+      text: _number(plan?.organizationFeeRate ?? 7),
+    );
+    _organizationFeePaid = TextEditingController(
+      text: _number(plan?.organizationFeePaid),
     );
   }
 
@@ -123,10 +147,15 @@ class _SavingsPlanEditorDialogState
       _periodic,
       _interest,
       _years,
+      _months,
       _paymentDay,
       _governmentRate,
       _returnRate,
       _profitShare,
+      _minimumDeliveryMonths,
+      _deliveryThresholdRate,
+      _organizationFeeRate,
+      _organizationFeePaid,
     ]) {
       controller.dispose();
     }
@@ -186,19 +215,31 @@ class _SavingsPlanEditorDialogState
                     value: SavingsPlanType.lifeInsurance,
                     child: Text('Geri ödemeli hayat sigortası'),
                   ),
+                  DropdownMenuItem(
+                    value: SavingsPlanType.savingsFinance,
+                    child: Text('Tasarruf finansman sözleşmesi'),
+                  ),
                 ],
                 onChanged: widget.existing == null
                     ? (value) {
                         if (value == null) return;
                         setState(() {
                           _type = value;
-                          _automaticPayment = value != SavingsPlanType.savings;
+                          _automaticPayment =
+                              value != SavingsPlanType.savings &&
+                                  value != SavingsPlanType.savingsFinance;
                           if (value == SavingsPlanType.lifeInsurance) {
                             _currency = 'USD';
                             if (_years.text.isEmpty) _years.text = '10';
                           } else if (_currency == 'USD' &&
                               value == SavingsPlanType.bes) {
                             _currency = 'TRY';
+                          } else if (value == SavingsPlanType.savingsFinance) {
+                            _currency = 'TRY';
+                            if (_months.text.isEmpty) _months.text = '25';
+                            if (_organizationFeeRate.text.isEmpty) {
+                              _organizationFeeRate.text = '7';
+                            }
                           }
                         });
                       }
@@ -212,6 +253,7 @@ class _SavingsPlanEditorDialogState
                     SavingsPlanType.bes => 'BES planı / şirket adı',
                     SavingsPlanType.lifeInsurance => 'Poliçe / şirket adı',
                     SavingsPlanType.savings => 'Hesap adı',
+                    SavingsPlanType.savingsFinance => 'Şirket / sözleşme adı',
                   },
                   border: const OutlineInputBorder(),
                 ),
@@ -223,7 +265,11 @@ class _SavingsPlanEditorDialogState
                     flex: 2,
                     child: _numberField(
                       _balance,
-                      _isContract ? 'Bugünkü fon değeri' : 'Güncel bakiye',
+                      _type == SavingsPlanType.savingsFinance
+                          ? 'Bugüne kadar ödenen ana para'
+                          : (_isContract
+                              ? 'Bugünkü fon değeri'
+                              : 'Güncel bakiye'),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -271,6 +317,10 @@ class _SavingsPlanEditorDialogState
                   ],
                 ),
               ] else ...[
+                if (_type == SavingsPlanType.savingsFinance) ...[
+                  _numberField(_target, 'Finansman tutarı'),
+                  const SizedBox(height: 12),
+                ],
                 Row(
                   children: [
                     Expanded(child: _numberField(_periodic, 'Dönemlik ödeme')),
@@ -314,8 +364,10 @@ class _SavingsPlanEditorDialogState
                             'Sözleşme başlangıcı', _startDate, _pickStart)),
                     const SizedBox(width: 8),
                     Expanded(
-                        child:
-                            _numberField(_years, 'Süre (yıl)', integer: true)),
+                      child: _type == SavingsPlanType.savingsFinance
+                          ? _numberField(_months, 'Vade (ay)', integer: true)
+                          : _numberField(_years, 'Süre (yıl)', integer: true),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 12),
@@ -326,10 +378,53 @@ class _SavingsPlanEditorDialogState
                             integer: true)),
                     const SizedBox(width: 8),
                     Expanded(
-                        child:
-                            _numberField(_returnRate, 'Tahmini yıllık fon %')),
+                      child: _type == SavingsPlanType.savingsFinance
+                          ? _numberField(
+                              _minimumDeliveryMonths, 'En erken teslim (ay)',
+                              integer: true)
+                          : _numberField(_returnRate, 'Tahmini yıllık fon %'),
+                    ),
                   ],
                 ),
+                if (_type == SavingsPlanType.savingsFinance) ...[
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _dateField('Planlanan teslim',
+                            _plannedDeliveryDate, _pickDelivery),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _numberField(
+                          _deliveryThresholdRate,
+                          'Teslim eşiği %',
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _numberField(
+                            _organizationFeeRate, 'Organizasyon bedeli %'),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _numberField(
+                            _organizationFeePaid, 'Ödenen organizasyon bedeli'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Geçmiş 35.000 + 8.750 TL gibi ödemeleri ayrıca gider olarak girecekseniz “ödenen bedel” alanını 0 bırakıp plan detayından her çekimi ayrı ekleyin.',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.textSecondary(context),
+                        ),
+                  ),
+                ],
                 if (_type == SavingsPlanType.bes) ...[
                   const SizedBox(height: 12),
                   _numberField(
@@ -343,9 +438,12 @@ class _SavingsPlanEditorDialogState
                 SwitchListTile.adaptive(
                   contentPadding: EdgeInsets.zero,
                   value: _automaticPayment,
-                  title: const Text('Dönemsel ödemeyi otomatik uygula'),
-                  subtitle: const Text(
-                      'Plan bakiyesi her tamamlanan dönemde ilerletilir.'),
+                  title: Text(_type == SavingsPlanType.savingsFinance
+                      ? 'Cüzdana ödeme planı oluştur'
+                      : 'Dönemsel ödemeyi otomatik uygula'),
+                  subtitle: Text(_type == SavingsPlanType.savingsFinance
+                      ? 'Ödenen ana para yalnızca siz ödeme kaydettiğinizde artar; ödenmeyen aylar otomatik ödenmiş sayılmaz.'
+                      : 'Plan bakiyesi her tamamlanan dönemde ilerletilir.'),
                   onChanged: (value) => setState(() {
                     _automaticPayment = value;
                     if (!value) _createWalletExpense = false;
@@ -426,9 +524,11 @@ class _SavingsPlanEditorDialogState
                     color: AppColors.primary.withValues(alpha: 0.07),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Text(
-                    'Fon getirisi, devlet katkısı ve kâr payı burada tahmini izleme içindir; sözleşme ve şirket ekstresi gerçek değerin kaynağıdır.',
-                    style: TextStyle(fontSize: 12),
+                  child: Text(
+                    _type == SavingsPlanType.savingsFinance
+                        ? 'Ana para taksitleri biriken sözleşme hakkına eklenir. Organizasyon bedeli gerçek giderdir; teslim alınan finansman normal gelir toplamına eklenmez.'
+                        : 'Fon getirisi, devlet katkısı ve kâr payı burada tahmini izleme içindir; sözleşme ve şirket ekstresi gerçek değerin kaynağıdır.',
+                    style: const TextStyle(fontSize: 12),
                   ),
                 ),
               ],
@@ -510,17 +610,51 @@ class _SavingsPlanEditorDialogState
     if (value != null) setState(() => _maturityDate = value);
   }
 
+  Future<void> _pickDelivery() async {
+    final value = await showDatePicker(
+      context: context,
+      initialDate: _plannedDeliveryDate ??
+          DateTime(_startDate.year, _startDate.month + 6, _startDate.day),
+      firstDate: _startDate,
+      lastDate: DateTime(_startDate.year + 20),
+    );
+    if (value != null) setState(() => _plannedDeliveryDate = value);
+  }
+
   Future<void> _save(List<BankAccount> eligibleAccounts) async {
     final name = _name.text.trim();
     final periodic = _parse(_periodic);
     final years = int.tryParse(_years.text.trim());
+    final months = int.tryParse(_months.text.trim());
+    final isFinancing = _type == SavingsPlanType.savingsFinance;
     final day = int.tryParse(_paymentDay.text.trim()) ?? 1;
     if (name.isEmpty) return _error('Plan adı zorunlu.');
     if (_isContract && periodic <= 0) {
       return _error('Dönemlik ödeme sıfırdan büyük olmalı.');
     }
-    if (_isContract && (years == null || years <= 0)) {
+    if (_isContract && !isFinancing && (years == null || years <= 0)) {
       return _error('Sözleşme süresini yıl olarak girin.');
+    }
+    if (isFinancing && (months == null || months <= 0)) {
+      return _error('Finansman vadesini ay olarak girin.');
+    }
+    if (isFinancing && _parse(_target) <= 0) {
+      return _error('Finansman tutarı sıfırdan büyük olmalı.');
+    }
+    if (isFinancing &&
+        (_parse(_deliveryThresholdRate) < 0 ||
+            _parse(_deliveryThresholdRate) > 100)) {
+      return _error('Teslim eşiği %0-%100 arasında olmalı.');
+    }
+    if (isFinancing &&
+        (int.tryParse(_minimumDeliveryMonths.text.trim()) ?? 0) < 0) {
+      return _error('En erken teslim ayı negatif olamaz.');
+    }
+    if (isFinancing) {
+      final feeAmount = _parse(_target) * _parse(_organizationFeeRate) / 100;
+      if (_parse(_organizationFeePaid) > feeAmount) {
+        return _error('Ödenen organizasyon bedeli toplam bedeli aşamaz.');
+      }
     }
     if (day < 1 || day > 28) return _error('Ödeme günü 1-28 arasında olmalı.');
     if (_createWalletExpense &&
@@ -546,7 +680,11 @@ class _SavingsPlanEditorDialogState
             : (balance > 0 ? balance : 1);
       }
       final maturity = _isContract
-          ? DateTime(_startDate.year + years!, _startDate.month, _startDate.day)
+          ? (isFinancing
+              ? DateTime(
+                  _startDate.year, _startDate.month + months!, _startDate.day)
+              : DateTime(
+                  _startDate.year + years!, _startDate.month, _startDate.day))
           : _maturityDate;
       SavingsGoal saved;
       final existing = widget.existing;
@@ -567,11 +705,22 @@ class _SavingsPlanEditorDialogState
               automaticPayment: _isContract && _automaticPayment,
               createWalletExpense: _isContract && _createWalletExpense,
               contractStartDate: _isContract ? _startDate : null,
-              contractYears: _isContract ? years : null,
+              contractYears: _isContract && !isFinancing ? years : null,
+              contractMonths: isFinancing ? months : null,
               paymentDay: day,
               governmentContributionRate: _parse(_governmentRate),
               estimatedAnnualReturnRate: _parse(_returnRate),
               annualProfitShareRate: _parse(_profitShare),
+              plannedDeliveryDate: isFinancing ? _plannedDeliveryDate : null,
+              minimumDeliveryMonths: isFinancing
+                  ? (int.tryParse(_minimumDeliveryMonths.text.trim()) ?? 6)
+                  : 6,
+              deliveryThresholdRate:
+                  isFinancing ? _parse(_deliveryThresholdRate) : 50,
+              organizationFeeRate:
+                  isFinancing ? _parse(_organizationFeeRate) : 0,
+              organizationFeePaid:
+                  isFinancing ? _parse(_organizationFeePaid) : 0,
             );
       } else {
         saved = existing.copyWith(
@@ -589,11 +738,26 @@ class _SavingsPlanEditorDialogState
           automaticPayment: _isContract && _automaticPayment,
           createWalletExpense: _isContract && _createWalletExpense,
           contractStartDate: _isContract ? _startDate : null,
-          contractYears: _isContract ? years : null,
+          contractYears: _isContract && !isFinancing ? years : null,
+          contractMonths: isFinancing ? months : null,
           paymentDay: day,
           governmentContributionRate: _parse(_governmentRate),
           estimatedAnnualReturnRate: _parse(_returnRate),
           annualProfitShareRate: _parse(_profitShare),
+          plannedDeliveryDate:
+              isFinancing ? _plannedDeliveryDate : existing.plannedDeliveryDate,
+          minimumDeliveryMonths: isFinancing
+              ? (int.tryParse(_minimumDeliveryMonths.text.trim()) ?? 6)
+              : existing.minimumDeliveryMonths,
+          deliveryThresholdRate: isFinancing
+              ? _parse(_deliveryThresholdRate)
+              : existing.deliveryThresholdRate,
+          organizationFeeRate: isFinancing
+              ? _parse(_organizationFeeRate)
+              : existing.organizationFeeRate,
+          organizationFeePaid: isFinancing
+              ? _parse(_organizationFeePaid)
+              : existing.organizationFeePaid,
         );
         await ref.read(savingsGoalProvider.notifier).updateGoal(saved);
       }

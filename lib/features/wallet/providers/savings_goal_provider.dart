@@ -79,10 +79,17 @@ class SavingsGoalNotifier extends StateNotifier<List<SavingsGoal>> {
       bool createWalletExpense = false,
       DateTime? contractStartDate,
       int? contractYears,
+      int? contractMonths,
       int paymentDay = 1,
       double governmentContributionRate = 20,
       double estimatedAnnualReturnRate = 0,
-      double annualProfitShareRate = 0}) async {
+      double annualProfitShareRate = 0,
+      DateTime? plannedDeliveryDate,
+      int minimumDeliveryMonths = 6,
+      double deliveryThresholdRate = 50,
+      double organizationFeeRate = 0,
+      double organizationFeePaid = 0,
+      int missedPaymentMonths = 0}) async {
     await _initCompleter.future;
     final newGoal = SavingsGoal.create(
       name: name,
@@ -101,10 +108,17 @@ class SavingsGoalNotifier extends StateNotifier<List<SavingsGoal>> {
       createWalletExpense: createWalletExpense,
       contractStartDate: contractStartDate,
       contractYears: contractYears,
+      contractMonths: contractMonths,
       paymentDay: paymentDay,
       governmentContributionRate: governmentContributionRate,
       estimatedAnnualReturnRate: estimatedAnnualReturnRate,
       annualProfitShareRate: annualProfitShareRate,
+      plannedDeliveryDate: plannedDeliveryDate,
+      minimumDeliveryMonths: minimumDeliveryMonths,
+      deliveryThresholdRate: deliveryThresholdRate,
+      organizationFeeRate: organizationFeeRate,
+      organizationFeePaid: organizationFeePaid,
+      missedPaymentMonths: missedPaymentMonths,
     );
     state = [...state, newGoal];
     await _saveGoals();

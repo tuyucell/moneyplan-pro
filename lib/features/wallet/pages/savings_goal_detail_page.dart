@@ -14,6 +14,7 @@ import 'package:moneyplan_pro/core/services/currency_service.dart';
 import 'package:moneyplan_pro/features/wallet/models/bank_account.dart';
 import 'package:moneyplan_pro/features/wallet/providers/bank_account_provider.dart';
 import 'package:moneyplan_pro/features/wallet/widgets/savings_plan_editor_dialog.dart';
+import 'package:moneyplan_pro/features/wallet/services/savings_plan_ledger_service.dart';
 
 class SavingsGoalDetailPage extends ConsumerStatefulWidget {
   final SavingsGoal goal;
@@ -137,12 +138,19 @@ class _SavingsGoalDetailPageState extends ConsumerState<SavingsGoalDetailPage> {
                 Expanded(
                   child: _buildStatCard(
                       context,
-                      upToDateGoal.isContractPlan
-                          ? (lc == 'tr' ? 'Vade tahmini' : 'Maturity estimate')
-                          : AppStrings.tr(AppStrings.goalTarget, lc),
-                      currencyFormat.format(upToDateGoal.isContractPlan
-                          ? upToDateGoal.projectedValueAtMaturity()
-                          : upToDateGoal.targetAmount),
+                      upToDateGoal.planType == SavingsPlanType.savingsFinance
+                          ? (lc == 'tr' ? 'Kalan ana para' : 'Principal left')
+                          : upToDateGoal.isContractPlan
+                              ? (lc == 'tr'
+                                  ? 'Vade tahmini'
+                                  : 'Maturity estimate')
+                              : AppStrings.tr(AppStrings.goalTarget, lc),
+                      currencyFormat.format(upToDateGoal.planType ==
+                              SavingsPlanType.savingsFinance
+                          ? upToDateGoal.principalRemaining
+                          : upToDateGoal.isContractPlan
+                              ? upToDateGoal.projectedValueAtMaturity()
+                              : upToDateGoal.targetAmount),
                       Color(upToDateGoal.colorValue)),
                 ),
               ],
@@ -165,7 +173,10 @@ class _SavingsGoalDetailPageState extends ConsumerState<SavingsGoalDetailPage> {
               onPressed: () =>
                   _showAddMoneyDialog(context, ref, upToDateGoal, lc),
               icon: const Icon(Icons.add),
-              label: Text(AppStrings.tr(AppStrings.addMoney, lc)),
+              label: Text(
+                  upToDateGoal.planType == SavingsPlanType.savingsFinance
+                      ? 'Taksit ödemesi ekle'
+                      : AppStrings.tr(AppStrings.addMoney, lc)),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 foregroundColor: Colors.white,
@@ -177,21 +188,58 @@ class _SavingsGoalDetailPageState extends ConsumerState<SavingsGoalDetailPage> {
               ),
             ),
             const SizedBox(height: 16),
-            OutlinedButton.icon(
-              onPressed: () =>
-                  _showWithdrawDialog(context, ref, upToDateGoal, lc),
-              icon: const Icon(Icons.remove),
-              label: Text(AppStrings.tr(AppStrings.withdrawSpend, lc)),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.error,
-                minimumSize: const Size(double.infinity, 56),
-                side: const BorderSide(color: AppColors.error),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16)),
-                textStyle:
-                    const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            if (upToDateGoal.planType == SavingsPlanType.savingsFinance) ...[
+              OutlinedButton.icon(
+                onPressed: upToDateGoal.organizationFeeRemaining <= 0
+                    ? null
+                    : () =>
+                        _showOrganizationFeeDialog(context, ref, upToDateGoal),
+                icon: const Icon(Icons.receipt_long),
+                label: const Text('Organizasyon bedeli ödemesi ekle'),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 56),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16)),
+                ),
               ),
-            ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: upToDateGoal.financingDelivered
+                    ? null
+                    : () => _showFinancingDeliveryDialog(
+                        context, ref, upToDateGoal),
+                icon: const Icon(Icons.account_balance_wallet_outlined),
+                label: Text(upToDateGoal.financingDelivered
+                    ? 'Finansman teslim alındı'
+                    : 'Finansmanı teslim al'),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 56),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16)),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextButton.icon(
+                onPressed: () => _markMissedPayment(context, ref, upToDateGoal),
+                icon: const Icon(Icons.event_busy_outlined),
+                label: const Text('Bu ay ödeme yapılamadı'),
+              ),
+            ] else
+              OutlinedButton.icon(
+                onPressed: () =>
+                    _showWithdrawDialog(context, ref, upToDateGoal, lc),
+                icon: const Icon(Icons.remove),
+                label: Text(AppStrings.tr(AppStrings.withdrawSpend, lc)),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.error,
+                  minimumSize: const Size(double.infinity, 56),
+                  side: const BorderSide(color: AppColors.error),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16)),
+                  textStyle: const TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+              ),
 
             const SizedBox(height: 32),
             Container(
@@ -227,6 +275,7 @@ class _SavingsGoalDetailPageState extends ConsumerState<SavingsGoalDetailPage> {
         SavingsPlanType.savings => Icons.savings_outlined,
         SavingsPlanType.bes => Icons.account_balance_outlined,
         SavingsPlanType.lifeInsurance => Icons.health_and_safety_outlined,
+        SavingsPlanType.savingsFinance => Icons.handshake_outlined,
       };
 
   Widget _buildContractCard(
@@ -259,9 +308,12 @@ class _SavingsGoalDetailPageState extends ConsumerState<SavingsGoalDetailPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            goal.planType == SavingsPlanType.bes
-                ? 'BES plan bilgileri'
-                : 'Poliçe bilgileri',
+            switch (goal.planType) {
+              SavingsPlanType.bes => 'BES plan bilgileri',
+              SavingsPlanType.lifeInsurance => 'Poliçe bilgileri',
+              SavingsPlanType.savingsFinance => 'Tasarruf finansman sözleşmesi',
+              SavingsPlanType.savings => 'Plan bilgileri',
+            },
             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
           ),
           const SizedBox(height: 12),
@@ -279,10 +331,47 @@ class _SavingsGoalDetailPageState extends ConsumerState<SavingsGoalDetailPage> {
                 ? '-'
                 : DateFormat('dd.MM.yyyy').format(goal.contractEndDate!),
           ),
-          _detailRow(
-            'Tahmini fon getirisi',
-            '%${goal.estimatedAnnualReturnRate.toStringAsFixed(2)} / yıl',
-          ),
+          if (goal.planType == SavingsPlanType.savingsFinance) ...[
+            _detailRow(
+              'Finansman tutarı',
+              currencyFormat.format(goal.targetAmount),
+            ),
+            _detailRow(
+              'Planlanan teslim',
+              goal.effectiveDeliveryDate == null
+                  ? '-'
+                  : DateFormat('dd.MM.yyyy')
+                      .format(goal.effectiveDeliveryDate!),
+            ),
+            _detailRow(
+              'Teslim eşiği',
+              '%${goal.deliveryThresholdRate.toStringAsFixed(0)} · ${currencyFormat.format(goal.deliveryThresholdAmount)}',
+            ),
+            _detailRow(
+              'Organizasyon bedeli',
+              '%${goal.organizationFeeRate.toStringAsFixed(2)} · ${currencyFormat.format(goal.organizationFeeAmount)}',
+            ),
+            _detailRow(
+              'Organizasyon ödenen / kalan',
+              '${currencyFormat.format(goal.organizationFeePaid)} / ${currencyFormat.format(goal.organizationFeeRemaining)}',
+            ),
+            _detailRow(
+              'Ödenmeyen ay',
+              '${goal.missedPaymentMonths}',
+            ),
+            _detailRow(
+              'Teslim durumu',
+              goal.financingDelivered
+                  ? 'Teslim alındı${goal.financingDeliveryDate == null ? '' : ' · ${DateFormat('dd.MM.yyyy').format(goal.financingDeliveryDate!)}'}'
+                  : (goal.isDeliveryEligibleAt(DateTime.now())
+                      ? 'Koşullar sağlanıyor'
+                      : 'Bekleniyor'),
+            ),
+          ] else
+            _detailRow(
+              'Tahmini fon getirisi',
+              '%${goal.estimatedAnnualReturnRate.toStringAsFixed(2)} / yıl',
+            ),
           if (goal.planType == SavingsPlanType.bes)
             _detailRow(
               'Devlet katkısı',
@@ -297,7 +386,8 @@ class _SavingsGoalDetailPageState extends ConsumerState<SavingsGoalDetailPage> {
             'Cüzdan kaydı',
             goal.createWalletExpense ? 'Düzenli gider açık' : 'Kapalı',
           ),
-          if (goal.automaticPayment) ...[
+          if (goal.automaticPayment &&
+              goal.planType != SavingsPlanType.savingsFinance) ...[
             const SizedBox(height: 8),
             OutlinedButton.icon(
               onPressed: () async {
@@ -392,9 +482,12 @@ class _SavingsGoalDetailPageState extends ConsumerState<SavingsGoalDetailPage> {
 
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (ctx) => StatefulBuilder(builder: (context, setState) {
         return AlertDialog(
-          title: Text(AppStrings.tr(AppStrings.addToPiggyBank, lc)),
+          title: Text(goal.planType == SavingsPlanType.savingsFinance
+              ? 'Ana para taksiti ekle'
+              : AppStrings.tr(AppStrings.addToPiggyBank, lc)),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -452,6 +545,13 @@ class _SavingsGoalDetailPageState extends ConsumerState<SavingsGoalDetailPage> {
                 if (amount != null && amount > 0) {
                   final messenger = ScaffoldMessenger.of(context);
                   final navigator = Navigator.of(ctx);
+                  if (goal.planType == SavingsPlanType.savingsFinance &&
+                      amount > goal.principalRemaining) {
+                    messenger.showSnackBar(const SnackBar(
+                        content:
+                            Text('Taksit kalan ana para tutarını aşamaz.')));
+                    return;
+                  }
                   await ref
                       .read(savingsGoalProvider.notifier)
                       .updateGoalAmount(goal.id, goal.currentAmount + amount);
@@ -467,6 +567,8 @@ class _SavingsGoalDetailPageState extends ConsumerState<SavingsGoalDetailPage> {
                         SavingsPlanType.bes => 'bes',
                         SavingsPlanType.lifeInsurance => 'insurance_life',
                         SavingsPlanType.savings => 'savings',
+                        SavingsPlanType.savingsFinance =>
+                          'savings_finance_principal',
                       },
                       amount: amount,
                       date: DateTime.now(),
@@ -481,8 +583,9 @@ class _SavingsGoalDetailPageState extends ConsumerState<SavingsGoalDetailPage> {
                             : PaymentMethod.bankTransfer,
                       },
                       linkedTransactionId: 'savings-plan:${goal.id}',
-                      note:
-                          '${goal.name} ${AppStrings.tr(AppStrings.savingsAddNote, lc)}',
+                      note: goal.planType == SavingsPlanType.savingsFinance
+                          ? '${goal.name} ana para taksiti'
+                          : '${goal.name} ${AppStrings.tr(AppStrings.savingsAddNote, lc)}',
                     );
                     await ref
                         .read(walletProvider.notifier)
@@ -606,5 +709,298 @@ class _SavingsGoalDetailPageState extends ConsumerState<SavingsGoalDetailPage> {
         );
       }),
     );
+  }
+
+  void _showOrganizationFeeDialog(
+    BuildContext context,
+    WidgetRef ref,
+    SavingsGoal goal,
+  ) {
+    final controller = TextEditingController();
+    final accounts = ref
+        .read(bankAccountProvider)
+        .where((account) => account.isActive)
+        .toList();
+    var paymentAccountId = goal.paymentAccountId;
+    if (!accounts.any((account) => account.id == paymentAccountId)) {
+      paymentAccountId = null;
+    }
+    var createExpense = true;
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Organizasyon bedeli ödemesi'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Kalan: ${NumberFormat.currency(locale: 'tr_TR', symbol: '₺').format(goal.organizationFeeRemaining)}',
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(
+                  labelText: 'Bu çekimde ödenen tutar',
+                  prefixText: '₺ ',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String?>(
+                initialValue: paymentAccountId,
+                decoration: const InputDecoration(
+                  labelText: 'Bu ödeme nereden yapıldı?',
+                  border: OutlineInputBorder(),
+                ),
+                items: [
+                  const DropdownMenuItem<String?>(
+                    value: null,
+                    child: Text('Hesapsız nakit'),
+                  ),
+                  ...accounts.map(
+                    (account) => DropdownMenuItem<String?>(
+                      value: account.id,
+                      child: Text(account.name),
+                    ),
+                  ),
+                ],
+                onChanged: (value) => setState(() => paymentAccountId = value),
+              ),
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                value: createExpense,
+                title: const Text('Cüzdana gider olarak ekle'),
+                subtitle: const Text(
+                  'Her çekim ayrı işlemdir; kredi kartı taksiti oluşturulmaz.',
+                ),
+                onChanged: (value) =>
+                    setState(() => createExpense = value ?? true),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Vazgeç'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                final amount = double.tryParse(
+                    controller.text.trim().replaceAll(',', '.'));
+                if (amount == null || amount <= 0) return;
+                if (amount > goal.organizationFeeRemaining) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                    content: Text('Tutar kalan organizasyon bedelini aşamaz.'),
+                  ));
+                  return;
+                }
+                final account = _findAccount(accounts, paymentAccountId);
+                if (createExpense) {
+                  await ref.read(walletProvider.notifier).addTransaction(
+                        WalletTransaction(
+                          id: const Uuid().v4(),
+                          categoryId: 'savings_finance_fee',
+                          amount: amount,
+                          date: DateTime.now(),
+                          type: TransactionType.expense,
+                          bankAccountId: account?.id,
+                          currencyCode: goal.currencyCode,
+                          paymentMethod: account?.accountType == 'Kredi Kartı'
+                              ? PaymentMethod.creditCard
+                              : (account == null
+                                  ? PaymentMethod.cash
+                                  : PaymentMethod.bankTransfer),
+                          linkedTransactionId: 'savings-plan:${goal.id}',
+                          note: '${goal.name} organizasyon bedeli',
+                        ),
+                      );
+                }
+                await ref.read(savingsGoalProvider.notifier).updateGoal(
+                      goal.copyWith(
+                        organizationFeePaid: goal.organizationFeePaid + amount,
+                      ),
+                    );
+                if (dialogContext.mounted) Navigator.pop(dialogContext);
+              },
+              child: const Text('Kaydet'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showFinancingDeliveryDialog(
+    BuildContext context,
+    WidgetRef ref,
+    SavingsGoal goal,
+  ) {
+    final controller = TextEditingController(
+      text: goal.targetAmount.toStringAsFixed(0),
+    );
+    final accounts = ref
+        .read(bankAccountProvider)
+        .where((account) =>
+            account.isActive && account.accountType != 'Kredi Kartı')
+        .toList();
+    var receivingAccountId = goal.financingReceivingAccountId;
+    if (!accounts.any((account) => account.id == receivingAccountId)) {
+      receivingAccountId = null;
+    }
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Finansmanı teslim al'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (!goal.isDeliveryEligibleAt(DateTime.now()))
+                Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.warning.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Text(
+                    'Planlanan tarih veya ödeme eşiği henüz sağlanmıyor. Şirket teslim yaptıysa yine de gerçek teslimatı kaydedebilirsiniz.',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                ),
+              TextField(
+                controller: controller,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(
+                  labelText: 'Teslim alınan finansman',
+                  prefixText: '₺ ',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String?>(
+                initialValue: receivingAccountId,
+                decoration: const InputDecoration(
+                  labelText: 'Giriş hesabı',
+                  border: OutlineInputBorder(),
+                ),
+                items: [
+                  const DropdownMenuItem<String?>(
+                    value: null,
+                    child: Text('Hesapsız nakit'),
+                  ),
+                  ...accounts.map(
+                    (account) => DropdownMenuItem<String?>(
+                      value: account.id,
+                      child: Text(account.name),
+                    ),
+                  ),
+                ],
+                onChanged: (value) =>
+                    setState(() => receivingAccountId = value),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Bu kayıt bakiyeyi artırır; maaş/gelir ve yıllık kazanç toplamına eklenmez.',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Vazgeç'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                final amount = double.tryParse(
+                    controller.text.trim().replaceAll(',', '.'));
+                if (amount == null || amount <= 0) return;
+                final now = DateTime.now();
+                await ref.read(walletProvider.notifier).addTransaction(
+                      WalletTransaction(
+                        id: const Uuid().v4(),
+                        categoryId: 'financing_inflow',
+                        amount: amount,
+                        date: now,
+                        type: TransactionType.income,
+                        bankAccountId: receivingAccountId,
+                        currencyCode: goal.currencyCode,
+                        paymentMethod: receivingAccountId == null
+                            ? PaymentMethod.cash
+                            : PaymentMethod.bankTransfer,
+                        linkedTransactionId: 'savings-plan:${goal.id}',
+                        note: '${goal.name} finansman teslimatı',
+                      ),
+                    );
+                await ref.read(savingsGoalProvider.notifier).updateGoal(
+                      goal.copyWith(
+                        financingDelivered: true,
+                        financingDeliveryDate: now,
+                        financingReceivingAccountId: receivingAccountId,
+                        clearFinancingReceivingAccountId:
+                            receivingAccountId == null,
+                      ),
+                    );
+                if (dialogContext.mounted) Navigator.pop(dialogContext);
+              },
+              child: const Text('Teslimatı kaydet'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _markMissedPayment(
+    BuildContext context,
+    WidgetRef ref,
+    SavingsGoal goal,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Ödenmeyen ayı kaydet'),
+        content: const Text(
+          'Bu ay ödenmiş sayılmayacak; planlanan teslim ve sözleşme bitişi bir ay ileri kayacak.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Vazgeç'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Bir ay ertele'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final updated = goal.copyWith(
+      missedPaymentMonths: goal.missedPaymentMonths + 1,
+    );
+    await ref.read(savingsGoalProvider.notifier).updateGoal(updated);
+    await SavingsPlanLedgerService.sync(
+      plan: updated,
+      wallet: ref.read(walletProvider.notifier),
+      transactions: ref.read(walletProvider),
+      accounts: ref.read(bankAccountProvider),
+    );
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Teslim ve bitiş tarihleri bir ay ileri alındı.'),
+      ));
+    }
   }
 }

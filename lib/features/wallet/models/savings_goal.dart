@@ -2,7 +2,7 @@ import 'dart:math' as math;
 
 import 'package:uuid/uuid.dart';
 
-enum SavingsPlanType { savings, bes, lifeInsurance }
+enum SavingsPlanType { savings, bes, lifeInsurance, savingsFinance }
 
 enum ContributionPeriod { monthly, quarterly, semiAnnual, yearly }
 
@@ -27,6 +27,7 @@ class SavingsGoal {
   final bool createWalletExpense;
   final DateTime? contractStartDate;
   final int? contractYears;
+  final int? contractMonths;
   final int paymentDay;
   final double governmentContributionRate;
   final double estimatedAnnualReturnRate;
@@ -34,6 +35,15 @@ class SavingsGoal {
   final double governmentContributionBalance;
   final double profitShareBalance;
   final DateTime? lastAccrualDate;
+  final DateTime? plannedDeliveryDate;
+  final int minimumDeliveryMonths;
+  final double deliveryThresholdRate;
+  final double organizationFeeRate;
+  final double organizationFeePaid;
+  final int missedPaymentMonths;
+  final bool financingDelivered;
+  final DateTime? financingDeliveryDate;
+  final String? financingReceivingAccountId;
 
   const SavingsGoal({
     required this.id,
@@ -54,6 +64,7 @@ class SavingsGoal {
     this.createWalletExpense = false,
     this.contractStartDate,
     this.contractYears,
+    this.contractMonths,
     this.paymentDay = 1,
     this.governmentContributionRate = 20,
     this.estimatedAnnualReturnRate = 0,
@@ -61,6 +72,15 @@ class SavingsGoal {
     this.governmentContributionBalance = 0,
     this.profitShareBalance = 0,
     this.lastAccrualDate,
+    this.plannedDeliveryDate,
+    this.minimumDeliveryMonths = 6,
+    this.deliveryThresholdRate = 50,
+    this.organizationFeeRate = 0,
+    this.organizationFeePaid = 0,
+    this.missedPaymentMonths = 0,
+    this.financingDelivered = false,
+    this.financingDeliveryDate,
+    this.financingReceivingAccountId,
   });
 
   factory SavingsGoal.create({
@@ -80,16 +100,25 @@ class SavingsGoal {
     bool createWalletExpense = false,
     DateTime? contractStartDate,
     int? contractYears,
+    int? contractMonths,
     int paymentDay = 1,
     double governmentContributionRate = 20,
     double estimatedAnnualReturnRate = 0,
     double annualProfitShareRate = 0,
+    DateTime? plannedDeliveryDate,
+    int minimumDeliveryMonths = 6,
+    double deliveryThresholdRate = 50,
+    double organizationFeeRate = 0,
+    double organizationFeePaid = 0,
+    int missedPaymentMonths = 0,
   }) {
     final start = contractStartDate ?? DateTime.now();
     final calculatedMaturity = maturityDate ??
-        (contractYears != null
-            ? DateTime(start.year + contractYears, start.month, start.day)
-            : null);
+        (contractMonths != null
+            ? _addMonths(start, contractMonths + missedPaymentMonths)
+            : (contractYears != null
+                ? DateTime(start.year + contractYears, start.month, start.day)
+                : null));
     return SavingsGoal(
       id: const Uuid().v4(),
       name: name,
@@ -109,10 +138,17 @@ class SavingsGoal {
       createWalletExpense: createWalletExpense,
       contractStartDate: start,
       contractYears: contractYears,
+      contractMonths: contractMonths,
       paymentDay: paymentDay.clamp(1, 28),
       governmentContributionRate: governmentContributionRate,
       estimatedAnnualReturnRate: estimatedAnnualReturnRate,
       annualProfitShareRate: annualProfitShareRate,
+      plannedDeliveryDate: plannedDeliveryDate,
+      minimumDeliveryMonths: minimumDeliveryMonths,
+      deliveryThresholdRate: deliveryThresholdRate,
+      organizationFeeRate: organizationFeeRate,
+      organizationFeePaid: organizationFeePaid,
+      missedPaymentMonths: missedPaymentMonths,
       // currentAmount is entered as today's value. Starting accrual at the
       // current month prevents an older contract start from being backfilled
       // on top of that already-current balance.
@@ -128,6 +164,8 @@ class SavingsGoal {
         return 'life_insurance';
       case SavingsPlanType.savings:
         return 'savings';
+      case SavingsPlanType.savingsFinance:
+        return 'savings_finance';
     }
   }
 
@@ -149,10 +187,56 @@ class SavingsGoal {
   String get ledgerSourceId => 'savings_plan_$id';
 
   DateTime? get contractEndDate {
-    if (maturityDate != null) return maturityDate;
     final start = contractStartDate;
+    if (planType == SavingsPlanType.savingsFinance &&
+        start != null &&
+        contractMonths != null) {
+      return _addMonths(start, contractMonths! + missedPaymentMonths);
+    }
+    if (maturityDate != null) return maturityDate;
     if (start == null || contractYears == null) return null;
     return DateTime(start.year + contractYears!, start.month, start.day);
+  }
+
+  DateTime? get effectiveDeliveryDate {
+    if (financingDeliveryDate != null) return financingDeliveryDate;
+    final base = plannedDeliveryDate ??
+        (contractStartDate == null
+            ? null
+            : _addMonths(contractStartDate!, minimumDeliveryMonths));
+    return base == null ? null : _addMonths(base, missedPaymentMonths);
+  }
+
+  double get organizationFeeAmount =>
+      math.max(0, targetAmount * organizationFeeRate / 100);
+
+  double get organizationFeeRemaining =>
+      math.max(0, organizationFeeAmount - organizationFeePaid);
+
+  double get principalRemaining => math.max(0, targetAmount - currentAmount);
+
+  double get deliveryThresholdAmount =>
+      math.max(0, targetAmount * deliveryThresholdRate / 100);
+
+  bool isDeliveryEligibleAt(DateTime date) {
+    if (planType != SavingsPlanType.savingsFinance) return false;
+    final delivery = effectiveDeliveryDate;
+    final dateReached = delivery == null || !date.isBefore(delivery);
+    return dateReached && currentAmount >= deliveryThresholdAmount;
+  }
+
+  static DateTime _addMonths(DateTime date, int months) {
+    final firstOfTarget = DateTime(date.year, date.month + months, 1);
+    final lastDay = DateTime(
+      firstOfTarget.year,
+      firstOfTarget.month + 1,
+      0,
+    ).day;
+    return DateTime(
+      firstOfTarget.year,
+      firstOfTarget.month,
+      math.min(date.day, lastDay),
+    );
   }
 
   /// Advances an automatic plan exactly once per completed calendar period.
@@ -185,7 +269,9 @@ class SavingsGoal {
           startMonth.month;
       if (elapsedMonths > 0 &&
           elapsedMonths % contributionIntervalMonths == 0) {
-        balance += periodicContribution;
+        if (planType != SavingsPlanType.savingsFinance) {
+          balance += periodicContribution;
+        }
         if (planType == SavingsPlanType.bes && governmentContributionRate > 0) {
           final contribution =
               periodicContribution * governmentContributionRate / 100;
@@ -277,6 +363,7 @@ class SavingsGoal {
     bool? createWalletExpense,
     DateTime? contractStartDate,
     int? contractYears,
+    int? contractMonths,
     int? paymentDay,
     double? governmentContributionRate,
     double? estimatedAnnualReturnRate,
@@ -284,6 +371,16 @@ class SavingsGoal {
     double? governmentContributionBalance,
     double? profitShareBalance,
     DateTime? lastAccrualDate,
+    DateTime? plannedDeliveryDate,
+    int? minimumDeliveryMonths,
+    double? deliveryThresholdRate,
+    double? organizationFeeRate,
+    double? organizationFeePaid,
+    int? missedPaymentMonths,
+    bool? financingDelivered,
+    DateTime? financingDeliveryDate,
+    String? financingReceivingAccountId,
+    bool clearFinancingReceivingAccountId = false,
   }) {
     return SavingsGoal(
       id: id,
@@ -306,6 +403,7 @@ class SavingsGoal {
       createWalletExpense: createWalletExpense ?? this.createWalletExpense,
       contractStartDate: contractStartDate ?? this.contractStartDate,
       contractYears: contractYears ?? this.contractYears,
+      contractMonths: contractMonths ?? this.contractMonths,
       paymentDay: (paymentDay ?? this.paymentDay).clamp(1, 28),
       governmentContributionRate:
           governmentContributionRate ?? this.governmentContributionRate,
@@ -317,6 +415,20 @@ class SavingsGoal {
           governmentContributionBalance ?? this.governmentContributionBalance,
       profitShareBalance: profitShareBalance ?? this.profitShareBalance,
       lastAccrualDate: lastAccrualDate ?? this.lastAccrualDate,
+      plannedDeliveryDate: plannedDeliveryDate ?? this.plannedDeliveryDate,
+      minimumDeliveryMonths:
+          minimumDeliveryMonths ?? this.minimumDeliveryMonths,
+      deliveryThresholdRate:
+          deliveryThresholdRate ?? this.deliveryThresholdRate,
+      organizationFeeRate: organizationFeeRate ?? this.organizationFeeRate,
+      organizationFeePaid: organizationFeePaid ?? this.organizationFeePaid,
+      missedPaymentMonths: missedPaymentMonths ?? this.missedPaymentMonths,
+      financingDelivered: financingDelivered ?? this.financingDelivered,
+      financingDeliveryDate:
+          financingDeliveryDate ?? this.financingDeliveryDate,
+      financingReceivingAccountId: clearFinancingReceivingAccountId
+          ? null
+          : (financingReceivingAccountId ?? this.financingReceivingAccountId),
     );
   }
 
@@ -347,6 +459,7 @@ class SavingsGoal {
       'createWalletExpense': createWalletExpense,
       'contractStartDate': contractStartDate?.toIso8601String(),
       'contractYears': contractYears,
+      'contractMonths': contractMonths,
       'paymentDay': paymentDay,
       'governmentContributionRate': governmentContributionRate,
       'estimatedAnnualReturnRate': estimatedAnnualReturnRate,
@@ -354,6 +467,15 @@ class SavingsGoal {
       'governmentContributionBalance': governmentContributionBalance,
       'profitShareBalance': profitShareBalance,
       'lastAccrualDate': lastAccrualDate?.toIso8601String(),
+      'plannedDeliveryDate': plannedDeliveryDate?.toIso8601String(),
+      'minimumDeliveryMonths': minimumDeliveryMonths,
+      'deliveryThresholdRate': deliveryThresholdRate,
+      'organizationFeeRate': organizationFeeRate,
+      'organizationFeePaid': organizationFeePaid,
+      'missedPaymentMonths': missedPaymentMonths,
+      'financingDelivered': financingDelivered,
+      'financingDeliveryDate': financingDeliveryDate?.toIso8601String(),
+      'financingReceivingAccountId': financingReceivingAccountId,
     };
   }
 
@@ -398,6 +520,7 @@ class SavingsGoal {
       contractStartDate:
           DateTime.tryParse(json['contractStartDate'] as String? ?? ''),
       contractYears: (json['contractYears'] as num?)?.toInt(),
+      contractMonths: (json['contractMonths'] as num?)?.toInt(),
       paymentDay: (json['paymentDay'] as num?)?.toInt() ?? 1,
       governmentContributionRate:
           (json['governmentContributionRate'] as num?)?.toDouble() ?? 20,
@@ -410,6 +533,22 @@ class SavingsGoal {
       profitShareBalance: (json['profitShareBalance'] as num?)?.toDouble() ?? 0,
       lastAccrualDate:
           DateTime.tryParse(json['lastAccrualDate'] as String? ?? ''),
+      plannedDeliveryDate:
+          DateTime.tryParse(json['plannedDeliveryDate'] as String? ?? ''),
+      minimumDeliveryMonths:
+          (json['minimumDeliveryMonths'] as num?)?.toInt() ?? 6,
+      deliveryThresholdRate:
+          (json['deliveryThresholdRate'] as num?)?.toDouble() ?? 50,
+      organizationFeeRate:
+          (json['organizationFeeRate'] as num?)?.toDouble() ?? 0,
+      organizationFeePaid:
+          (json['organizationFeePaid'] as num?)?.toDouble() ?? 0,
+      missedPaymentMonths: (json['missedPaymentMonths'] as num?)?.toInt() ?? 0,
+      financingDelivered: json['financingDelivered'] as bool? ?? false,
+      financingDeliveryDate:
+          DateTime.tryParse(json['financingDeliveryDate'] as String? ?? ''),
+      financingReceivingAccountId:
+          json['financingReceivingAccountId'] as String?,
     );
   }
 }

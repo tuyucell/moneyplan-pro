@@ -61,6 +61,7 @@ class SavingsPlanLedgerService {
         SavingsPlanType.bes => 'bes',
         SavingsPlanType.lifeInsurance => 'insurance_life',
         SavingsPlanType.savings => 'savings',
+        SavingsPlanType.savingsFinance => 'savings_finance_principal',
       },
       // Keep the contract nominal (for example 100 USD) instead of freezing
       // today's TRY equivalent. Monthly summaries convert it using the rate

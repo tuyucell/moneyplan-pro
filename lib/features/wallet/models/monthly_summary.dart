@@ -242,13 +242,21 @@ class MonthlySummary {
             '   📝 PENDING (Excluded from cash): $normalizedAmount on ${transaction.bankAccountId} (${transaction.note})');
       }
 
-      // Analytics: Tüm gider/gelir işlemlerini toplarız
-      if (transaction.type == TransactionType.income) {
-        totalIncome += normalizedAmount;
-        incomeByCurrency[currency] = (incomeByCurrency[currency] ?? 0) + amount;
+      // Finansman teslimatı nakit bakiyeyi artırır fakat kazanılmış gelir
+      // değildir. Yıllık gelir ve tasarruf oranını yapay biçimde şişirmeyiz.
+      final includeInAnalytics = transaction.categoryId != 'financing_inflow';
 
-        incomeByCategory[transaction.categoryId] =
-            (incomeByCategory[transaction.categoryId] ?? 0) + normalizedAmount;
+      // Analytics: Tüm normal gider/gelir işlemlerini toplarız.
+      if (transaction.type == TransactionType.income) {
+        if (includeInAnalytics) {
+          totalIncome += normalizedAmount;
+          incomeByCurrency[currency] =
+              (incomeByCurrency[currency] ?? 0) + amount;
+
+          incomeByCategory[transaction.categoryId] =
+              (incomeByCategory[transaction.categoryId] ?? 0) +
+                  normalizedAmount;
+        }
 
         if (affectsCashBalance) {
           cashIncome += normalizedAmount;
