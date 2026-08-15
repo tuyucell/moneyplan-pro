@@ -30,6 +30,7 @@ import 'package:moneyplan_pro/core/services/currency_service.dart';
 
 import '../widgets/wallet_summary_cards.dart';
 import '../widgets/available_balance_card.dart';
+import '../widgets/limit_usage_card.dart';
 import '../widgets/wallet_savings_status_card.dart';
 import '../widgets/wallet_category_pie_chart.dart';
 import '../widgets/wallet_chart.dart';
@@ -652,6 +653,13 @@ class _WalletPageState extends ConsumerState<WalletPage>
                 isPositive: summary.isPositive,
                 currencyFormat: displayFormat,
               ),
+        if (!_isYearlyView) ...[
+          const SizedBox(height: 16),
+          LimitUsageCard(
+            currencyFormat: displayFormat,
+            displayCurrency: displayCurrency,
+          ),
+        ],
         const SizedBox(height: 16),
         _isYearlyView
             ? WalletSavingsStatusCard(
