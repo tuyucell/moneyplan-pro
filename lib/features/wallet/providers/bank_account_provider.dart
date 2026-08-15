@@ -164,13 +164,43 @@ class BankAccountNotifier extends StateNotifier<List<BankAccount>> {
     }
   }
 
-  Future<void> resetAll() async {
-    _deletedAccountIds.clear();
-    state = List<BankAccount>.from(DefaultBankAccounts.accounts);
+  Future<void> resetCashBalances() async {
+    await _resetBalances(
+      (account) => account.accountType != 'Kredi Kartı',
+    );
+  }
+
+  Future<void> resetCreditCardBalances() async {
+    await _resetBalances(
+      (account) => account.accountType == 'Kredi Kartı',
+    );
+  }
+
+  Future<void> resetAllBalances() async {
+    await _resetBalances((_) => true);
+  }
+
+  /// Resets current debt/cash snapshots while preserving the user's account
+  /// configuration (name, limit, rates, statement and due-date settings).
+  Future<void> _resetBalances(bool Function(BankAccount) shouldReset) async {
+    final now = DateTime.now();
+    final changed = <BankAccount>[];
+    state = state.map((account) {
+      if (!shouldReset(account)) return account;
+      final reset = resetBankAccountBalanceSnapshot(account, now);
+      changed.add(reset);
+      return reset;
+    }).toList();
     await _saveToDisk();
 
     if (userId != null) {
-      await _client.from('user_bank_accounts').delete().eq('user_id', userId!);
+      for (final account in changed) {
+        try {
+          await _upsertRemoteAccount(account);
+        } catch (_) {
+          // Local state remains authoritative through its newer updatedAt.
+        }
+      }
     }
   }
 
@@ -214,6 +244,20 @@ class BankAccountNotifier extends StateNotifier<List<BankAccount>> {
       await _client.from('user_bank_accounts').upsert(basePayload);
     }
   }
+}
+
+BankAccount resetBankAccountBalanceSnapshot(
+  BankAccount account,
+  DateTime effectiveDate,
+) {
+  return account.copyWith(
+    initialBalance: 0,
+    balanceEffectiveDate: effectiveDate,
+    updatedAt: effectiveDate,
+    installmentPlan: account.accountType == 'Kredi Kartı'
+        ? const []
+        : account.installmentPlan,
+  );
 }
 
 List<BankAccount> mergeBankAccountSnapshots({

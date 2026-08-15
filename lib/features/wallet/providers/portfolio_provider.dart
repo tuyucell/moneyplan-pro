@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:moneyplan_pro/features/wallet/models/portfolio_asset.dart';
@@ -11,6 +12,10 @@ class PortfolioNotifier extends StateNotifier<List<PortfolioAsset>> {
   String get _storageKey => userId != null
       ? 'user_portfolio_assets_$userId'
       : 'user_portfolio_assets_guest';
+  String get _pendingClearKey =>
+      'portfolio_pending_remote_clear_${userId ?? 'guest'}';
+  final Completer<void> _initCompleter = Completer<void>();
+  bool _pendingRemoteClear = false;
 
   PortfolioNotifier(this.userId) : super([]) {
     _loadFromPrefs();
@@ -21,6 +26,7 @@ class PortfolioNotifier extends StateNotifier<List<PortfolioAsset>> {
   Future<void> _loadFromPrefs() async {
     try {
       final prefs = await SharedPreferences.getInstance();
+      _pendingRemoteClear = prefs.getBool(_pendingClearKey) ?? false;
       final data = prefs.getString(_storageKey);
       if (data != null) {
         final List<dynamic> jsonList = json.decode(data);
@@ -29,6 +35,23 @@ class PortfolioNotifier extends StateNotifier<List<PortfolioAsset>> {
 
       // Sync with Supabase
       if (userId != null) {
+        if (_pendingRemoteClear) {
+          try {
+            await _client
+                .from('user_portfolio_assets')
+                .delete()
+                .eq('user_id', userId!);
+            for (final asset in state) {
+              await _upsertRemoteAsset(asset);
+            }
+            _pendingRemoteClear = false;
+            await prefs.setBool(_pendingClearKey, false);
+          } catch (_) {
+            // Keep local data authoritative until cloud deletion can retry.
+          }
+          return;
+        }
+
         final List<dynamic> response = await _client
             .from('user_portfolio_assets')
             .select('*')
@@ -51,6 +74,8 @@ class PortfolioNotifier extends StateNotifier<List<PortfolioAsset>> {
       }
     } catch (e) {
       // ignore
+    } finally {
+      if (!_initCompleter.isCompleted) _initCompleter.complete();
     }
   }
 
@@ -61,6 +86,7 @@ class PortfolioNotifier extends StateNotifier<List<PortfolioAsset>> {
   }
 
   Future<void> addOrUpdateAsset(PortfolioAsset asset) async {
+    await _initCompleter.future;
     final index = state.indexWhere((e) => e.symbol == asset.symbol);
     if (index >= 0) {
       // Update existing
@@ -85,26 +111,19 @@ class PortfolioNotifier extends StateNotifier<List<PortfolioAsset>> {
     await _saveToPrefs();
 
     // Sync to Supabase
-    if (userId != null) {
+    if (userId != null && !_pendingRemoteClear) {
       final updated = state.firstWhere((e) => e.symbol == asset.symbol);
-      await _client.from('user_portfolio_assets').upsert({
-        'user_id': userId,
-        'symbol': updated.symbol,
-        'name': updated.name,
-        'quantity': updated.units,
-        'average_cost': updated.averageCost,
-        'type': updated.category,
-        'currency': updated.currencyCode,
-      });
+      await _upsertRemoteAsset(updated);
     }
   }
 
   Future<void> removeAsset(String symbol) async {
+    await _initCompleter.future;
     state = state.where((e) => e.symbol != symbol).toList();
     await _saveToPrefs();
 
     // Sync to Supabase
-    if (userId != null) {
+    if (userId != null && !_pendingRemoteClear) {
       await _client
           .from('user_portfolio_assets')
           .delete()
@@ -114,18 +133,29 @@ class PortfolioNotifier extends StateNotifier<List<PortfolioAsset>> {
   }
 
   Future<void> clearAll() async {
-    state = [];
+    await _initCompleter.future;
+    state = const [];
     await _saveToPrefs();
 
     if (userId != null) {
-      await _client
-          .from('user_portfolio_assets')
-          .delete()
-          .eq('user_id', userId!);
+      final prefs = await SharedPreferences.getInstance();
+      _pendingRemoteClear = true;
+      await prefs.setBool(_pendingClearKey, true);
+      try {
+        await _client
+            .from('user_portfolio_assets')
+            .delete()
+            .eq('user_id', userId!);
+        _pendingRemoteClear = false;
+        await prefs.setBool(_pendingClearKey, false);
+      } catch (_) {
+        // The empty local snapshot remains authoritative until retry.
+      }
     }
   }
 
   Future<void> updateAssetUnits(String symbol, double units) async {
+    await _initCompleter.future;
     state = [
       for (final asset in state)
         if (asset.symbol == symbol) asset.copyWith(units: units) else asset
@@ -133,22 +163,15 @@ class PortfolioNotifier extends StateNotifier<List<PortfolioAsset>> {
     await _saveToPrefs();
 
     // Sync to Supabase
-    if (userId != null) {
+    if (userId != null && !_pendingRemoteClear) {
       final updated = state.firstWhere((e) => e.symbol == symbol);
-      await _client.from('user_portfolio_assets').upsert({
-        'user_id': userId,
-        'symbol': updated.symbol,
-        'name': updated.name,
-        'quantity': updated.units,
-        'average_cost': updated.averageCost,
-        'type': updated.category,
-        'currency': updated.currencyCode,
-      });
+      await _upsertRemoteAsset(updated);
     }
   }
 
   Future<void> updateAssetDetails(
       String symbol, double units, double averageCost) async {
+    await _initCompleter.future;
     state = [
       for (final asset in state)
         if (asset.symbol == symbol)
@@ -159,18 +182,22 @@ class PortfolioNotifier extends StateNotifier<List<PortfolioAsset>> {
     await _saveToPrefs();
 
     // Sync to Supabase
-    if (userId != null) {
+    if (userId != null && !_pendingRemoteClear) {
       final updated = state.firstWhere((e) => e.symbol == symbol);
-      await _client.from('user_portfolio_assets').upsert({
-        'user_id': userId,
-        'symbol': updated.symbol,
-        'name': updated.name,
-        'quantity': updated.units,
-        'average_cost': updated.averageCost,
-        'type': updated.category,
-        'currency': updated.currencyCode,
-      });
+      await _upsertRemoteAsset(updated);
     }
+  }
+
+  Future<void> _upsertRemoteAsset(PortfolioAsset asset) async {
+    await _client.from('user_portfolio_assets').upsert({
+      'user_id': userId,
+      'symbol': asset.symbol,
+      'name': asset.name,
+      'quantity': asset.units,
+      'average_cost': asset.averageCost,
+      'type': asset.category,
+      'currency': asset.currencyCode,
+    });
   }
 }
 

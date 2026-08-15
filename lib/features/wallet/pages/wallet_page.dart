@@ -53,6 +53,13 @@ import 'package:moneyplan_pro/features/auth/data/models/user_model.dart';
 import 'package:moneyplan_pro/features/auth/presentation/widgets/auth_prompt_dialog.dart';
 import 'package:moneyplan_pro/core/services/remote_config_service.dart';
 
+enum _FinancialResetScope {
+  transactions,
+  cashBalances,
+  creditCards,
+  all,
+}
+
 class WalletPage extends ConsumerStatefulWidget {
   const WalletPage({super.key});
 
@@ -824,12 +831,89 @@ class _WalletPageState extends ConsumerState<WalletPage>
   }
 
   Future<void> _showClearAllDataDialog(String lc) async {
+    final scope = await showModalBottomSheet<_FinancialResetScope>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => Container(
+        decoration: BoxDecoration(
+          color: AppColors.surface(sheetContext),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.border(sheetContext),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              lc == 'tr' ? 'Verileri Sıfırla' : 'Reset Data',
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            _buildResetScopeTile(
+              context: sheetContext,
+              icon: Icons.receipt_long_outlined,
+              title: lc == 'tr'
+                  ? 'Gelir / gider kayıtlarını temizle'
+                  : 'Clear income / expense records',
+              subtitle: lc == 'tr'
+                  ? 'Hesap ve kart ayarları ile güncel bakiyeler korunur.'
+                  : 'Account settings and current balances are preserved.',
+              scope: _FinancialResetScope.transactions,
+            ),
+            _buildResetScopeTile(
+              context: sheetContext,
+              icon: Icons.account_balance_outlined,
+              title: lc == 'tr'
+                  ? 'KMH / hesap bakiyelerini sıfırla'
+                  : 'Reset overdraft / account balances',
+              subtitle: lc == 'tr'
+                  ? 'Limit, faiz ve hesap adı korunur.'
+                  : 'Limits, rates and account names are preserved.',
+              scope: _FinancialResetScope.cashBalances,
+            ),
+            _buildResetScopeTile(
+              context: sheetContext,
+              icon: Icons.credit_card_outlined,
+              title: lc == 'tr'
+                  ? 'Kredi kartı borçlarını sıfırla'
+                  : 'Reset credit-card debt',
+              subtitle: lc == 'tr'
+                  ? 'Borç ve taksitler silinir; limit, faiz ve tarihler korunur.'
+                  : 'Debt and installments are cleared; card settings remain.',
+              scope: _FinancialResetScope.creditCards,
+            ),
+            _buildResetScopeTile(
+              context: sheetContext,
+              icon: Icons.delete_sweep_outlined,
+              title: lc == 'tr'
+                  ? 'Tüm finansal verileri temizle'
+                  : 'Clear all financial data',
+              subtitle: lc == 'tr'
+                  ? 'Kayıt, bakiye, borç, birikim, bütçe, BES ve portföy silinir; hesap/kart ayarları kalır.'
+                  : 'Clears records, balances, debt, savings, budgets, pension and portfolio; account settings remain.',
+              scope: _FinancialResetScope.all,
+              color: AppColors.error,
+            ),
+          ],
+        ),
+      ),
+    );
+    if (scope == null || !mounted) return;
+
     final messenger = ScaffoldMessenger.of(context);
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(AppStrings.tr(AppStrings.clearAllData, lc)),
-        content: Text(AppStrings.tr(AppStrings.confirmClearAll, lc)),
+        title: Text(lc == 'tr' ? 'Sıfırlamayı Onayla' : 'Confirm Reset'),
+        content: Text(_resetConfirmationText(scope, lc)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -846,17 +930,21 @@ class _WalletPageState extends ConsumerState<WalletPage>
 
     if (confirm == true) {
       try {
-        await Future.wait<void>([
-          ref.read(walletProvider.notifier).clearAllTransactions(),
-          ref.read(savingsGoalProvider.notifier).clearAll(),
-          ref.read(bankAccountProvider.notifier).resetAll(),
-          ref.read(budgetProvider.notifier).clearAll(),
-          ref.read(besProvider.notifier).clearAccount(),
-          ref.read(portfolioProvider.notifier).clearAll(),
-        ]);
+        await _performFinancialReset(scope);
+        if (!mounted) return;
+        setState(() {
+          _selectedDate = DateTime.now();
+          _focusedDay = DateTime.now();
+          _isYearlyView = false;
+          _showCalendar = false;
+        });
         messenger.showSnackBar(
           SnackBar(
-            content: Text(AppStrings.tr(AppStrings.allDataDeleted, lc)),
+            content: Text(
+              lc == 'tr'
+                  ? 'Seçilen finansal veriler temizlendi.'
+                  : 'Selected financial data was cleared.',
+            ),
             backgroundColor: AppColors.success,
           ),
         );
@@ -872,6 +960,88 @@ class _WalletPageState extends ConsumerState<WalletPage>
           ),
         );
       }
+    }
+  }
+
+  Widget _buildResetScopeTile({
+    required BuildContext context,
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required _FinancialResetScope scope,
+    Color color = AppColors.primary,
+  }) {
+    return ListTile(
+      leading: Icon(icon, color: color),
+      title: Text(
+        title,
+        style: TextStyle(fontWeight: FontWeight.w600, color: color),
+      ),
+      subtitle: Text(subtitle),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => Navigator.pop(context, scope),
+    );
+  }
+
+  String _resetConfirmationText(_FinancialResetScope scope, String lc) {
+    final tr = switch (scope) {
+      _FinancialResetScope.transactions =>
+        'Tüm gelir ve gider kayıtları silinecek. Hesap ve kart ayarları korunacak.',
+      _FinancialResetScope.cashBalances =>
+        'KMH ve vadesiz hesap bakiyeleri sıfırlanacak. Limit, faiz ve hesap adları korunacak.',
+      _FinancialResetScope.creditCards =>
+        'Kredi kartı borçları ve taksit planları sıfırlanacak. Limit, faiz, kesim ve ödeme günleri korunacak.',
+      _FinancialResetScope.all =>
+        'Tüm finansal kayıt ve bakiyeler silinecek. Banka ve kart konfigürasyonları korunacak.',
+    };
+    if (lc == 'tr') return tr;
+    return switch (scope) {
+      _FinancialResetScope.transactions =>
+        'All income and expense records will be deleted. Account and card settings will remain.',
+      _FinancialResetScope.cashBalances =>
+        'Overdraft and cash-account balances will be reset. Limits, rates and names will remain.',
+      _FinancialResetScope.creditCards =>
+        'Credit-card debt and installment plans will be reset. Card settings will remain.',
+      _FinancialResetScope.all =>
+        'All financial records and balances will be cleared. Bank and card configurations will remain.',
+    };
+  }
+
+  Future<void> _performFinancialReset(_FinancialResetScope scope) async {
+    final wallet = ref.read(walletProvider.notifier);
+    final bankAccounts = ref.read(bankAccountProvider);
+    final accounts = ref.read(bankAccountProvider.notifier);
+
+    switch (scope) {
+      case _FinancialResetScope.transactions:
+        await wallet.clearAllTransactions();
+        return;
+      case _FinancialResetScope.cashBalances:
+        for (final account in bankAccounts.where(
+          (account) => account.accountType != 'Kredi Kartı',
+        )) {
+          await wallet.deleteGeneratedTransactionsForAccount(account.id);
+        }
+        await accounts.resetCashBalances();
+        return;
+      case _FinancialResetScope.creditCards:
+        for (final account in bankAccounts.where(
+          (account) => account.accountType == 'Kredi Kartı',
+        )) {
+          await wallet.deleteGeneratedTransactionsForAccount(account.id);
+        }
+        await accounts.resetCreditCardBalances();
+        return;
+      case _FinancialResetScope.all:
+        await wallet.clearAllTransactions();
+        await accounts.resetAllBalances();
+        await Future.wait<void>([
+          ref.read(savingsGoalProvider.notifier).clearAll(),
+          ref.read(budgetProvider.notifier).clearAll(),
+          ref.read(besProvider.notifier).clearAccount(),
+          ref.read(portfolioProvider.notifier).clearAll(),
+        ]);
+        return;
     }
   }
 
@@ -1434,18 +1604,19 @@ class _WalletPageState extends ConsumerState<WalletPage>
 
   void _showTransactionOptions(
       BuildContext context, WalletTransaction transaction, String lc) {
-    final parts = transaction.id.split('_');
-    final isRecurringInstance = parts.length >= 2 &&
-        !transaction.id.contains('_paid_') &&
-        !transaction.id.contains('_skip_') &&
-        RegExp(r'^\d{6}$').hasMatch(parts.last);
-
-    final originalId = isRecurringInstance ? parts[0] : transaction.id;
+    final recurringSourceId = WalletNotifier.recurringSourceId(transaction.id);
     final allTransactions = ref.read(walletProvider);
-    final originalTransaction = isRecurringInstance
-        ? allTransactions.firstWhere((t) => t.id == originalId,
-            orElse: () => transaction)
-        : transaction;
+    var originalTransaction = transaction;
+    if (recurringSourceId != null) {
+      for (final candidate in allTransactions) {
+        if (candidate.id == recurringSourceId &&
+            candidate.recurrence != RecurrenceType.none) {
+          originalTransaction = candidate;
+          break;
+        }
+      }
+    }
+    final messenger = ScaffoldMessenger.of(this.context);
 
     showModalBottomSheet(
       context: context,
@@ -1485,11 +1656,23 @@ class _WalletPageState extends ConsumerState<WalletPage>
                 icon: Icons.check_circle_outline,
                 label: AppStrings.tr(AppStrings.markAsPaid, lc),
                 color: AppColors.success,
-                onTap: () {
-                  ref
-                      .read(walletProvider.notifier)
-                      .markAsPaid(transaction.id, true);
+                onTap: () async {
                   Navigator.pop(context);
+                  try {
+                    await ref
+                        .read(walletProvider.notifier)
+                        .markAsPaid(transaction.id, true);
+                  } catch (_) {
+                    if (!mounted) return;
+                    messenger.showSnackBar(
+                      SnackBar(
+                        content: Text(lc == 'tr'
+                            ? 'Ödeme durumu güncellenemedi.'
+                            : 'Payment status could not be updated.'),
+                        backgroundColor: AppColors.error,
+                      ),
+                    );
+                  }
                 },
               ),
             _buildOptionItem(
@@ -1499,7 +1682,7 @@ class _WalletPageState extends ConsumerState<WalletPage>
               onTap: () {
                 Navigator.pop(context);
                 Navigator.push(
-                  context,
+                  this.context,
                   MaterialPageRoute(
                     builder: (context) =>
                         AddTransactionPage(transaction: originalTransaction),
@@ -1511,11 +1694,23 @@ class _WalletPageState extends ConsumerState<WalletPage>
               icon: Icons.delete_outline,
               label: AppStrings.tr(AppStrings.remove, lc),
               color: AppColors.error,
-              onTap: () {
-                ref
-                    .read(walletProvider.notifier)
-                    .deleteTransaction(transaction.id);
+              onTap: () async {
                 Navigator.pop(context);
+                try {
+                  await ref
+                      .read(walletProvider.notifier)
+                      .deleteTransactionOccurrence(transaction);
+                } catch (_) {
+                  if (!mounted) return;
+                  messenger.showSnackBar(
+                    SnackBar(
+                      content: Text(lc == 'tr'
+                          ? 'Kayıt silinemedi.'
+                          : 'The record could not be deleted.'),
+                      backgroundColor: AppColors.error,
+                    ),
+                  );
+                }
               },
             ),
             const SizedBox(height: 16),
@@ -1541,99 +1736,133 @@ class _WalletPageState extends ConsumerState<WalletPage>
 
   void _showCategoryTransactions(
       String categoryId, String categoryName, TransactionType type, String lc) {
-    final transactions = ref.read(walletProvider).where((t) {
-      final matchesDate = t.date.year == _selectedDate.year &&
-          t.date.month == _selectedDate.month;
-      return matchesDate && t.categoryId == categoryId && t.type == type;
-    }).toList();
-
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => DraggableScrollableSheet(
+      builder: (sheetContext) => DraggableScrollableSheet(
         initialChildSize: 0.6,
         maxChildSize: 0.9,
-        builder: (context, scrollController) => Container(
-          decoration: BoxDecoration(
-            color: AppColors.surface(context),
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: Column(
-            children: [
-              const SizedBox(height: 12),
-              Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: AppColors.border(context),
-                  borderRadius: BorderRadius.circular(2),
-                ),
+        builder: (sheetContext, scrollController) => Consumer(
+          builder: (context, modalRef, _) {
+            modalRef.watch(walletProvider);
+            final transactions = modalRef
+                .read(walletProvider.notifier)
+                .getTransactionsByMonth(
+                  _selectedDate.year,
+                  _selectedDate.month,
+                )
+                .where(
+                  (transaction) =>
+                      transaction.categoryId == categoryId &&
+                      transaction.type == type,
+                )
+                .toList();
+
+            return Container(
+              decoration: BoxDecoration(
+                color: AppColors.surface(context),
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(24)),
               ),
-              Padding(
-                padding: const EdgeInsets.all(24),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      categoryName,
-                      style: const TextStyle(
-                          fontSize: 20, fontWeight: FontWeight.bold),
+              child: Column(
+                children: [
+                  const SizedBox(height: 12),
+                  Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppColors.border(context),
+                      borderRadius: BorderRadius.circular(2),
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.settings_outlined),
-                      onPressed: () {
-                        Navigator.pop(context);
-                        _showBudgetDialog(categoryId, categoryName, lc);
-                      },
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          categoryName,
+                          style: const TextStyle(
+                              fontSize: 20, fontWeight: FontWeight.bold),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.settings_outlined),
+                          onPressed: () {
+                            Navigator.pop(sheetContext);
+                            _showBudgetDialog(categoryId, categoryName, lc);
+                          },
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                  Expanded(
+                    child: transactions.isEmpty
+                        ? Center(
+                            child: Text(
+                              lc == 'tr'
+                                  ? 'Bu ay için kayıt kalmadı.'
+                                  : 'No records remain for this month.',
+                              style: TextStyle(
+                                color: AppColors.textSecondary(context),
+                              ),
+                            ),
+                          )
+                        : ListView.builder(
+                            controller: scrollController,
+                            itemCount: transactions.length,
+                            itemBuilder: (context, index) {
+                              final transaction = transactions[index];
+                              return ListTile(
+                                leading: Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: (transaction.type ==
+                                                TransactionType.income
+                                            ? AppColors.success
+                                            : AppColors.error)
+                                        .withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Icon(
+                                    transaction.type == TransactionType.income
+                                        ? Icons.trending_up
+                                        : Icons.trending_down,
+                                    color: transaction.type ==
+                                            TransactionType.income
+                                        ? AppColors.success
+                                        : AppColors.error,
+                                  ),
+                                ),
+                                title: Text(transaction.note ?? categoryName),
+                                subtitle: Text(
+                                  DateFormat.yMMMd(lc).format(transaction.date),
+                                ),
+                                trailing: Text(
+                                  _getCurrencyFormat(transaction.currencyCode)
+                                      .format(transaction.amount),
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: transaction.type ==
+                                            TransactionType.income
+                                        ? AppColors.success
+                                        : AppColors.error,
+                                  ),
+                                ),
+                                onTap: () => _showTransactionOptions(
+                                  sheetContext,
+                                  transaction,
+                                  lc,
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                ],
               ),
-              Expanded(
-                child: ListView.builder(
-                  controller: scrollController,
-                  itemCount: transactions.length,
-                  itemBuilder: (context, index) {
-                    final t = transactions[index];
-                    return ListTile(
-                      leading: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: (t.type == TransactionType.income
-                                  ? AppColors.success
-                                  : AppColors.error)
-                              .withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Icon(
-                          t.type == TransactionType.income
-                              ? Icons.trending_up
-                              : Icons.trending_down,
-                          color: t.type == TransactionType.income
-                              ? AppColors.success
-                              : AppColors.error,
-                        ),
-                      ),
-                      title: Text(t.note ?? categoryName),
-                      subtitle: Text(DateFormat.yMMMd(lc).format(t.date)),
-                      trailing: Text(
-                        _getCurrencyFormat(t.currencyCode).format(t.amount),
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: t.type == TransactionType.income
-                              ? AppColors.success
-                              : AppColors.error,
-                        ),
-                      ),
-                      onTap: () => _showTransactionOptions(context, t, lc),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );

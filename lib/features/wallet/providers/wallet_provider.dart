@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:moneyplan_pro/features/wallet/models/wallet_transaction.dart';
 import 'package:moneyplan_pro/features/wallet/models/yearly_summary.dart';
 import 'package:moneyplan_pro/features/wallet/models/monthly_summary.dart';
@@ -20,6 +21,9 @@ class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
   String get _boxName => userId != null
       ? 'wallet_transactions_$userId'
       : 'wallet_transactions_guest';
+  String get _pendingClearKey =>
+      'wallet_pending_remote_clear_${userId ?? 'guest'}';
+  String get _deletedIdsKey => 'wallet_deleted_remote_ids_${userId ?? 'guest'}';
 
   Box<Map>? _box;
   bool _isInitialized = false;
@@ -27,6 +31,8 @@ class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
   final CurrencyService _currencyService;
   final List<BankAccount> _accounts;
   Timer? _statementChargeTimer;
+  bool _pendingRemoteClear = false;
+  final Set<String> _pendingRemoteDeletionIds = {};
 
   WalletNotifier(this._currencyService, this.userId, this._accounts)
       : super([]) {
@@ -41,11 +47,19 @@ class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
 
     try {
       _box = await Hive.openBox<Map>(_boxName);
+      await _loadSyncMetadata();
       _loadTransactions();
 
       // Sync with Supabase if logged in
       if (userId != null) {
         final client = SupabaseService.client;
+        await _retryPendingRemoteClear();
+
+        if (_pendingRemoteClear) {
+          _finishInitialization();
+          return;
+        }
+
         final List<dynamic> response = await client
             .from('user_transactions')
             .select('*')
@@ -84,6 +98,8 @@ class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
             excludeFromBalance: json['exclude_from_balance'] as bool? ?? false,
             linkedTransactionId: json['linked_transaction_id'] as String?,
           );
+        }).where((transaction) {
+          return !_pendingRemoteDeletionIds.contains(transaction.id);
         }).toList();
 
         if (remoteTransactions.isNotEmpty) {
@@ -94,12 +110,10 @@ class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
           await _box!.putAll(batch);
           _loadTransactions();
         }
+        await _retryPendingRemoteDeletes();
       }
 
-      _isInitialized = true;
-      if (!_initCompleter.isCompleted) {
-        _initCompleter.complete();
-      }
+      _finishInitialization();
       try {
         await _syncStatementCharges();
       } catch (error, stackTrace) {
@@ -121,6 +135,66 @@ class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
       }
       // Re-throw to allow UI to handle the error
       rethrow;
+    }
+  }
+
+  void _finishInitialization() {
+    _isInitialized = true;
+    if (!_initCompleter.isCompleted) {
+      _initCompleter.complete();
+    }
+  }
+
+  Future<void> _loadSyncMetadata() async {
+    final prefs = await SharedPreferences.getInstance();
+    _pendingRemoteClear = prefs.getBool(_pendingClearKey) ?? false;
+    _pendingRemoteDeletionIds
+      ..clear()
+      ..addAll(prefs.getStringList(_deletedIdsKey) ?? const []);
+  }
+
+  Future<void> _saveSyncMetadata() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_pendingClearKey, _pendingRemoteClear);
+    await prefs.setStringList(
+      _deletedIdsKey,
+      _pendingRemoteDeletionIds.toList()..sort(),
+    );
+  }
+
+  Future<void> _retryPendingRemoteDeletes() async {
+    if (userId == null || _pendingRemoteDeletionIds.isEmpty) return;
+    final deleted = <String>{};
+    for (final id in _pendingRemoteDeletionIds) {
+      try {
+        await SupabaseService.client
+            .from('user_transactions')
+            .delete()
+            .eq('user_id', userId!)
+            .eq('id', id);
+        deleted.add(id);
+      } catch (_) {
+        // Keep the tombstone and retry on next initialization.
+      }
+    }
+    if (deleted.isNotEmpty) {
+      _pendingRemoteDeletionIds.removeAll(deleted);
+      await _saveSyncMetadata();
+    }
+  }
+
+  Future<void> _retryPendingRemoteClear() async {
+    if (userId == null || !_pendingRemoteClear) return;
+    try {
+      await SupabaseService.client
+          .from('user_transactions')
+          .delete()
+          .eq('user_id', userId!);
+      _pendingRemoteClear = false;
+      _pendingRemoteDeletionIds.clear();
+      await _saveSyncMetadata();
+    } catch (_) {
+      // Keep the local reset authoritative and retry before the next sync.
     }
   }
 
@@ -180,9 +254,15 @@ class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
     if (_box == null) return;
 
     try {
-      final transactions = _box!.values.map((map) {
-        return WalletTransaction.fromJson(Map<String, dynamic>.from(map));
-      }).toList();
+      final transactions = _box!.values
+          .map((map) {
+            return WalletTransaction.fromJson(Map<String, dynamic>.from(map));
+          })
+          .where(
+            (transaction) =>
+                !_pendingRemoteDeletionIds.contains(transaction.id),
+          )
+          .toList();
 
       // Sort by date descending
       transactions.sort((a, b) => b.date.compareTo(a.date));
@@ -202,6 +282,15 @@ class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
       await _initCompleter.future;
       if (_box == null) throw Exception('Hive box not initialized');
 
+      final revivedIds = transactions
+          .map((transaction) => transaction.id)
+          .where(_pendingRemoteDeletionIds.contains)
+          .toSet();
+      if (revivedIds.isNotEmpty) {
+        _pendingRemoteDeletionIds.removeAll(revivedIds);
+        await _saveSyncMetadata();
+      }
+
       debugPrint('📥 Hive: Putting ${transactions.length} transactions');
       for (final tx in transactions) {
         await _box!.put(tx.id, tx.toJson());
@@ -210,6 +299,8 @@ class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
 
       // Sync to Supabase in background
       if (userId != null) {
+        await _retryPendingRemoteClear();
+        if (_pendingRemoteClear) return;
         final client = SupabaseService.client;
         // Supabase upsert handles batches naturally if we pass a list
         final batch = transactions
@@ -262,11 +353,17 @@ class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
         throw Exception('Hive box not initialized');
       }
 
+      if (_pendingRemoteDeletionIds.remove(transaction.id)) {
+        await _saveSyncMetadata();
+      }
+
       await _box!.put(transaction.id, transaction.toJson());
       _loadTransactions();
 
       // Sync to Supabase
       if (userId != null) {
+        await _retryPendingRemoteClear();
+        if (_pendingRemoteClear) return;
         final client = SupabaseService.client;
         await client.from('user_transactions').upsert({
           'id': transaction.id,
@@ -302,52 +399,91 @@ class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
 
   /// Delete transaction and all its associated records
   Future<void> deleteTransaction(String id) async {
-    final oldState = state;
-
-    try {
-      await _initCompleter.future;
-
-      if (_box == null) {
-        throw Exception('Hive box not initialized');
-      }
-
-      // Find all related IDs (paid, skip, overrides)
-      final allKeys = _box!.keys.cast<String>();
-      final relatedKeys = allKeys
-          .where((key) =>
-                  key == id || // exact match
-                  key.startsWith(
-                      '${id}_') // relates (id_YYYYMM, id_paid_YYYYMM, id_skip_YYYYMM)
-              )
-          .toList();
-
-      for (final key in relatedKeys) {
-        await _box!.delete(key);
-      }
-
-      // Sync to Supabase
-      if (userId != null) {
-        final client = SupabaseService.client;
-        await client
-            .from('user_transactions')
-            .delete()
-            .eq('user_id', userId!)
-            .eq('id', id);
-        // Also delete related keys from Supabase if they exist as separate rows?
-        // Flutter generates some recurring IDs on the fly, but if they were materialized, they should be deleted.
-        // For now, primary deletion is enough as recurring instances are usually ephemeral or have their own materialized IDs.
-      }
-
-      _loadTransactions();
-    } catch (e, stackTrace) {
-      if (kDebugMode) {
-        debugPrint('Error deleting transaction: $e');
-        debugPrint('Stack trace: $stackTrace');
-      }
-      // Rollback state on error
-      state = oldState;
-      rethrow;
+    await _initCompleter.future;
+    if (_box == null) {
+      throw Exception('Hive box not initialized');
     }
+
+    final idsToDelete = <String>{id};
+    idsToDelete.addAll(
+      _box!.keys.cast<String>().where(
+            (key) => key == id || key.startsWith('${id}_'),
+          ),
+    );
+
+    _pendingRemoteDeletionIds.addAll(idsToDelete);
+    await _saveSyncMetadata();
+
+    for (final key in idsToDelete) {
+      await _box!.delete(key);
+    }
+
+    // Update the visible list before waiting for network I/O.
+    state = state
+        .where((transaction) => !idsToDelete.contains(transaction.id))
+        .toList();
+
+    if (userId != null) {
+      final deletedRemotely = <String>{};
+      for (final transactionId in idsToDelete) {
+        try {
+          await SupabaseService.client
+              .from('user_transactions')
+              .delete()
+              .eq('user_id', userId!)
+              .eq('id', transactionId);
+          deletedRemotely.add(transactionId);
+        } catch (error, stackTrace) {
+          if (kDebugMode) {
+            debugPrint('Remote transaction delete deferred: $error');
+            debugPrint('$stackTrace');
+          }
+        }
+      }
+      _pendingRemoteDeletionIds.removeAll(deletedRemotely);
+    } else {
+      _pendingRemoteDeletionIds.removeAll(idsToDelete);
+    }
+    await _saveSyncMetadata();
+  }
+
+  static String? recurringSourceId(String transactionId) {
+    final match = RegExp(r'^(.*)_(\d{6})$').firstMatch(transactionId);
+    return match?.group(1);
+  }
+
+  /// Removes one generated recurrence without deleting its source or future
+  /// months. A zero-value skip marker is persisted and synced.
+  Future<void> deleteTransactionOccurrence(
+    WalletTransaction transaction,
+  ) async {
+    final sourceId = recurringSourceId(transaction.id);
+    WalletTransaction? source;
+    if (sourceId != null) {
+      for (final item in state) {
+        if (item.id == sourceId) {
+          source = item;
+          break;
+        }
+      }
+    }
+    if (source == null || source.recurrence == RecurrenceType.none) {
+      await deleteTransaction(transaction.id);
+      return;
+    }
+
+    final yearMonth = transaction.id.substring(transaction.id.length - 6);
+    final skipId = '${source.id}_skip_$yearMonth';
+    await addTransaction(
+      transaction.copyWith(
+        id: skipId,
+        amount: 0,
+        note: 'Skipped recurrence: ${source.id}',
+        recurrence: RecurrenceType.none,
+        applyMonthly: false,
+        excludeFromBalance: true,
+      ),
+    );
   }
 
   /// Removes only ledger rows generated from a bank/card configuration.
@@ -379,20 +515,37 @@ class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
         .map((transaction) => transaction.id)
         .toSet();
 
+    _pendingRemoteDeletionIds.addAll(generatedIds);
+    await _saveSyncMetadata();
     for (final id in generatedIds) {
       await _box!.delete(id);
     }
+    state = state
+        .where((transaction) => !generatedIds.contains(transaction.id))
+        .toList();
 
     if (userId != null) {
+      final deletedRemotely = <String>{};
       for (final id in generatedIds) {
-        await SupabaseService.client
-            .from('user_transactions')
-            .delete()
-            .eq('user_id', userId!)
-            .eq('id', id);
+        try {
+          await SupabaseService.client
+              .from('user_transactions')
+              .delete()
+              .eq('user_id', userId!)
+              .eq('id', id);
+          deletedRemotely.add(id);
+        } catch (error, stackTrace) {
+          if (kDebugMode) {
+            debugPrint('Remote generated transaction delete deferred: $error');
+            debugPrint('$stackTrace');
+          }
+        }
       }
+      _pendingRemoteDeletionIds.removeAll(deletedRemotely);
+    } else {
+      _pendingRemoteDeletionIds.removeAll(generatedIds);
     }
-    _loadTransactions();
+    await _saveSyncMetadata();
   }
 
   Future<void> clearAllTransactions() async {
@@ -401,14 +554,27 @@ class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
       throw Exception('Hive box not initialized');
     }
 
+    _pendingRemoteClear = userId != null;
+    _pendingRemoteDeletionIds.clear();
+    await _saveSyncMetadata();
+
     await _box!.clear();
-    state = [];
+    state = const [];
 
     if (userId != null) {
-      await SupabaseService.client
-          .from('user_transactions')
-          .delete()
-          .eq('user_id', userId!);
+      try {
+        await SupabaseService.client
+            .from('user_transactions')
+            .delete()
+            .eq('user_id', userId!);
+        _pendingRemoteClear = false;
+        await _saveSyncMetadata();
+      } catch (error, stackTrace) {
+        if (kDebugMode) {
+          debugPrint('Remote transaction clear deferred: $error');
+          debugPrint('$stackTrace');
+        }
+      }
     }
   }
 

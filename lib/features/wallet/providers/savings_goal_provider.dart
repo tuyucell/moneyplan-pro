@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -10,6 +11,7 @@ class SavingsGoalNotifier extends StateNotifier<List<SavingsGoal>> {
   }
 
   static const String _prefsKey = 'user_savings_goals';
+  final Completer<void> _initCompleter = Completer<void>();
 
   Future<void> _loadGoals() async {
     try {
@@ -24,6 +26,8 @@ class SavingsGoalNotifier extends StateNotifier<List<SavingsGoal>> {
     } catch (e) {
       debugPrint('Error loading goals: $e');
       state = [];
+    } finally {
+      if (!_initCompleter.isCompleted) _initCompleter.complete();
     }
   }
 
@@ -42,6 +46,7 @@ class SavingsGoalNotifier extends StateNotifier<List<SavingsGoal>> {
       double? interestRate,
       DateTime? maturityDate,
       String currencyCode = 'TRY'}) async {
+    await _initCompleter.future;
     final newGoal = SavingsGoal.create(
       name: name,
       targetAmount: target,
@@ -56,6 +61,7 @@ class SavingsGoalNotifier extends StateNotifier<List<SavingsGoal>> {
   }
 
   Future<void> updateGoalAmount(String id, double newAmount) async {
+    await _initCompleter.future;
     state = [
       for (final goal in state)
         if (goal.id == id) goal.copyWith(currentAmount: newAmount) else goal
@@ -67,6 +73,7 @@ class SavingsGoalNotifier extends StateNotifier<List<SavingsGoal>> {
       {required String name,
       required double targetAmount,
       required int colorValue}) async {
+    await _initCompleter.future;
     state = [
       for (final goal in state)
         if (goal.id == id)
@@ -82,12 +89,14 @@ class SavingsGoalNotifier extends StateNotifier<List<SavingsGoal>> {
   }
 
   Future<void> deleteGoal(String id) async {
+    await _initCompleter.future;
     state = state.where((goal) => goal.id != id).toList();
     await _saveGoals();
   }
 
   Future<void> clearAll() async {
-    state = [];
+    await _initCompleter.future;
+    state = const [];
     await _saveGoals();
   }
 }

@@ -203,7 +203,7 @@ void main() {
       expect(octoberAfterPayment.remainingBalance, 0);
     });
 
-    test('yearly net status uses closing balance instead of summing it', () {
+    test('yearly net excludes KMH snapshots and account limits', () {
       final kmh = BankAccount(
         id: 'kmh',
         name: 'Ek Hesap',
@@ -223,7 +223,72 @@ void main() {
 
       expect(
         YearlySummary(year: 2026, monthlySummaries: months).remainingBalance,
-        -64000,
+        0,
+      );
+    });
+
+    test('yearly net is income minus expense without counting pending twice',
+        () {
+      final august = MonthlySummary.fromTransactions(
+        [
+          WalletTransaction(
+            id: 'income',
+            categoryId: 'salary',
+            amount: 717000,
+            date: DateTime(2026, 8, 1),
+            type: TransactionType.income,
+          ),
+          WalletTransaction(
+            id: 'expense',
+            categoryId: 'rent',
+            amount: 208000,
+            date: DateTime(2026, 8, 2),
+            type: TransactionType.expense,
+            isPaid: false,
+          ),
+        ],
+        2026,
+        8,
+      );
+      final yearly = YearlySummary(
+        year: 2026,
+        monthlySummaries: [august],
+      );
+
+      expect(yearly.totalIncome, 717000);
+      expect(yearly.totalExpense, 208000);
+      expect(yearly.totalOutflow, 208000);
+      expect(yearly.remainingBalance, 509000);
+    });
+
+    test('recurring IDs with underscores resolve and can be skipped by month',
+        () {
+      final source = WalletTransaction(
+        id: 'monthly_home_rent',
+        categoryId: 'rent',
+        amount: 15000,
+        date: DateTime(2026, 7, 1),
+        type: TransactionType.expense,
+        recurrence: RecurrenceType.monthly,
+      );
+      final skip = source.copyWith(
+        id: 'monthly_home_rent_skip_202608',
+        amount: 0,
+        recurrence: RecurrenceType.none,
+        excludeFromBalance: true,
+      );
+
+      expect(
+        WalletNotifier.recurringSourceId('monthly_home_rent_202608'),
+        'monthly_home_rent',
+      );
+      expect(
+        WalletNotifier.generateRecurringTransactionsForMonth(
+          [source, skip],
+          2026,
+          8,
+        ),
+        isEmpty,
       );
     });
   });

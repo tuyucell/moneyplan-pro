@@ -15,13 +15,12 @@ class YearlySummary {
       monthlySummaries.fold(0, (sum, m) => sum + m.totalExpense);
   double get totalPendingExpense =>
       monthlySummaries.fold(0, (sum, m) => sum + m.totalPendingExpense);
-  double get totalOutflow => totalExpense + totalPendingExpense;
+  // totalExpense already contains both paid and pending expenses.
+  double get totalOutflow => totalExpense;
 
-  /// Closing balance for the year. Monthly balances already carry prior cash
-  /// and debt forward, so summing all twelve would count the same balance
-  /// repeatedly (for example, one unpaid KMH debt twelve times).
-  double get remainingBalance =>
-      monthlySummaries.isEmpty ? 0 : monthlySummaries.last.remainingBalance;
+  /// Net cash flow produced during the selected year. Opening balances and
+  /// credit limits are account positions, not yearly income or expense.
+  double get remainingBalance => totalIncome - totalExpense;
   double get totalBES => monthlySummaries.fold(0, (sum, m) => sum + m.totalBES);
   double get totalSavings =>
       monthlySummaries.fold(0, (sum, m) => sum + m.totalSavings);

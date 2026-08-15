@@ -410,6 +410,54 @@ void main() {
 
       expect(merged.any((account) => account.id == 'isbank_cc'), isFalse);
     });
+
+    test('an intentionally empty local snapshot does not restore defaults', () {
+      final merged = mergeBankAccountSnapshots(
+        local: const [],
+        remote: const [],
+        hasLocalSnapshot: true,
+        defaults: DefaultBankAccounts.accounts,
+      );
+
+      expect(merged, isEmpty);
+    });
+
+    test('balance reset preserves bank and card configuration', () {
+      final effectiveDate = DateTime(2026, 8, 15, 18, 30);
+      final original = BankAccount(
+        id: 'configured-card',
+        name: 'Benim Kartım',
+        accountType: 'Kredi Kartı',
+        initialBalance: -10000,
+        overdraftLimit: 90000,
+        overdraftInterestRate: 4.75,
+        bsmvRate: 15,
+        kkdfRate: 15,
+        paymentDay: 25,
+        dueDaysAfterStatement: 10,
+        installmentPlan: [
+          CreditCardInstallmentEntry(
+            id: 'future-installment',
+            statementMonth: DateTime(2026, 9),
+            amount: 5000,
+          ),
+        ],
+      );
+
+      final reset = resetBankAccountBalanceSnapshot(original, effectiveDate);
+
+      expect(reset.initialBalance, 0);
+      expect(reset.installmentPlan, isEmpty);
+      expect(reset.balanceEffectiveDate, effectiveDate);
+      expect(reset.updatedAt, effectiveDate);
+      expect(reset.name, original.name);
+      expect(reset.overdraftLimit, original.overdraftLimit);
+      expect(reset.overdraftInterestRate, original.overdraftInterestRate);
+      expect(reset.bsmvRate, original.bsmvRate);
+      expect(reset.kkdfRate, original.kkdfRate);
+      expect(reset.paymentDay, original.paymentDay);
+      expect(reset.dueDaysAfterStatement, original.dueDaysAfterStatement);
+    });
   });
 
   testWidgets('card editor accepts a signed negative starting balance',
