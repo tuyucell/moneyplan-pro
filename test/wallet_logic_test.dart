@@ -177,6 +177,30 @@ void main() {
       expect(august.remainingBalance, -64000);
       expect(august.totalOverdraftLimit, 100000);
       expect(september.remainingBalance, -64000);
+
+      final payment = WalletTransaction(
+        id: 'kmh-payment',
+        categoryId: 'transfer_deposit',
+        amount: 64000,
+        date: DateTime(2026, 9, 5),
+        type: TransactionType.income,
+        bankAccountId: kmh.id,
+      );
+      final paidSeptember = MonthlySummary.fromTransactions(
+        [payment],
+        2026,
+        9,
+        bankAccountList: [kmh],
+      );
+      final octoberAfterPayment = MonthlySummary.fromTransactions(
+        [payment],
+        2026,
+        10,
+        bankAccountList: [kmh],
+      );
+
+      expect(paidSeptember.remainingBalance, 0);
+      expect(octoberAfterPayment.remainingBalance, 0);
     });
 
     test('yearly net status uses closing balance instead of summing it', () {
