@@ -78,8 +78,9 @@ class MoneyPlanProApi {
   /// En çok kazandıran fonları getirir
   static Future<List<dynamic>> getTopFunds() async {
     try {
-      final response =
-          await http.get(Uri.parse('$_baseUrl/funds/top')).timeout(_timeout);
+      final response = await http
+          .get(Uri.parse('$_baseUrl/funds/top'))
+          .timeout(const Duration(seconds: 15));
       if (response.statusCode == 200) {
         return json.decode(response.body);
       }

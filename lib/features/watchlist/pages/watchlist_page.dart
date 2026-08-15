@@ -12,6 +12,7 @@ import 'package:moneyplan_pro/features/auth/presentation/providers/auth_provider
 import 'package:moneyplan_pro/features/auth/data/models/user_model.dart';
 import 'package:moneyplan_pro/features/auth/presentation/widgets/auth_prompt_dialog.dart';
 import 'package:moneyplan_pro/features/alerts/presentation/pages/alerts_page.dart';
+import 'package:moneyplan_pro/core/services/remote_config_service.dart';
 
 class WatchlistPage extends ConsumerStatefulWidget {
   const WatchlistPage({super.key});
@@ -123,7 +124,16 @@ class _WatchlistPageState extends ConsumerState<WatchlistPage> {
   Widget build(BuildContext context) {
     final language = ref.watch(languageProvider);
     final lc = language.code;
-    final watchlist = ref.watch(watchlistProvider);
+    final allWatchlist = ref.watch(watchlistProvider);
+    final liveMarketsEnabled = ref
+        .watch(featureEnabledProvider('live_market_data'))
+        .maybeWhen(data: (enabled) => enabled, orElse: () => false);
+    final cryptoMarketsEnabled = ref
+        .watch(featureEnabledProvider('crypto_market_data'))
+        .maybeWhen(data: (enabled) => enabled, orElse: () => false);
+    final watchlist = allWatchlist.where((item) {
+      return _isCryptoItem(item) ? cryptoMarketsEnabled : liveMarketsEnabled;
+    }).toList();
 
     ref.listen(watchlistRefreshProvider, (previous, next) {});
 
@@ -165,29 +175,32 @@ class _WatchlistPageState extends ConsumerState<WatchlistPage> {
                   color: AppColors.textSecondary(context)),
               onPressed: () => _showInfoDialog(context, lc),
             ),
-            IconButton(
-              icon: const Icon(Icons.notifications_outlined,
-                  color: AppColors.primary),
-              onPressed: () {
-                final authState = ref.read(authNotifierProvider);
-                if (authState is AuthAuthenticated) {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const AlertsPage()),
-                  );
-                } else {
-                  showDialog(
-                    context: context,
-                    builder: (ctx) => AuthPromptDialog(
-                      title: lc == 'tr' ? 'Hesap Gerekli' : 'Account Required',
-                      description: lc == 'tr'
-                          ? 'Fiyat alarmlarınızı yönetmek için lütfen hesabınıza giriş yapın.'
-                          : 'Please login to manage your price alerts.',
-                    ),
-                  );
-                }
-              },
-            ),
+            if (liveMarketsEnabled)
+              IconButton(
+                icon: const Icon(Icons.notifications_outlined,
+                    color: AppColors.primary),
+                onPressed: () {
+                  final authState = ref.read(authNotifierProvider);
+                  if (authState is AuthAuthenticated) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) => const AlertsPage()),
+                    );
+                  } else {
+                    showDialog(
+                      context: context,
+                      builder: (ctx) => AuthPromptDialog(
+                        title:
+                            lc == 'tr' ? 'Hesap Gerekli' : 'Account Required',
+                        description: lc == 'tr'
+                            ? 'Fiyat alarmlarınızı yönetmek için lütfen hesabınıza giriş yapın.'
+                            : 'Please login to manage your price alerts.',
+                      ),
+                    );
+                  }
+                },
+              ),
             const SizedBox(width: 8),
           ],
           bottom: watchlist.isEmpty
@@ -335,6 +348,27 @@ class _WatchlistPageState extends ConsumerState<WatchlistPage> {
         ),
       ),
     );
+  }
+
+  static bool _isCryptoItem(WatchlistItem item) {
+    const cryptoSymbols = {
+      'BTC',
+      'ETH',
+      'USDT',
+      'SOL',
+      'BNB',
+      'XRP',
+      'DOGE',
+      'ADA',
+      'AVAX',
+      'LINK',
+      'DOT',
+      'POL',
+      'ZEC',
+      'FDUSD',
+    };
+    return item.category == 'crypto' ||
+        cryptoSymbols.contains(item.symbol.toUpperCase());
   }
 
   String _getCategoryDisplayName(String? categoryId, String lc,

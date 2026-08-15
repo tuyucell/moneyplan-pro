@@ -5,8 +5,10 @@ abstract class AuthRepository {
   Future<UserModel> signUpWithEmail(
       String email, String password, String displayName);
   Future<UserModel> signInWithGoogle();
+  Future<UserModel> signInWithApple();
   Future<void> signOut();
   Future<void> sendPasswordResetEmail(String email);
+  Future<void> deleteAccount();
   Future<UserModel?> getCurrentUser();
   Future<void> updateUserDetails(UserModel user);
   Stream<UserModel?> get authStateChanges;

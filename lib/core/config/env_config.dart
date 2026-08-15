@@ -1,8 +1,8 @@
 class EnvConfig {
   // Supabase Configuration
-  static const String supabaseUrl = 'https://gbncnwinlmniohafhnqf.supabase.co';
+  static const String supabaseUrl = 'https://fadzhvakdivhisnmfyqn.supabase.co';
   static const String supabaseAnonKey =
-      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdibmNud2lubG1uaW9oYWZobnFmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjYxNzAzNjksImV4cCI6MjA4MTc0NjM2OX0.yNlFRikUab3o4enRJEo98L7tF9lyurGdUwXMUeIA7o4';
+      'sb_publishable_l9-UK9xkD4sV5PBYGuZnaA_-FD-k_hB';
 
   // External API Keys (Opsiyonel)
   static const String coinGeckoApiKey =
@@ -29,7 +29,8 @@ class EnvConfig {
   static bool get isConfigured {
     return supabaseUrl.isNotEmpty &&
         supabaseAnonKey != 'YOUR_ANON_KEY_HERE' &&
-        supabaseAnonKey.startsWith('eyJ') &&
+        (supabaseAnonKey.startsWith('eyJ') ||
+            supabaseAnonKey.startsWith('sb_publishable_')) &&
         googleIosClientId.isNotEmpty &&
         oneSignalAppId.isNotEmpty;
   }
@@ -40,7 +41,7 @@ class EnvConfig {
         '❌ Supabase yapılandırması eksik!\n\n'
         'Lütfen lib/core/config/env_config.dart dosyasını güncelleyin:\n'
         '1. Supabase Dashboard > Settings > API sayfasına gidin\n'
-        '2. "anon/public" key\'i kopyalayın (eyJhbGciOi... ile başlar)\n'
+        '2. "publishable" veya eski "anon/public" key\'i kopyalayın\n'
         '3. supabaseAnonKey değişkenine yapıştırın\n\n'
         '⚠️ DİKKAT: service_role key\'i ASLA kullanmayın!',
       );

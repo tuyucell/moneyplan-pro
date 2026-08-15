@@ -12,6 +12,7 @@ import 'package:moneyplan_pro/core/i18n/app_strings.dart';
 import 'package:moneyplan_pro/core/providers/language_provider.dart';
 import 'package:moneyplan_pro/features/wallet/providers/bes_provider.dart';
 import 'package:moneyplan_pro/core/services/currency_service.dart';
+import 'package:moneyplan_pro/core/services/remote_config_service.dart';
 
 class PortfolioView extends ConsumerWidget {
   const PortfolioView({super.key});
@@ -22,6 +23,12 @@ class PortfolioView extends ConsumerWidget {
     final lc = language.code;
     final portfolioAssets = ref.watch(portfolioProvider);
     final besAccount = ref.watch(besProvider);
+    final liveMarketDataEnabled = ref
+        .watch(featureEnabledProvider('live_market_data'))
+        .maybeWhen(data: (enabled) => enabled, orElse: () => false);
+    final cryptoMarketDataEnabled = ref
+        .watch(featureEnabledProvider('crypto_market_data'))
+        .maybeWhen(data: (enabled) => enabled, orElse: () => false);
 
     if (portfolioAssets.isEmpty && besAccount == null) {
       return _buildEmptyState(context, lc);
@@ -31,7 +38,8 @@ class PortfolioView extends ConsumerWidget {
 
     return Column(
       children: [
-        _buildSummaryCard(context, ref, portfolioAssets, lc, displayCurrency),
+        _buildSummaryCard(context, ref, portfolioAssets, lc, displayCurrency,
+            liveMarketDataEnabled, cryptoMarketDataEnabled),
         const SizedBox(height: 16),
         ListView.builder(
           shrinkWrap: true,
@@ -39,9 +47,13 @@ class PortfolioView extends ConsumerWidget {
           itemCount: portfolioAssets.length,
           itemBuilder: (context, index) {
             final asset = portfolioAssets[index];
+            final marketDataEnabled = liveMarketDataEnabled ||
+                (cryptoMarketDataEnabled && _isCryptoAsset(asset));
             return _PortfolioItemCard(
               asset: asset,
+              marketDataEnabled: marketDataEnabled,
               onTap: () {
+                if (!marketDataEnabled) return;
                 Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -61,14 +73,30 @@ class PortfolioView extends ConsumerWidget {
     );
   }
 
-  Widget _buildSummaryCard(BuildContext context, WidgetRef ref,
-      List<PortfolioAsset> assets, String lc, String displayCurrency) {
+  Widget _buildSummaryCard(
+      BuildContext context,
+      WidgetRef ref,
+      List<PortfolioAsset> assets,
+      String lc,
+      String displayCurrency,
+      bool liveMarketDataEnabled,
+      bool cryptoMarketDataEnabled) {
     final currencyService = ref.watch(currencyServiceProvider);
     double totalValueTRY = 0;
     double totalCostTRY = 0;
     var allLoaded = true;
 
     for (final asset in assets) {
+      final assetCostTRY = currencyService.convertToTRY(
+          asset.units * asset.averageCost, asset.currencyCode);
+      final marketDataEnabled = liveMarketDataEnabled ||
+          (cryptoMarketDataEnabled && _isCryptoAsset(asset));
+      if (!marketDataEnabled) {
+        totalCostTRY += assetCostTRY;
+        totalValueTRY += assetCostTRY;
+        continue;
+      }
+
       final marketAsset = ref.watch(assetProvider(asset.id)).asData?.value;
       if (marketAsset != null && marketAsset.currentPriceUsd != null) {
         // Market asset price is in USD from API
@@ -76,12 +104,10 @@ class PortfolioView extends ConsumerWidget {
         totalValueTRY += currencyService.convertToTRY(currentValueUSD, 'USD');
 
         // Asset average cost is in its own currency
-        totalCostTRY += currencyService.convertToTRY(
-            asset.units * asset.averageCost, asset.currencyCode);
+        totalCostTRY += assetCostTRY;
       } else {
         allLoaded = false;
-        totalCostTRY += currencyService.convertToTRY(
-            asset.units * asset.averageCost, asset.currencyCode);
+        totalCostTRY += assetCostTRY;
       }
     }
 
@@ -162,6 +188,27 @@ class PortfolioView extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  static bool _isCryptoAsset(PortfolioAsset asset) {
+    const cryptoSymbols = {
+      'BTC',
+      'ETH',
+      'USDT',
+      'SOL',
+      'BNB',
+      'XRP',
+      'DOGE',
+      'ADA',
+      'AVAX',
+      'LINK',
+      'DOT',
+      'POL',
+      'ZEC',
+      'FDUSD',
+    };
+    return asset.category == 'crypto' ||
+        cryptoSymbols.contains(asset.symbol.toUpperCase());
   }
 
   Widget _buildSummaryStat(String label, String value, Color bgColor) {
@@ -412,11 +459,13 @@ class PortfolioView extends ConsumerWidget {
 
 class _PortfolioItemCard extends ConsumerWidget {
   final PortfolioAsset asset;
+  final bool marketDataEnabled;
   final VoidCallback onTap;
   final VoidCallback onLongPress;
 
   const _PortfolioItemCard({
     required this.asset,
+    required this.marketDataEnabled,
     required this.onTap,
     required this.onLongPress,
   });
@@ -425,7 +474,8 @@ class _PortfolioItemCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final language = ref.watch(languageProvider);
     final lc = language.code;
-    final assetAsync = ref.watch(assetProvider(asset.id));
+    final assetAsync =
+        marketDataEnabled ? ref.watch(assetProvider(asset.id)) : null;
     final currencyService = ref.watch(currencyServiceProvider);
     final displayCurrency = ref.watch(investDisplayCurrencyProvider);
 
@@ -462,82 +512,112 @@ class _PortfolioItemCard extends ConsumerWidget {
             ),
 
             // Sparkline in the middle
-            if (assetAsync.value != null)
+            if (assetAsync?.value != null)
               Expanded(
                 flex: 2,
                 child: SparklineWidget(
-                  isPositive: (assetAsync.value!.change24h ?? 0) >= 0,
+                  isPositive: (assetAsync!.value!.change24h ?? 0) >= 0,
                   width: 50,
                   height: 30,
                 ),
               ),
             const SizedBox(width: 8),
 
-            assetAsync.when(
-              data: (marketAsset) {
-                if (marketAsset == null) return const SizedBox.shrink();
+            if (!marketDataEnabled)
+              _buildCostBasis(currencyService, displayCurrency)
+            else
+              assetAsync!.when(
+                data: (marketAsset) {
+                  if (marketAsset == null) return const SizedBox.shrink();
 
-                // API value is in USD
-                final currentValueUSD =
-                    marketAsset.currentPriceUsd! * asset.units;
+                  // API value is in USD
+                  final currentValueUSD =
+                      marketAsset.currentPriceUsd! * asset.units;
 
-                // Convert both to TRY for profit calculation
-                final currentValueTRY =
-                    currencyService.convertToTRY(currentValueUSD, 'USD');
-                final totalCostTRY = currencyService.convertToTRY(
-                    asset.units * asset.averageCost, asset.currencyCode);
+                  // Convert both to TRY for profit calculation
+                  final currentValueTRY =
+                      currencyService.convertToTRY(currentValueUSD, 'USD');
+                  final totalCostTRY = currencyService.convertToTRY(
+                      asset.units * asset.averageCost, asset.currencyCode);
 
-                final profitTRY = currentValueTRY - totalCostTRY;
-                final profitPercent =
-                    totalCostTRY > 0 ? (profitTRY / totalCostTRY) * 100 : 0.0;
-                final isPositive = profitTRY >= 0;
+                  final profitTRY = currentValueTRY - totalCostTRY;
+                  final profitPercent =
+                      totalCostTRY > 0 ? (profitTRY / totalCostTRY) * 100 : 0.0;
+                  final isPositive = profitTRY >= 0;
 
-                // Show value in selected investment currency
-                final currencyFormat = NumberFormat.currency(
-                    locale: displayCurrency == 'TRY' ? 'tr_TR' : 'en_US',
-                    symbol: currencyService.getSymbol(displayCurrency),
-                    decimalDigits: 0);
+                  // Show value in selected investment currency
+                  final currencyFormat = NumberFormat.currency(
+                      locale: displayCurrency == 'TRY' ? 'tr_TR' : 'en_US',
+                      symbol: currencyService.getSymbol(displayCurrency),
+                      decimalDigits: 0);
 
-                final currentValueDisplay = currencyService.convertFromTRY(
-                    currentValueTRY, displayCurrency);
+                  final currentValueDisplay = currencyService.convertFromTRY(
+                      currentValueTRY, displayCurrency);
 
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(currencyFormat.format(currentValueDisplay),
-                        style: const TextStyle(
-                            fontWeight: FontWeight.bold, fontSize: 16)),
-                    Row(
-                      children: [
-                        Icon(
-                            isPositive
-                                ? Icons.arrow_drop_up
-                                : Icons.arrow_drop_down,
-                            color: isPositive
-                                ? AppColors.success
-                                : AppColors.error,
-                            size: 20),
-                        Text(
-                          '${isPositive ? '+' : ''}${profitPercent.toStringAsFixed(2)}%',
-                          style: TextStyle(
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(currencyFormat.format(currentValueDisplay),
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 16)),
+                      Row(
+                        children: [
+                          Icon(
+                              isPositive
+                                  ? Icons.arrow_drop_up
+                                  : Icons.arrow_drop_down,
                               color: isPositive
                                   ? AppColors.success
                                   : AppColors.error,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13),
-                        ),
-                      ],
-                    ),
-                  ],
-                );
-              },
-              loading: () => const SizedBox(
-                  width: 40, height: 20, child: LinearProgressIndicator()),
-              error: (_, __) => Text(AppStrings.tr(AppStrings.error, lc)),
-            ),
+                              size: 20),
+                          Text(
+                            '${isPositive ? '+' : ''}${profitPercent.toStringAsFixed(2)}%',
+                            style: TextStyle(
+                                color: isPositive
+                                    ? AppColors.success
+                                    : AppColors.error,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13),
+                          ),
+                        ],
+                      ),
+                    ],
+                  );
+                },
+                loading: () => const SizedBox(
+                    width: 40, height: 20, child: LinearProgressIndicator()),
+                error: (_, __) => Text(AppStrings.tr(AppStrings.error, lc)),
+              ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildCostBasis(
+      CurrencyService currencyService, String displayCurrency) {
+    final totalCostTRY = currencyService.convertToTRY(
+        asset.units * asset.averageCost, asset.currencyCode);
+    final displayValue =
+        currencyService.convertFromTRY(totalCostTRY, displayCurrency);
+    final currencyFormat = NumberFormat.currency(
+      locale: displayCurrency == 'TRY' ? 'tr_TR' : 'en_US',
+      symbol: currencyService.getSymbol(displayCurrency),
+      decimalDigits: 0,
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Text(
+          currencyFormat.format(displayValue),
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+        ),
+        const Text(
+          'Maliyet',
+          style: TextStyle(color: AppColors.grey600, fontSize: 12),
+        ),
+      ],
     );
   }
 

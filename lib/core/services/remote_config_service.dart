@@ -99,6 +99,27 @@ class FeatureFlagsResponse {
 class RemoteConfigService {
   static const String _cacheKey = 'feature_flags_cache';
   static const String _versionKey = 'feature_flags_version';
+  static const Set<String> _failClosedFeatureIds = {
+    'crypto_market_data',
+    'market_ticker',
+    'market_news',
+    'financial_calendar',
+    'financial_calendar_fxstreet',
+    'live_market_data',
+    'gmail_import',
+    'ai_features',
+    'ai_analyst',
+    'investment_wizard',
+    'import_statement_ai',
+    'email_automation',
+  };
+  static const Map<String, Set<String>> _featureDependencies = {
+    'ai_analyst': {'ai_features'},
+    'investment_wizard': {'ai_features'},
+    'import_statement_ai': {'ai_features'},
+    'email_automation': {'ai_features', 'gmail_import'},
+    'market_ticker': {'crypto_market_data'},
+  };
   static String get _baseUrl => EnvConfig.backendBaseUrl;
 
   final SharedPreferences _prefs;
@@ -160,9 +181,12 @@ class RemoteConfigService {
   /// Check if a feature is available for the user
   Future<bool> isFeatureAvailable(String flagId, bool isProUser) async {
     try {
-      final flag = await getFlag(flagId);
+      final flags = await fetchFlags();
+      final flag = flags.features[flagId];
 
-      if (flag == null || !flag.isEnabled) {
+      if (flag == null ||
+          !flag.isEnabled ||
+          !_dependenciesEnabled(flagId, flags.features)) {
         return false;
       }
 
@@ -183,9 +207,29 @@ class RemoteConfigService {
 
       return false;
     } catch (e) {
-      // On error, default to allowing access (fail open)
-      return true;
+      return !_failClosedFeatureIds.contains(flagId);
     }
+  }
+
+  /// Global release switch without subscription/daily-limit evaluation.
+  Future<bool> isFeatureEnabled(String flagId) async {
+    try {
+      final flags = await fetchFlags();
+      final flag = flags.features[flagId];
+      return flag?.isEnabled == true &&
+          _dependenciesEnabled(flagId, flags.features);
+    } catch (_) {
+      return !_failClosedFeatureIds.contains(flagId);
+    }
+  }
+
+  bool _dependenciesEnabled(
+    String flagId,
+    Map<String, FeatureFlag> features,
+  ) {
+    final dependencies = _featureDependencies[flagId];
+    if (dependencies == null) return true;
+    return dependencies.every((id) => features[id]?.isEnabled == true);
   }
 
   /// Save flags to persistent cache
@@ -229,4 +273,10 @@ final featureFlagProvider =
     FutureProvider.family<FeatureFlag?, String>((ref, flagId) async {
   final service = ref.watch(remoteConfigServiceProvider);
   return service.getFlag(flagId);
+});
+
+final featureEnabledProvider =
+    FutureProvider.family<bool, String>((ref, flagId) async {
+  final service = ref.watch(remoteConfigServiceProvider);
+  return service.isFeatureEnabled(flagId);
 });

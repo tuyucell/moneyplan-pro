@@ -1,3 +1,6 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -8,18 +11,18 @@ plugins {
 
 // Load keystore properties
 val keystorePropertiesFile = rootProject.file("app/key.properties")
-val keystoreProperties = java.util.Properties()
+val keystoreProperties = Properties()
 if (keystorePropertiesFile.exists()) {
-    keystoreProperties.load(java.io.FileInputStream(keystorePropertiesFile))
+    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
 android {
-    namespace = "com.turgayyucel.investguide"
+    namespace = "pro.moneyplan.app"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
     defaultConfig {
-        applicationId = "com.turgayyucel.investguide"
+        applicationId = "pro.moneyplan.app"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
@@ -47,14 +50,39 @@ android {
 
     buildTypes {
         release {
-            // Use release signing config if available, otherwise use debug
+            // The task guard below prevents a release artifact from being
+            // produced with the public debug key when signing is not configured.
             signingConfig = if (keystorePropertiesFile.exists()) {
                 signingConfigs.getByName("release")
             } else {
                 signingConfigs.getByName("debug")
             }
-            minifyEnabled = false
+            isMinifyEnabled = false
+            isShrinkResources = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+        }
+    }
+}
+
+tasks.configureEach {
+    if (name.contains("Release", ignoreCase = true)) {
+        doFirst {
+            check(keystorePropertiesFile.exists()) {
+                "Release signing is required. Copy android/app/key.properties.example " +
+                    "to android/app/key.properties and provide the upload keystore values."
+            }
+        }
+    }
+}
+
+// home_widget 0.8.1 uses the dynamic `1.+` Glance selector. Pin all Glance
+// artifacts to the latest stable line supported by this project's AGP instead
+// of resolving a future alpha release that requires a newer Android toolchain.
+configurations.configureEach {
+    resolutionStrategy.eachDependency {
+        if (requested.group == "androidx.glance") {
+            useVersion("1.1.1")
+            because("Glance 1.3 alpha requires AGP 9.1 and compileSdk 37")
         }
     }
 }

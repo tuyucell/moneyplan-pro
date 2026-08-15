@@ -30,6 +30,7 @@ import {
 } from '@ant-design/icons';
 import { supabase } from '../lib/supabase';
 import { API_BASE_URL } from '../config';
+import { adminFetch } from '../lib/adminFetch';
 
 const { Title, Text, Paragraph } = Typography;
 const BACKEND_URL = API_BASE_URL;
@@ -233,7 +234,7 @@ const FeaturesTab: React.FC = () => {
     const fetchFlags = async () => {
         setLoading(true);
         try {
-            const response = await fetch(`${BACKEND_URL}/api/v1/features`);
+            const response = await adminFetch(`${BACKEND_URL}/api/v1/features`);
             const data = await response.json();
             setFlags(data.features || {});
         } catch (error) {
@@ -251,7 +252,7 @@ const FeaturesTab: React.FC = () => {
     const updateFlag = async (flagId: string, updates: Partial<FeatureFlag>) => {
         setSaving(flagId);
         try {
-            const response = await fetch(`${BACKEND_URL}/api/v1/features/${flagId}`, {
+            const response = await adminFetch(`${BACKEND_URL}/api/v1/features/${flagId}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(updates),

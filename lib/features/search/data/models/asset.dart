@@ -20,18 +20,27 @@ class Asset {
   });
 
   factory Asset.fromJson(Map<String, dynamic> json) {
+    final categoryValue = json['category'];
+    final categoryName = categoryValue is Map<String, dynamic>
+        ? categoryValue['name'] as String?
+        : categoryValue as String?;
+
     return Asset(
       id: json['id'] as String,
-      name: json['name'] as String,
+      name: (json['name'] ?? json['name_tr'] ?? json['name_en']) as String,
       symbol: json['symbol'] as String,
-      category: json['category'] as String,
-      description: json['description'] as String?,
-      iconUrl: json['icon_url'] as String?,
+      category: categoryName ?? 'other',
+      description: (json['description'] ??
+          json['description_tr'] ??
+          json['description_en']) as String?,
+      iconUrl: (json['icon_url'] ?? json['logo_url']) as String?,
       currentPriceUsd: json['current_price_usd'] != null
           ? (json['current_price_usd'] as num).toDouble()
           : null,
-      change24h: json['change_24h'] != null
-          ? (json['change_24h'] as num).toDouble()
+      change24h: (json['change_24h'] ?? json['price_change_percent_24h']) !=
+              null
+          ? ((json['change_24h'] ?? json['price_change_percent_24h']) as num)
+              .toDouble()
           : null,
     );
   }

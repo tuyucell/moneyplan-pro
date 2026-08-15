@@ -41,6 +41,11 @@ class SecureStorageService {
     debugPrint('SECURE_STORAGE: Credentials cleared');
   }
 
+  Future<void> clearAll() async {
+    await _storage.deleteAll();
+    debugPrint('SECURE_STORAGE: All local secrets cleared');
+  }
+
   Future<void> setBiometricEnabled(bool enabled) async {
     try {
       await _storage.write(

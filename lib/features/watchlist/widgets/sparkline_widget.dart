@@ -19,10 +19,20 @@ class SparklineWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // If no data, generate a mock sparkline based on isPositive
-    final chartData = data ?? _generateMockData(isPositive);
+    final chartData = data ?? const <double>[];
 
-    if (chartData.isEmpty) return SizedBox(width: width, height: height);
+    if (chartData.length < 2) {
+      return SizedBox(
+        width: width,
+        height: height,
+        child: Center(
+          child: Text(
+            '—',
+            style: TextStyle(color: AppColors.textSecondary(context)),
+          ),
+        ),
+      );
+    }
 
     return SizedBox(
       width: width,
@@ -48,22 +58,13 @@ class SparklineWidget extends StatelessWidget {
               dotData: const FlDotData(show: false),
               belowBarData: BarAreaData(
                 show: true,
-                color: (isPositive ? AppColors.success : AppColors.error).withValues(alpha: 0.1),
+                color: (isPositive ? AppColors.success : AppColors.error)
+                    .withValues(alpha: 0.1),
               ),
             ),
           ],
         ),
       ),
     );
-  }
-
-  List<double> _generateMockData(bool positive) {
-    final random = math.Random();
-    var mock = <double>[1.0];
-    for (var i = 0; i < 10; i++) {
-       var change = (random.nextDouble() - (positive ? 0.4 : 0.6)) * 0.1;
-       mock.add(mock.last + change);
-    }
-    return mock;
   }
 }

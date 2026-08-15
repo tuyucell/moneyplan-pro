@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart' as url_launcher;
@@ -12,6 +14,7 @@ import 'package:moneyplan_pro/features/auth/presentation/providers/auth_provider
 import 'package:moneyplan_pro/features/auth/data/models/user_model.dart';
 import 'package:moneyplan_pro/features/auth/presentation/widgets/auth_prompt_dialog.dart';
 import 'package:moneyplan_pro/features/alerts/presentation/pages/alerts_page.dart';
+import 'package:moneyplan_pro/features/notifications/presentation/pages/notification_preferences_page.dart';
 import 'package:go_router/go_router.dart';
 
 class ProfilePage extends ConsumerWidget {
@@ -93,9 +96,16 @@ class ProfilePage extends ConsumerWidget {
               context,
               icon: Icons.notifications_none,
               title: AppStrings.tr(AppStrings.notifications, lc),
-              subtitle: AppStrings.tr(
-                  AppStrings.on, lc), // Optional: translate or remove default
-              onTap: () {},
+              subtitle: AppStrings.tr(AppStrings.on, lc),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        NotificationPreferencesPage(languageCode: lc),
+                  ),
+                );
+              },
             ),
             _buildSettingsTile(
               context,
@@ -130,8 +140,7 @@ class ProfilePage extends ConsumerWidget {
             ),
             GestureDetector(
               onLongPress: () {
-                const adminEmail = 'trgy.ycl@gmail.com';
-                if (user?.email == adminEmail) {
+                if (user?.isAdmin == true && user?.canUseAccount == true) {
                   Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -163,11 +172,141 @@ class ProfilePage extends ConsumerWidget {
                 style: TextButton.styleFrom(foregroundColor: AppColors.error),
                 child: Text(AppStrings.tr(AppStrings.logout, lc)),
               ),
+              TextButton.icon(
+                onPressed: () =>
+                    _confirmAccountDeletion(context, ref, isPro, lc),
+                style: TextButton.styleFrom(foregroundColor: AppColors.error),
+                icon: const Icon(Icons.delete_forever_outlined),
+                label: Text(
+                  lc == 'tr' ? 'Hesabı ve Verileri Sil' : 'Delete Account',
+                ),
+              ),
             ],
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _confirmAccountDeletion(
+    BuildContext context,
+    WidgetRef ref,
+    bool isPro,
+    String lc,
+  ) async {
+    final confirmationController = TextEditingController();
+    var canDelete = false;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          icon: const Icon(
+            Icons.warning_amber_rounded,
+            color: AppColors.error,
+            size: 40,
+          ),
+          title: Text(
+            lc == 'tr'
+                ? 'Hesabın kalıcı olarak silinsin mi?'
+                : 'Delete account?',
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                lc == 'tr'
+                    ? 'Profilin, cüzdanın, işlemlerin, birikimlerin ve buluttaki tüm kişisel verilerin geri alınamaz biçimde silinecek.'
+                    : 'Your profile, wallet, transactions, savings and all personal cloud data will be permanently deleted.',
+              ),
+              if (isPro) ...[
+                const SizedBox(height: 12),
+                Text(
+                  lc == 'tr'
+                      ? 'Önemli: Hesabı silmek Apple aboneliğini otomatik iptal etmez.'
+                      : 'Important: Deleting the account does not automatically cancel your Apple subscription.',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                TextButton(
+                  onPressed: () => url_launcher.launchUrl(
+                    Uri.parse('https://apps.apple.com/account/subscriptions'),
+                    mode: url_launcher.LaunchMode.externalApplication,
+                  ),
+                  child: Text(
+                    lc == 'tr'
+                        ? 'Apple Aboneliğini Yönet'
+                        : 'Manage Apple Subscription',
+                  ),
+                ),
+              ],
+              const SizedBox(height: 12),
+              Text(
+                lc == 'tr'
+                    ? 'Onaylamak için SIL yaz:'
+                    : 'Type DELETE to confirm:',
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: confirmationController,
+                autocorrect: false,
+                textCapitalization: TextCapitalization.characters,
+                onChanged: (value) => setDialogState(() {
+                  canDelete = value.trim() == (lc == 'tr' ? 'SIL' : 'DELETE');
+                }),
+                decoration: InputDecoration(
+                  hintText: lc == 'tr' ? 'SIL' : 'DELETE',
+                  border: const OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: Text(lc == 'tr' ? 'Vazgeç' : 'Cancel'),
+            ),
+            FilledButton(
+              onPressed:
+                  canDelete ? () => Navigator.pop(dialogContext, true) : null,
+              style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+              child: Text(
+                lc == 'tr' ? 'Kalıcı Olarak Sil' : 'Delete Permanently',
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    confirmationController.dispose();
+    if (confirmed != true || !context.mounted) return;
+
+    unawaited(
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const Center(child: CircularProgressIndicator()),
+      ),
+    );
+    try {
+      await ref.read(authNotifierProvider.notifier).deleteAccount();
+      if (!context.mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      context.go('/login');
+    } catch (error) {
+      if (!context.mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: AppColors.error,
+          content: Text(
+            lc == 'tr'
+                ? 'Hesap silinemedi: $error'
+                : 'Account could not be deleted: $error',
+          ),
+        ),
+      );
+    }
   }
 
   Widget _buildAuthCard(BuildContext context, String lc) {
@@ -263,6 +402,37 @@ class ProfilePage extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(height: 8),
+                if (user?.isAdmin == true) ...[
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: AppColors.primary),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.admin_panel_settings,
+                          size: 14,
+                          color: AppColors.primary,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          user!.isSuperAdmin ? 'Süper Admin' : 'Admin',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -347,7 +517,10 @@ class ProfilePage extends ConsumerWidget {
         trailing: ElevatedButton(
           onPressed: () {
             if (isPro) {
-              ref.read(subscriptionProvider.notifier).downgradeToFree();
+              url_launcher.launchUrl(
+                Uri.parse('https://apps.apple.com/account/subscriptions'),
+                mode: url_launcher.LaunchMode.externalApplication,
+              );
             } else {
               Navigator.push(
                 context,
@@ -361,9 +534,8 @@ class ProfilePage extends ConsumerWidget {
             foregroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(horizontal: 16),
           ),
-          child: Text(isPro
-              ? AppStrings.tr(AppStrings.btnDowngrade, lc)
-              : AppStrings.tr(AppStrings.btnUpgrade, lc)),
+          child:
+              Text(isPro ? 'Yönet' : AppStrings.tr(AppStrings.btnUpgrade, lc)),
         ),
       ),
     );

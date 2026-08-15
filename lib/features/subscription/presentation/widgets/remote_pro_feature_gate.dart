@@ -10,6 +10,17 @@ import 'package:moneyplan_pro/features/subscription/presentation/widgets/pro_fea
 /// 1. Remote Config: Is the feature enabled globally?
 /// 2. Local Logic: Does the user have access (PRO or daily limit)?
 class RemoteProFeatureGate extends ConsumerWidget {
+  static const _failClosedFeatures = {
+    'crypto_market_data',
+    'live_market_data',
+    'gmail_import',
+    'ai_features',
+    'ai_analyst',
+    'investment_wizard',
+    'import_statement_ai',
+    'email_automation',
+  };
+
   final String featureId;
   final String? featureName;
   final Widget child;
@@ -28,36 +39,43 @@ class RemoteProFeatureGate extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final flagAsync = ref.watch(featureFlagProvider(featureId));
+    final enabledAsync = ref.watch(featureEnabledProvider(featureId));
 
-    return flagAsync.when(
-      data: (flag) {
-        // Feature not found or disabled remotely
-        if (flag == null || !flag.isEnabled) {
-          return const SizedBox.shrink();
-        }
+    return enabledAsync.when(
+      data: (enabled) {
+        if (!enabled) return const SizedBox.shrink();
+        return flagAsync.when(
+          data: (flag) {
+            // Feature not found or disabled remotely
+            if (flag == null || !flag.isEnabled) {
+              return const SizedBox.shrink();
+            }
 
-        // Feature is enabled, now check access
-        // If it's not a PRO feature, show directly
-        if (!flag.isPro) {
-          return child;
-        }
+            // Feature is enabled, now check access
+            // If it's not a PRO feature, show directly
+            if (!flag.isPro) {
+              return child;
+            }
 
-        // It's a PRO feature, use ProFeatureGate with remote config
-        return ProFeatureGate(
-          featureName: featureName ?? flag.name,
-          isFullPage: isFullPage,
-          lockedChild: lockedChild,
-          child: child,
+            // It's a PRO feature, use ProFeatureGate with remote config
+            return ProFeatureGate(
+              featureName: featureName ?? flag.name,
+              isFullPage: isFullPage,
+              lockedChild: lockedChild,
+              child: child,
+            );
+          },
+          loading: () => const SizedBox.shrink(),
+          error: (_, __) => const SizedBox.shrink(),
         );
       },
-      loading: () {
-        // While loading, show the child (fail open)
-        // This prevents blocking users if network is slow
-        return child;
-      },
+      loading: () => _failClosedFeatures.contains(featureId)
+          ? const SizedBox.shrink()
+          : child,
       error: (_, __) {
-        // On error, show the child (fail open)
-        return child;
+        return _failClosedFeatures.contains(featureId)
+            ? const SizedBox.shrink()
+            : child;
       },
     );
   }
@@ -70,7 +88,6 @@ Future<bool> isFeatureAvailable(WidgetRef ref, String featureId) async {
     final isPro = ref.read(isProUserProvider);
     return await service.isFeatureAvailable(featureId, isPro);
   } catch (e) {
-    // On error, default to allowing access
-    return true;
+    return !RemoteProFeatureGate._failClosedFeatures.contains(featureId);
   }
 }

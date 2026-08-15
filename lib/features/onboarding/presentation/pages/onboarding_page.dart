@@ -25,25 +25,25 @@ class _OnboardingPageState extends ConsumerState<OnboardingPage> {
       _OnboardingItem(
         title: AppStrings.tr(AppStrings.onboarding1Title, lc),
         description: AppStrings.tr(AppStrings.onboarding1Desc, lc),
-        icon: Icons.pie_chart_outline,
+        icon: Icons.account_balance_wallet_outlined,
         color: AppColors.primary,
       ),
       _OnboardingItem(
         title: AppStrings.tr(AppStrings.onboarding2Title, lc),
         description: AppStrings.tr(AppStrings.onboarding2Desc, lc),
-        icon: Icons.account_balance_wallet_outlined,
+        icon: Icons.pie_chart_outline,
         color: AppColors.success,
       ),
       _OnboardingItem(
         title: AppStrings.tr(AppStrings.onboarding3Title, lc),
         description: AppStrings.tr(AppStrings.onboarding3Desc, lc),
-        icon: Icons.auto_awesome_outlined,
+        icon: Icons.savings_outlined,
         color: Colors.purple,
       ),
       _OnboardingItem(
         title: AppStrings.tr(AppStrings.onboarding4Title, lc),
         description: AppStrings.tr(AppStrings.onboarding4Desc, lc),
-        icon: Icons.show_chart,
+        icon: Icons.school_outlined,
         color: AppColors.warning,
       ),
     ];

@@ -164,7 +164,7 @@ export default function Analytics() {
                 console.warn('Churn metrics not available:', error);
                 return null;
             }
-            return data as ChurnMetrics;
+            return (Array.isArray(data) ? data[0] : data) as ChurnMetrics | null;
         },
         retry: false,
     });

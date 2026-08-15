@@ -11,6 +11,7 @@ import 'package:moneyplan_pro/core/providers/language_provider.dart';
 import 'package:moneyplan_pro/core/services/currency_service.dart';
 import 'package:moneyplan_pro/features/subscription/presentation/providers/feature_usage_provider.dart';
 import 'package:moneyplan_pro/features/subscription/presentation/providers/subscription_provider.dart';
+import 'package:moneyplan_pro/core/services/ai_privacy_consent_service.dart';
 
 class AiAnalystSummaryWidget extends ConsumerStatefulWidget {
   const AiAnalystSummaryWidget({super.key});
@@ -123,6 +124,8 @@ class _AiAnalystSummaryWidgetState
   }
 
   Future<void> _handleAnalysis() async {
+    if (!await AiPrivacyConsentService.ensureConsent(context)) return;
+    if (!mounted) return;
     setState(() => _isAnalyzing = true);
 
     final portfolio = ref.read(portfolioProvider);

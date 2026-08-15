@@ -13,6 +13,7 @@ import '../providers/wallet_provider.dart';
 import '../providers/email_integration_provider.dart';
 import '../services/gmail_sync_service.dart';
 import '../services/ai_processing_service.dart';
+import '../../../../core/services/ai_privacy_consent_service.dart';
 import '../providers/bank_account_provider.dart';
 import '../models/bank_account.dart';
 
@@ -273,6 +274,8 @@ class _EmailSyncPageState extends ConsumerState<EmailSyncPage>
   }
 
   Future<void> _processSelected() async {
+    if (!await AiPrivacyConsentService.ensureConsent(context)) return;
+    if (!mounted) return;
     final messenger = ScaffoldMessenger.of(context);
     final approvedList =
         _foundEmails.where((e) => e['approved'] == true).toList();

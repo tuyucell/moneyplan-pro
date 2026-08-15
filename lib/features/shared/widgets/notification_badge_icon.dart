@@ -1,21 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:moneyplan_pro/core/constants/colors.dart';
-import 'package:moneyplan_pro/features/alerts/providers/alerts_provider.dart';
 import 'package:moneyplan_pro/features/auth/presentation/providers/auth_providers.dart';
 import 'package:moneyplan_pro/features/auth/presentation/widgets/auth_prompt_dialog.dart';
 import 'package:moneyplan_pro/core/providers/language_provider.dart';
 import 'package:moneyplan_pro/features/auth/data/models/user_model.dart';
 
-import 'package:moneyplan_pro/features/alerts/presentation/pages/alerts_page.dart';
+import 'package:moneyplan_pro/features/notifications/presentation/pages/notification_inbox_page.dart';
 
 class NotificationBadgeIcon extends ConsumerWidget {
   const NotificationBadgeIcon({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final alerts = ref.watch(alertsProvider);
-    final activeCount = alerts.where((a) => a.isActive).length;
+    final unreadCount = ref.watch(unreadNotificationCountProvider).valueOrNull ?? 0;
     final lc = ref.watch(languageProvider).code;
 
     return Stack(
@@ -28,7 +26,9 @@ class NotificationBadgeIcon extends ConsumerWidget {
             if (authState is AuthAuthenticated) {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => const AlertsPage()),
+                MaterialPageRoute(
+                  builder: (context) => const NotificationInboxPage(),
+                ),
               );
             } else {
               showDialog(
@@ -43,7 +43,7 @@ class NotificationBadgeIcon extends ConsumerWidget {
             }
           },
         ),
-        if (activeCount > 0)
+        if (unreadCount > 0)
           Positioned(
             right: 8,
             top: 8,
@@ -60,7 +60,7 @@ class NotificationBadgeIcon extends ConsumerWidget {
                 minHeight: 16,
               ),
               child: Text(
-                activeCount > 9 ? '9+' : '$activeCount',
+                unreadCount > 9 ? '9+' : '$unreadCount',
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 9,

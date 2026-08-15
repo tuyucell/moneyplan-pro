@@ -57,7 +57,7 @@ Uygulama içi reklam gelirlerini optimize etmek için kullanılır.
 ## 🔔 7. Fiyat Alarmları (Cloud Monitoring)
 Uygulama kapalıyken bile kullanıcıları fiyat hareketlerinden haberdar eden sistemdir.
 
-*   **Çalışma Mantığı:** Kullanıcı mobilden alarm kurar -> Supabase'e kaydedilir -> Backend Monitor 60 saniyede bir kontrol eder -> Hedef fiyat geçilirse OneSignal ile bildirim gönderilir.
+*   **Çalışma Mantığı:** Kullanıcı mobilden alarm kurar -> Supabase'e kaydedilir -> Backend Monitor 60 saniyede bir kontrol eder -> Hedef fiyat geçilirse uygulama içi bildirim oluşturulur ve iOS'a doğrudan APNs ile gönderilir.
 *   **Admin Paneli Yönetimi:** **Price Alerts** sekmesinden tüm aktif ve tetiklenmiş alarmları görebilir, kullanıcıların beklediği seviyeleri izleyebilirsiniz.
 *   **Kritik Not:** Sunucu tarafındaki takibin çalışması için **App Settings** altındaki `SUPABASE_SERVICE_ROLE_KEY` alanının dolu olması gerekir.
 

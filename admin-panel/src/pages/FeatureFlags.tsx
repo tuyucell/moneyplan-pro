@@ -25,6 +25,7 @@ import {
 
 const { Title, Text, Paragraph } = Typography;
 import { API_BASE_URL } from '../config';
+import { adminFetch } from '../lib/adminFetch';
 
 const BACKEND_URL = API_BASE_URL;
 
@@ -56,7 +57,7 @@ const FeatureFlags: React.FC = () => {
     const fetchFlags = async () => {
         setLoading(true);
         try {
-            const response = await fetch(`${BACKEND_URL}/api/v1/features`);
+            const response = await adminFetch(`${BACKEND_URL}/api/v1/features`);
             const data: FeatureFlagsResponse = await response.json();
             setFlags(data.features);
             setVersion(data.version);
@@ -76,7 +77,7 @@ const FeatureFlags: React.FC = () => {
     const updateFlag = async (flagId: string, updates: Partial<FeatureFlag>) => {
         setSaving(flagId);
         try {
-            const response = await fetch(`${BACKEND_URL}/api/v1/features/${flagId}`, {
+            const response = await adminFetch(`${BACKEND_URL}/api/v1/features/${flagId}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(updates),
@@ -144,10 +145,11 @@ const FeatureFlags: React.FC = () => {
                         <Text strong style={{ display: 'block', marginBottom: 8 }}>💡 How it works</Text>
                         <ul style={{ marginBottom: 0, paddingLeft: 20 }}>
                             <li>Changes take effect immediately without app store deployment</li>
-                            <li>App caches flags for 1 hour to reduce API calls</li>
+                            <li>App caches flags for up to 5 minutes to reduce API calls</li>
                             <li>PRO features require active subscription</li>
                             <li>Daily limits reset at midnight (user's local time)</li>
                             <li>Disabled features are hidden from the app</li>
+                            <li>Release-blocker flags fail closed if remote configuration cannot be loaded</li>
                         </ul>
                     </>
                 }

@@ -225,7 +225,7 @@ class ExportService {
       );
 
       page.graphics.drawString(
-        'MoneyPlan Pro AI tarafından otomatik oluşturulmuştur. | www.investguide.app',
+        'MoneyPlan Pro tarafından otomatik oluşturulmuştur. | moneyplan.pro',
         normalFont,
         bounds: Rect.fromLTWH(0, footerY + 5, pageSize.width, 20),
         brush: PdfSolidBrush(PdfColor(107, 114, 128)),

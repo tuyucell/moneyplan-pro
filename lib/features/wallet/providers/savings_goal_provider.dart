@@ -19,22 +19,7 @@ class SavingsGoalNotifier extends StateNotifier<List<SavingsGoal>> {
         final List<dynamic> jsonList = json.decode(jsonString);
         state = jsonList.map((e) => SavingsGoal.fromJson(e)).toList();
       } else {
-        // Initial Mock Data to motivate user
-        state = [
-          SavingsGoal.create(
-            name: 'Yaz Tatili',
-            targetAmount: 50000,
-            currentAmount: 15400,
-            colorValue: 0xFFFFA726, // Orange
-          ),
-          SavingsGoal.create(
-            name: 'Yeni Araba',
-            targetAmount: 1200000,
-            currentAmount: 340000,
-            colorValue: 0xFF29B6F6, // Light Blue
-          ),
-        ];
-        await _saveGoals();
+        state = [];
       }
     } catch (e) {
       debugPrint('Error loading goals: $e');
@@ -98,6 +83,11 @@ class SavingsGoalNotifier extends StateNotifier<List<SavingsGoal>> {
 
   Future<void> deleteGoal(String id) async {
     state = state.where((goal) => goal.id != id).toList();
+    await _saveGoals();
+  }
+
+  Future<void> clearAll() async {
+    state = [];
     await _saveGoals();
   }
 }

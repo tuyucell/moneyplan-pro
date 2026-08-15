@@ -11,6 +11,7 @@ import 'package:moneyplan_pro/features/auth/presentation/providers/auth_provider
 import 'package:moneyplan_pro/features/auth/data/models/user_model.dart';
 import 'package:moneyplan_pro/features/auth/presentation/widgets/auth_prompt_dialog.dart';
 import 'package:moneyplan_pro/features/alerts/presentation/pages/alerts_page.dart';
+import 'package:moneyplan_pro/core/services/remote_config_service.dart';
 
 class ToolsPage extends ConsumerWidget {
   const ToolsPage({super.key});
@@ -19,6 +20,15 @@ class ToolsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final language = ref.watch(languageProvider);
     final lc = language.code;
+    final aiEnabled = ref
+        .watch(featureEnabledProvider('ai_features'))
+        .maybeWhen(data: (enabled) => enabled, orElse: () => false);
+    final gmailEnabled = ref
+        .watch(featureEnabledProvider('gmail_import'))
+        .maybeWhen(data: (enabled) => enabled, orElse: () => false);
+    final liveMarketsEnabled = ref
+        .watch(featureEnabledProvider('live_market_data'))
+        .maybeWhen(data: (enabled) => enabled, orElse: () => false);
 
     return Scaffold(
       backgroundColor: AppColors.background(context),
@@ -36,29 +46,30 @@ class ToolsPage extends ConsumerWidget {
         elevation: 0,
         foregroundColor: AppColors.textPrimary(context),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined,
-                color: AppColors.primary),
-            onPressed: () {
-              final authState = ref.read(authNotifierProvider);
-              if (authState is AuthAuthenticated) {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const AlertsPage()),
-                );
-              } else {
-                showDialog(
-                  context: context,
-                  builder: (ctx) => AuthPromptDialog(
-                    title: lc == 'tr' ? 'Hesap Gerekli' : 'Account Required',
-                    description: lc == 'tr'
-                        ? 'Fiyat alarmlarınızı yönetmek için lütfen hesabınıza giriş yapın.'
-                        : 'Please login to manage your price alerts.',
-                  ),
-                );
-              }
-            },
-          ),
+          if (liveMarketsEnabled)
+            IconButton(
+              icon: const Icon(Icons.notifications_outlined,
+                  color: AppColors.primary),
+              onPressed: () {
+                final authState = ref.read(authNotifierProvider);
+                if (authState is AuthAuthenticated) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const AlertsPage()),
+                  );
+                } else {
+                  showDialog(
+                    context: context,
+                    builder: (ctx) => AuthPromptDialog(
+                      title: lc == 'tr' ? 'Hesap Gerekli' : 'Account Required',
+                      description: lc == 'tr'
+                          ? 'Fiyat alarmlarınızı yönetmek için lütfen hesabınıza giriş yapın.'
+                          : 'Please login to manage your price alerts.',
+                    ),
+                  );
+                }
+              },
+            ),
           const SizedBox(width: 8),
         ],
       ),
@@ -70,47 +81,50 @@ class ToolsPage extends ConsumerWidget {
         childAspectRatio: context.isTablet ? 1.2 : 1.0,
         children: [
           // 0. Finansal Pilot (Unified Hub) - YENİ
-          ProFeatureGate(
-            featureName: 'Finansal Pilot',
-            lockedChild: _buildToolCard(
-              context,
-              icon: Icons.lock_outline,
-              title: 'Finansal Pilot',
-              subtitle: 'Pro Özellik',
-              color: Colors.grey,
-              onTap: () => ProFeatureGate.showUpsell(context, 'Finansal Pilot'),
+          if (aiEnabled)
+            ProFeatureGate(
+              featureName: 'Finansal Pilot',
+              lockedChild: _buildToolCard(
+                context,
+                icon: Icons.lock_outline,
+                title: 'Finansal Pilot',
+                subtitle: 'Pro Özellik',
+                color: Colors.grey,
+                onTap: () =>
+                    ProFeatureGate.showUpsell(context, 'Finansal Pilot'),
+              ),
+              child: _buildToolCard(
+                context,
+                icon: Icons.rocket_launch,
+                title: 'Finansal Pilot',
+                subtitle: 'Gelecek & Karar Merkezi',
+                color: Colors.teal,
+                onTap: () => context.push('/tools/financial_pilot'),
+              ),
             ),
-            child: _buildToolCard(
-              context,
-              icon: Icons.rocket_launch,
-              title: 'Finansal Pilot',
-              subtitle: 'Gelecek & Karar Merkezi',
-              color: Colors.teal,
-              onTap: () => context.push('/tools/financial_pilot'),
-            ),
-          ),
 
           // 1. Yatırım Asistanı (Pro)
-          ProFeatureGate(
-            featureName: 'Yatırım Asistanı',
-            lockedChild: _buildToolCard(
-              context,
-              icon: Icons.lock_outline,
-              title: 'Yatırım Asistanı',
-              subtitle: 'Pro Özellik',
-              color: Colors.grey,
-              onTap: () =>
-                  ProFeatureGate.showUpsell(context, 'Yatırım Asistanı'),
+          if (aiEnabled)
+            ProFeatureGate(
+              featureName: 'Yatırım Asistanı',
+              lockedChild: _buildToolCard(
+                context,
+                icon: Icons.lock_outline,
+                title: 'Yatırım Asistanı',
+                subtitle: 'Pro Özellik',
+                color: Colors.grey,
+                onTap: () =>
+                    ProFeatureGate.showUpsell(context, 'Yatırım Asistanı'),
+              ),
+              child: _buildToolCard(
+                context,
+                icon: Icons.insights,
+                title: 'Yatırım Asistanı',
+                subtitle: 'Risk & Getiri Analizi',
+                color: Colors.orange,
+                onTap: () => context.push('/investment_wizard'),
+              ),
             ),
-            child: _buildToolCard(
-              context,
-              icon: Icons.insights,
-              title: 'Yatırım Asistanı',
-              subtitle: 'Risk & Getiri Analizi',
-              color: Colors.orange,
-              onTap: () => context.push('/investment_wizard'),
-            ),
-          ),
 
           // 2. Gelecek Simülasyonu (Pro)
           ProFeatureGate(
@@ -145,32 +159,33 @@ class ToolsPage extends ConsumerWidget {
           ),
 
           // 4. E-posta Otomasyonu (Pro)
-          ProFeatureGate(
-            featureName: 'E-posta Otomasyonu',
-            lockedChild: _buildToolCard(
-              context,
-              icon: Icons.lock_outline,
-              title: 'E-posta Otomasyonu',
-              subtitle: 'Pro Özellik',
-              color: Colors.grey,
-              onTap: () =>
-                  ProFeatureGate.showUpsell(context, 'E-posta Otomasyonu'),
+          if (aiEnabled && gmailEnabled)
+            ProFeatureGate(
+              featureName: 'E-posta Otomasyonu',
+              lockedChild: _buildToolCard(
+                context,
+                icon: Icons.lock_outline,
+                title: 'E-posta Otomasyonu',
+                subtitle: 'Pro Özellik',
+                color: Colors.grey,
+                onTap: () =>
+                    ProFeatureGate.showUpsell(context, 'E-posta Otomasyonu'),
+              ),
+              child: _buildToolCard(
+                context,
+                icon: Icons.mark_email_unread_outlined,
+                title: 'E-posta Otomasyonu',
+                subtitle: 'AI ile Veri Çekme',
+                color: Colors.blueAccent,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => const EmailSyncPage()),
+                  );
+                },
+              ),
             ),
-            child: _buildToolCard(
-              context,
-              icon: Icons.mark_email_unread_outlined,
-              title: 'E-posta Otomasyonu',
-              subtitle: 'AI ile Veri Çekme',
-              color: Colors.blueAccent,
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (context) => const EmailSyncPage()),
-                );
-              },
-            ),
-          ),
 
           // 5. Kredi & Mevduat
           _buildToolCard(
@@ -193,14 +208,15 @@ class ToolsPage extends ConsumerWidget {
           ),
 
           // 7. Satın Alma Asistanı (AI)
-          _buildToolCard(
-            context,
-            icon: Icons.psychology,
-            title: 'Satın Alma Asistanı',
-            subtitle: 'Nakit mi Taksit mi?',
-            color: Colors.deepPurple,
-            onTap: () => context.push('/tools/purchase_assistant'),
-          ),
+          if (aiEnabled && liveMarketsEnabled)
+            _buildToolCard(
+              context,
+              icon: Icons.psychology,
+              title: 'Satın Alma Asistanı',
+              subtitle: 'Nakit mi Taksit mi?',
+              color: Colors.deepPurple,
+              onTap: () => context.push('/tools/purchase_assistant'),
+            ),
         ],
       ),
     );

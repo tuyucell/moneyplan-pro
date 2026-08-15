@@ -24,6 +24,18 @@ export const useAuthStore = create<AuthState>((set) => ({
 
         if (error) throw error;
 
+        const { data: profile, error: profileError } = await supabase
+            .from('users')
+            .select('role, is_active, is_banned, deleted_at')
+            .eq('id', data.user.id)
+            .single();
+
+        const isAdmin = profile?.role === 'admin' || profile?.role === 'super_admin';
+        if (profileError || !isAdmin || !profile.is_active || profile.is_banned || profile.deleted_at) {
+            await supabase.auth.signOut();
+            throw new Error('Bu hesap admin paneline erişim yetkisine sahip değil.');
+        }
+
         set({ user: data.user, isAuthenticated: true });
     },
 
@@ -35,9 +47,28 @@ export const useAuthStore = create<AuthState>((set) => ({
     checkAuth: async () => {
         try {
             const { data } = await supabase.auth.getSession();
+            const sessionUser = data.session?.user;
+            let isAdmin = false;
+
+            if (sessionUser) {
+                const { data: profile } = await supabase
+                    .from('users')
+                    .select('role, is_active, is_banned, deleted_at')
+                    .eq('id', sessionUser.id)
+                    .maybeSingle();
+                isAdmin = Boolean(
+                    profile &&
+                    (profile.role === 'admin' || profile.role === 'super_admin') &&
+                    profile.is_active &&
+                    !profile.is_banned &&
+                    !profile.deleted_at
+                );
+                if (!isAdmin) await supabase.auth.signOut();
+            }
+
             set({
-                user: data.session?.user || null,
-                isAuthenticated: !!data.session,
+                user: isAdmin ? sessionUser || null : null,
+                isAuthenticated: isAdmin,
                 isLoading: false,
             });
         } catch (error) {

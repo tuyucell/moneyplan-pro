@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:moneyplan_pro/features/wallet/models/wallet_transaction.dart';
 import 'package:moneyplan_pro/features/wallet/models/transaction_category.dart';
 import 'package:moneyplan_pro/features/wallet/models/monthly_summary.dart';
+import 'package:moneyplan_pro/features/wallet/providers/wallet_provider.dart';
 
 void main() {
   group('Wallet Logic Tests', () {
@@ -73,6 +74,71 @@ void main() {
       expect(summary.remainingBalance, 7000, reason: '10000 - 3000');
       expect(summary.totalPendingExpense, 4000);
       expect(summary.availableBalance, 3000, reason: '7000 - 4000');
+    });
+
+    test('Yearly summaries include every monthly recurring income and expense',
+        () {
+      final transactions = [
+        WalletTransaction(
+          id: 'salary',
+          categoryId: 'salary',
+          amount: 5000,
+          date: DateTime(2026, 1, 5),
+          type: TransactionType.income,
+          recurrence: RecurrenceType.monthly,
+          recurrenceEndDate: DateTime(2026, 12, 31),
+        ),
+        WalletTransaction(
+          id: 'rent',
+          categoryId: 'rent',
+          amount: 1500,
+          date: DateTime(2026, 1, 10),
+          type: TransactionType.expense,
+          recurrence: RecurrenceType.monthly,
+          recurrenceEndDate: DateTime(2026, 12, 31),
+          isPaid: true,
+        ),
+      ];
+
+      double yearlyIncome = 0;
+      double yearlyExpense = 0;
+      for (var month = 1; month <= 12; month++) {
+        final expanded = List<WalletTransaction>.from(transactions)
+          ..addAll(WalletNotifier.generateRecurringTransactionsForMonth(
+            transactions,
+            2026,
+            month,
+          ));
+        final summary = MonthlySummary.fromTransactions(expanded, 2026, month);
+        yearlyIncome += summary.totalIncome;
+        yearlyExpense += summary.totalExpense;
+      }
+
+      expect(yearlyIncome, 60000);
+      expect(yearlyExpense, 18000);
+    });
+
+    test('Cash-excluded recurring expense remains visible in analytics', () {
+      final summary = MonthlySummary.fromTransactions(
+        [
+          WalletTransaction(
+            id: 'card_subscription',
+            categoryId: 'subscription',
+            amount: 250,
+            date: DateTime(2026, 1, 15),
+            type: TransactionType.expense,
+            isPaid: false,
+            excludeFromBalance: true,
+          ),
+        ],
+        2026,
+        1,
+      );
+
+      expect(summary.totalExpense, 250);
+      expect(summary.totalPendingExpense, 250);
+      expect(summary.cashExpense, 0);
+      expect(summary.pendingPayments, 250);
     });
   });
 }

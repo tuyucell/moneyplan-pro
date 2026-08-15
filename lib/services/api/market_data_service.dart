@@ -1,36 +1,23 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import 'commodity_service.dart';
-import 'forex_service.dart';
-import 'etf_service.dart';
-import 'bond_service.dart';
 
 /// Market Data Service - Fetches real-time prices for commodities, crypto, forex, stocks, ETFs, bonds
-/// Using Finnhub.io for crypto and stocks - Free tier: 60 API calls/minute
-/// Using demo data for commodities, forex, ETFs, and bonds (free tier doesn't support these)
-/// Sign up: https://finnhub.io/register
+/// Legacy client-side service. New screens should use MoneyPlanProApi so keys
+/// remain on the backend and unavailable data is never replaced with samples.
 class MarketDataService {
-  // API Configuration
-  static const String _apiKey =
-      'd539trhr01qkplgtqgkgd539trhr01qkplgtqgl0'; // Finnhub API Key
+  static const String _apiKey = '';
   static const String _baseUrl = 'https://finnhub.io/api/v1';
 
   /// Fetch commodity prices
-  /// Note: Finnhub free tier doesn't support commodities, using demo data
   static Future<Map<String, double>> getCommodityPrices() async {
-    try {
-      final commodities = await CommodityService.getCommodityPrices();
-      return commodities.map((key, value) => MapEntry(key, value.price));
-    } catch (e) {
-      debugPrint('Commodity Data Error: $e');
-      return {};
-    }
+    return {};
   }
 
   /// Fetch crypto prices
   /// Symbols: BINANCE:BTCUSDT, BINANCE:ETHUSDT, etc.
   static Future<Map<String, double>> getCryptoPrices() async {
+    if (_apiKey.isEmpty) return {};
     try {
       final cryptos = {
         'BINANCE:BTCUSDT': 'BTC',
@@ -69,19 +56,13 @@ class MarketDataService {
   }
 
   /// Fetch forex prices
-  /// Note: Finnhub free tier doesn't support forex, using demo data
   static Future<Map<String, double>> getForexPrices() async {
-    try {
-      final forex = await ForexService.getForexPrices();
-      return forex.map((key, value) => MapEntry(key, value.price));
-    } catch (e) {
-      debugPrint('Forex Data Error: $e');
-      return {};
-    }
+    return {};
   }
 
   /// Fetch stock prices (US stocks)
   static Future<Map<String, double>> getStockPrices() async {
+    if (_apiKey.isEmpty) return {};
     try {
       final stocks = {
         'AAPL': 'AAPL',
@@ -118,27 +99,13 @@ class MarketDataService {
   }
 
   /// Fetch ETF prices
-  /// Note: Using demo data for ETFs
   static Future<Map<String, double>> getETFPrices() async {
-    try {
-      final etfs = await ETFService.getETFPrices();
-      return etfs.map((key, value) => MapEntry(key, value.price));
-    } catch (e) {
-      debugPrint('ETF Data Error: $e');
-      return {};
-    }
+    return {};
   }
 
   /// Fetch bond yields
-  /// Note: Using demo data for bonds
   static Future<Map<String, double>> getBondPrices() async {
-    try {
-      final bonds = await BondService.getBondPrices();
-      return bonds.map((key, value) => MapEntry(key, value.price));
-    } catch (e) {
-      debugPrint('Bond Data Error: $e');
-      return {};
-    }
+    return {};
   }
 
   /// Fetch all market data at once

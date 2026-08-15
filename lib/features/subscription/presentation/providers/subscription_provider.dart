@@ -1,8 +1,5 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 enum SubscriptionTier {
   free,
@@ -14,47 +11,37 @@ class SubscriptionNotifier extends StateNotifier<SubscriptionTier> {
     _loadSubscription();
   }
 
-  static const _storageKey = 'subscription_tier';
+  static const _verifiedUntilKey = 'subscription_verified_until';
 
   Future<void> _loadSubscription() async {
     final prefs = await SharedPreferences.getInstance();
-    final tierStr = prefs.getString(_storageKey);
-    if (tierStr == SubscriptionTier.pro.name) {
-      state = SubscriptionTier.pro;
-      // Auto-heal: Ensure DB knows we are Pro (Fix for mismatch)
-      await _syncProStatusToDb(true);
-    } else {
-      state = SubscriptionTier.free;
-    }
+    final rawExpiry = prefs.getString(_verifiedUntilKey);
+    final expiry = rawExpiry == null ? null : DateTime.tryParse(rawExpiry);
+    state = expiry != null && expiry.isAfter(DateTime.now().toUtc())
+        ? SubscriptionTier.pro
+        : SubscriptionTier.free;
   }
 
-  Future<void> upgradeToPro() async {
-    state = SubscriptionTier.pro;
+  /// Applies an entitlement returned by the trusted backend.
+  ///
+  /// The client intentionally has no public "upgrade" method. A StoreKit result
+  /// must be verified by the backend before this method is called.
+  Future<void> applyVerifiedStatus({
+    required bool isActive,
+    DateTime? expiresAt,
+  }) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_storageKey, SubscriptionTier.pro.name);
-    await _syncProStatusToDb(true);
-  }
+    if (isActive && expiresAt != null) {
+      final utcExpiry = expiresAt.toUtc();
+      await prefs.setString(_verifiedUntilKey, utcExpiry.toIso8601String());
+      state = utcExpiry.isAfter(DateTime.now().toUtc())
+          ? SubscriptionTier.pro
+          : SubscriptionTier.free;
+      return;
+    }
 
-  Future<void> downgradeToFree() async {
+    await prefs.remove(_verifiedUntilKey);
     state = SubscriptionTier.free;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_storageKey, SubscriptionTier.free.name);
-    await _syncProStatusToDb(false);
-  }
-
-  /// Syncs the subscription status to the Supabase users table
-  Future<void> _syncProStatusToDb(bool isPro) async {
-    try {
-      final user = Supabase.instance.client.auth.currentUser;
-      if (user != null) {
-        await Supabase.instance.client
-            .from('users')
-            .update({'is_premium': isPro}).eq('id', user.id);
-      }
-    } catch (e) {
-      // Fail silently if offline or not logged in, it will retry on next app launch
-      debugPrint('Error syncing subscription to DB: $e');
-    }
   }
 
   bool get isPro => state == SubscriptionTier.pro;

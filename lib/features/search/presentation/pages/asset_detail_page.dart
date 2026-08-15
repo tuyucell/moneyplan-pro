@@ -8,13 +8,14 @@ import 'package:moneyplan_pro/features/wallet/providers/portfolio_provider.dart'
 import 'package:moneyplan_pro/features/wallet/models/portfolio_asset.dart';
 import 'package:moneyplan_pro/features/watchlist/models/watchlist_item.dart';
 import 'package:moneyplan_pro/features/watchlist/providers/watchlist_provider.dart';
-import 'package:moneyplan_pro/features/watchlist/providers/asset_cache_provider.dart';
+import 'package:moneyplan_pro/core/services/remote_config_service.dart';
 import 'package:moneyplan_pro/features/alerts/presentation/widgets/add_alert_dialog.dart';
 import 'package:moneyplan_pro/core/i18n/app_strings.dart';
 import 'package:moneyplan_pro/core/providers/language_provider.dart';
 import 'package:moneyplan_pro/features/auth/presentation/providers/auth_providers.dart';
 import 'package:moneyplan_pro/features/auth/data/models/user_model.dart';
 import 'package:moneyplan_pro/features/auth/presentation/widgets/auth_prompt_dialog.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class AssetDetailPage extends ConsumerStatefulWidget {
   final String assetId;
@@ -68,6 +69,11 @@ class _AssetDetailPageState extends ConsumerState<AssetDetailPage> {
   }
 
   Future<void> _loadNews() async {
+    final liveMarketData = await ref
+        .read(remoteConfigServiceProvider)
+        .isFeatureEnabled('live_market_data');
+    if (!liveMarketData) return;
+
     setState(() => _isNewsLoading = true);
     try {
       final news = await MoneyPlanProApi.getNews(limit: 5);
@@ -113,6 +119,13 @@ class _AssetDetailPageState extends ConsumerState<AssetDetailPage> {
     setState(() => _isLoading = true);
 
     try {
+      final cryptoSymbol = widget.symbol?.trim();
+      final apiAssetId = widget.categoryId == 'crypto' &&
+              cryptoSymbol != null &&
+              cryptoSymbol.isNotEmpty
+          ? cryptoSymbol
+          : widget.assetId;
+
       // Convert period to yfinance format
       var period = '1mo';
       switch (_selectedPeriod) {
@@ -138,39 +151,10 @@ class _AssetDetailPageState extends ConsumerState<AssetDetailPage> {
 
       // Fetch market chart data from our unified API
       final historyData =
-          await MoneyPlanProApi.getMarketHistory(widget.assetId, period: period);
+          await MoneyPlanProApi.getMarketHistory(apiAssetId, period: period);
 
       // Fetch detailed stats (PE, Market Cap, Logo etc)
-      var detailData = await MoneyPlanProApi.getAssetDetail(widget.assetId);
-
-      // Fetch robust basic price/info (uses Backend -> CoinGecko -> Yahoo -> Mock fallback)
-      final robustAsset = await ref
-          .read(assetCacheProvider.notifier)
-          .fetchAsset(widget.assetId);
-
-      // Merge robust data into detailData if necessary
-      if (robustAsset != null) {
-        detailData ??= {};
-
-        // If price is missing or 0, use robust price
-        final detailPrice = (detailData['price'] as num?)?.toDouble() ?? 0.0;
-        if (detailPrice == 0 && (robustAsset.currentPriceUsd ?? 0) > 0) {
-          detailData['price'] = robustAsset.currentPriceUsd;
-        }
-
-        // If change is missing or 0, use robust change
-        final detailChange =
-            (detailData['change_percent'] as num?)?.toDouble() ?? 0.0;
-        if (detailChange == 0 && (robustAsset.change24h ?? 0) != 0) {
-          detailData['change_percent'] = robustAsset.change24h;
-        }
-
-        detailData.putIfAbsent('symbol', () => robustAsset.symbol);
-        detailData.putIfAbsent('name', () => robustAsset.name);
-        if (robustAsset.description != null) {
-          detailData.putIfAbsent('description', () => robustAsset.description);
-        }
-      }
+      var detailData = await MoneyPlanProApi.getAssetDetail(apiAssetId);
 
       if (mounted) {
         setState(() {
@@ -440,7 +424,24 @@ class _AssetDetailPageState extends ConsumerState<AssetDetailPage> {
           _buildTechnicalsCard(),
           const SizedBox(height: 24),
           _buildQuickStatsStrip(),
+          if (widget.categoryId == 'crypto') _buildCoinGeckoAttribution(),
         ],
+      ),
+    );
+  }
+
+  Widget _buildCoinGeckoAttribution() {
+    return Align(
+      alignment: Alignment.centerRight,
+      child: TextButton(
+        onPressed: () => launchUrl(
+          Uri.parse('https://www.coingecko.com/en/api'),
+          mode: LaunchMode.externalApplication,
+        ),
+        child: const Text(
+          'Data provided by CoinGecko',
+          style: TextStyle(fontSize: 10),
+        ),
       ),
     );
   }

@@ -271,6 +271,23 @@ class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
     }
   }
 
+  Future<void> clearAllTransactions() async {
+    await _initCompleter.future;
+    if (_box == null) {
+      throw Exception('Hive box not initialized');
+    }
+
+    await _box!.clear();
+    state = [];
+
+    if (userId != null) {
+      await SupabaseService.client
+          .from('user_transactions')
+          .delete()
+          .eq('user_id', userId!);
+    }
+  }
+
   Future<void> markAsPaid(String id, bool isPaid) async {
     final oldState = state;
     try {
@@ -289,7 +306,7 @@ class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
 
         // Find the instance in generated list
         final instancesTargetMonth =
-            _generateRecurringTransactions(year, month);
+            generateRecurringTransactionsForMonth(state, year, month);
         final instance = instancesTargetMonth.firstWhere((t) => t.id == id);
 
         // Materialize it in Hive with the new status
@@ -325,17 +342,22 @@ class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
     }).toList();
 
     // Tekrarlanan işlemleri ekle
-    final recurringTransactions = _generateRecurringTransactions(year, month);
+    final recurringTransactions =
+        generateRecurringTransactionsForMonth(state, year, month);
     transactions.addAll(recurringTransactions);
 
     return transactions;
   }
 
-  List<WalletTransaction> _generateRecurringTransactions(int year, int month) {
+  static List<WalletTransaction> generateRecurringTransactionsForMonth(
+    List<WalletTransaction> source,
+    int year,
+    int month,
+  ) {
     final targetDate = DateTime(year, month);
     final recurringTransactions = <WalletTransaction>[];
 
-    for (final transaction in state) {
+    for (final transaction in source) {
       if (transaction.recurrence == RecurrenceType.none) continue;
 
       // Debug: Tekrarlanan işlemleri logla
@@ -387,7 +409,7 @@ class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
         // Bu ay için "skip" kaydı var mı kontrol et
         final monthStr = month.toString().padLeft(2, '0');
         final skipId = '${transaction.id}_skip_$year$monthStr';
-        final isSkipped = state.any((t) => t.id == skipId);
+        final isSkipped = source.any((t) => t.id == skipId);
 
         if (isSkipped) {
           // Bu ay hariç tutulmuş, tekrarlama oluşturma
@@ -400,7 +422,7 @@ class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
         // Bu ay için el ile oluşturulmuş bir "instance" kaydı var mı?
         // (Orijinal ID + _YYYYMM formatında bir kayıt)
         final instanceId = '${transaction.id}_$year$monthStr';
-        final hasOverride = state.any((t) => t.id == instanceId);
+        final hasOverride = source.any((t) => t.id == instanceId);
 
         if (hasOverride) {
           // Zaten el ile düzenlenmiş bir kayıt var, orijinalden üretme
@@ -418,12 +440,12 @@ class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
 
         // Her ay için paid kaydı ayrı kontrol edilmeli
         final paidId = '${transaction.id}_paid_$year$monthStr';
-        final hasPaidRecord = state.any((t) => t.id == paidId);
+        final hasPaidRecord = source.any((t) => t.id == paidId);
 
         // Eğer paid kaydı varsa onun isPaid değerini kullan
         // Gelirler için varsayılan true, giderler için false (ödenmemiş)
         final isPaidThisMonth = hasPaidRecord
-            ? state.firstWhere((t) => t.id == paidId).isPaid
+            ? source.firstWhere((t) => t.id == paidId).isPaid
             : (transaction.type == TransactionType.income);
 
         final recurringInstance = transaction.copyWith(
@@ -457,13 +479,11 @@ class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
 
   MonthlySummary getMonthlySummary(
       int year, int month, List<BankAccount>? accounts) {
-    // Collect ALL transactions to calculate brought-forward balance
-    // This includes transactions in Hive AND generated recurring transactions for the target month
-    // Actually, to be truly accurate, we need ALL transactions from past too.
+    final transactions = List<WalletTransaction>.from(state)
+      ..addAll(generateRecurringTransactionsForMonth(state, year, month));
 
-    // We'll pass state (which contains all Hive transactions)
     return MonthlySummary.fromTransactions(
-      state,
+      transactions,
       year,
       month,
       bankAccountList: accounts,

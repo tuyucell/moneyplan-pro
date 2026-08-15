@@ -26,24 +26,24 @@ class PrivacyPolicyPage extends ConsumerWidget {
                   ? 'Veri Güvenliği (KVKK/GDPR)'
                   : 'Data Security (GDPR/KVKK)',
               content: lc == 'tr'
-                  ? 'Kişisel verileriniz KVKK ve GDPR standartlarına uygun olarak korunmaktadır. Verileriniz uçtan uca şifreleme yöntemleri ile saklanır.'
-                  : 'Your personal data is protected in accordance with GDPR and KVKK standards. Your data is stored using end-to-end encryption methods.',
+                  ? 'Hesap ve finans kayıtları aktarım sırasında TLS ile, sunucu tarafında Supabase güvenlik kontrolleri ve satır bazlı erişim kurallarıyla korunur.'
+                  : 'Account and financial records are protected in transit with TLS and on the server with Supabase security controls and row-level access rules.',
               icon: Icons.security,
             ),
             _buildSection(
               context,
               title: lc == 'tr' ? 'Veri Kullanımı' : 'Data Usage',
               content: lc == 'tr'
-                  ? 'Finansal verileriniz sadece size özel analizler sunmak için kullanılır ve üçüncü taraflarla paylaşılmaz.'
-                  : 'Your financial data is used only to provide you with personalized analysis and is not shared with third parties.',
+                  ? 'Girdiğiniz finansal kayıtlar bütçe ve portföy özelliklerini sunmak için Supabase üzerinde işlenir. İsteğe bağlı profil alanları, kullanıcı kimliğine bağlı özellik kullanım olayları ve bildirimleri açarsanız APNs cihaz tokenı da işlenebilir. AI özelliğini açık onayla kullandığınızda seçtiğiniz finansal özet, ekstre veya e-posta içeriği MoneyPlan Pro backend’i ve Google Gemini tarafından analiz edilir. Gmail bağlantısı isteğe bağlıdır ve yalnızca seçtiğiniz iletileri okumak için kullanılır. Veriler uygulamalar arası takip veya davranışsal reklam için kullanılmaz.'
+                  : 'Financial records you enter are processed on Supabase to provide budgeting and portfolio features. Optional profile fields, account-linked feature usage events, and an APNs device token if you enable notifications may also be processed. When you explicitly consent to an AI feature, the selected financial summary, statement or email content is analyzed by the MoneyPlan Pro backend and Google Gemini. Gmail connection is optional and is used only to read messages you select. Data is not used for cross-app tracking or behavioral advertising.',
               icon: Icons.data_usage,
             ),
             _buildSection(
               context,
               title: lc == 'tr' ? 'Hesap Silme' : 'Account Deletion',
               content: lc == 'tr'
-                  ? 'Hesabınızı ve tüm verilerinizi istediğiniz zaman Profil ayarlarından silebilirsiniz.'
-                  : 'You can delete your account and all your data at any time from Profile settings.',
+                  ? 'Profil > Hesabı ve Verileri Sil yolundan Auth hesabınızı ve ilişkili bulut finans verilerinizi kalıcı olarak silebilirsiniz. Cihazdaki yerel finans ve giriş verileri de temizlenir. App Store aboneliği ayrıca Apple hesabından iptal edilmelidir.'
+                  : 'Use Profile > Delete Account and Data to permanently delete your Auth account and associated cloud financial data. Local financial and sign-in data is also cleared. An App Store subscription must be canceled separately through Apple.',
               icon: Icons.delete_forever,
             ),
             _buildSection(

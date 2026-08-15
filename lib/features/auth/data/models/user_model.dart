@@ -8,6 +8,10 @@ class UserModel {
   final String theme;
   final bool isEmailVerified;
   final String authProvider;
+  final String role;
+  final bool isActive;
+  final bool isBanned;
+  final DateTime? deletedAt;
   final DateTime? createdAt;
   final DateTime? updatedAt;
   final DateTime? lastLoginAt;
@@ -28,6 +32,10 @@ class UserModel {
     this.theme = 'system',
     this.isEmailVerified = false,
     this.authProvider = 'email',
+    this.role = 'user',
+    this.isActive = true,
+    this.isBanned = false,
+    this.deletedAt,
     this.createdAt,
     this.updatedAt,
     this.lastLoginAt,
@@ -50,6 +58,12 @@ class UserModel {
       theme: json['theme'] as String? ?? 'system',
       isEmailVerified: json['is_email_verified'] as bool? ?? false,
       authProvider: json['auth_provider'] as String? ?? 'email',
+      role: json['role'] as String? ?? 'user',
+      isActive: json['is_active'] as bool? ?? true,
+      isBanned: json['is_banned'] as bool? ?? false,
+      deletedAt: json['deleted_at'] != null
+          ? DateTime.tryParse(json['deleted_at'] as String)
+          : null,
       createdAt: json['created_at'] != null
           ? DateTime.tryParse(json['created_at'] as String)
           : null,
@@ -78,6 +92,10 @@ class UserModel {
       'theme': theme,
       'is_email_verified': isEmailVerified,
       'auth_provider': authProvider,
+      'role': role,
+      'is_active': isActive,
+      'is_banned': isBanned,
+      'deleted_at': deletedAt?.toIso8601String(),
       'created_at': createdAt?.toIso8601String(),
       'updated_at': updatedAt?.toIso8601String(),
       'last_login_at': lastLoginAt?.toIso8601String(),
@@ -100,6 +118,10 @@ class UserModel {
     String? theme,
     bool? isEmailVerified,
     String? authProvider,
+    String? role,
+    bool? isActive,
+    bool? isBanned,
+    DateTime? deletedAt,
     DateTime? createdAt,
     DateTime? updatedAt,
     DateTime? lastLoginAt,
@@ -120,6 +142,10 @@ class UserModel {
       theme: theme ?? this.theme,
       isEmailVerified: isEmailVerified ?? this.isEmailVerified,
       authProvider: authProvider ?? this.authProvider,
+      role: role ?? this.role,
+      isActive: isActive ?? this.isActive,
+      isBanned: isBanned ?? this.isBanned,
+      deletedAt: deletedAt ?? this.deletedAt,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       lastLoginAt: lastLoginAt ?? this.lastLoginAt,
@@ -131,6 +157,12 @@ class UserModel {
       isProfileCompleted: isProfileCompleted ?? this.isProfileCompleted,
     );
   }
+
+  bool get isAdmin => role == 'admin' || role == 'super_admin';
+
+  bool get isSuperAdmin => role == 'super_admin';
+
+  bool get canUseAccount => isActive && !isBanned && deletedAt == null;
 }
 
 // Auth State

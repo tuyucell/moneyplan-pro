@@ -1,3 +1,10 @@
+# Tarihsel not
+
+Bu rapor 13 Ocak 2026 tarihli InvestGuide durumunun arşividir; güncel ürün
+adı, teknik yapı ve yayın durumu için kullanılmamalıdır. MoneyPlan Pro'nun
+güncel yayın paketi için [App Store gönderim paketi](APP_STORE_SUBMISSION.md)
+ve [TODO listesine](TODO.md) bakın.
+
 # 🚀 Production Hazırlık Raporu - InvestGuide
 
 **Tarih:** 13 Ocak 2026  

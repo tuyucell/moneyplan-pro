@@ -7,6 +7,9 @@ import 'package:moneyplan_pro/features/admin/presentation/pages/admin_dashboard_
 import 'package:moneyplan_pro/core/i18n/app_strings.dart';
 import 'package:moneyplan_pro/core/providers/language_provider.dart';
 import 'package:moneyplan_pro/features/wallet/providers/email_integration_provider.dart';
+import 'package:moneyplan_pro/features/subscription/presentation/pages/subscription_page.dart';
+import 'package:url_launcher/url_launcher.dart' as url_launcher;
+import 'package:moneyplan_pro/features/notifications/presentation/pages/notification_preferences_page.dart';
 
 class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
@@ -99,19 +102,18 @@ class SettingsPage extends ConsumerWidget {
                     width: double.infinity,
                     child: ElevatedButton(
                       onPressed: () {
-                        ref.read(subscriptionProvider.notifier).upgradeToPro();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                              content: Text(AppStrings.tr(
-                                  AppStrings.upgradedToProSuccess, lc))),
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const SubscriptionPage(),
+                          ),
                         );
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primary,
                         foregroundColor: Colors.white,
                       ),
-                      child:
-                          Text(AppStrings.tr(AppStrings.upgradeToProSim, lc)),
+                      child: const Text('Pro’ya Yükselt'),
                     ),
                   ),
                 if (isPro)
@@ -119,21 +121,17 @@ class SettingsPage extends ConsumerWidget {
                     width: double.infinity,
                     child: OutlinedButton(
                       onPressed: () {
-                        ref
-                            .read(subscriptionProvider.notifier)
-                            .downgradeToFree();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                              content: Text(AppStrings.tr(
-                                  AppStrings.downgradedToFreeSuccess, lc))),
+                        url_launcher.launchUrl(
+                          Uri.parse(
+                              'https://apps.apple.com/account/subscriptions'),
+                          mode: url_launcher.LaunchMode.externalApplication,
                         );
                       },
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.white,
                         side: const BorderSide(color: Colors.white30),
                       ),
-                      child: Text(
-                          AppStrings.tr(AppStrings.cancelSubscriptionSim, lc)),
+                      child: const Text('Aboneliği Yönet'),
                     ),
                   ),
               ],
@@ -239,7 +237,14 @@ class SettingsPage extends ConsumerWidget {
             leading: const Icon(Icons.notifications),
             title: Text(AppStrings.tr(AppStrings.notifications, lc)),
             trailing: const Icon(Icons.chevron_right),
-            onTap: () {},
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => NotificationPreferencesPage(languageCode: lc),
+                ),
+              );
+            },
           ),
           ListTile(
             leading: const Icon(Icons.ad_units),

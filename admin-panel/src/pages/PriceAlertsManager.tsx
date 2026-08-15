@@ -150,7 +150,7 @@ export default function PriceAlertsManager() {
                 description={
                     <Flex vertical gap={4}>
                         <Text strong>Bulut Tabanlı (Supabase) Alarm Takibi</Text>
-                        <Text type="secondary">Kullanıcıların mobil uygulama üzerinden oluşturduğu tüm alarmlar doğrudan Supabase üzerinde saklanır. Backend servisimiz bu tabloyu her 60 saniyede bir tarayarak hedefe ulaşıldığında OneSignal üzerinden bildirim gönderir.</Text>
+                        <Text type="secondary">Kullanıcıların mobil uygulama üzerinden oluşturduğu tüm alarmlar doğrudan Supabase üzerinde saklanır. Backend servisimiz hedefi kontrol eder, uygulama içi bildirim oluşturur ve iOS cihazına doğrudan Apple APNs üzerinden gönderir.</Text>
                     </Flex>
                 }
                 type="info"

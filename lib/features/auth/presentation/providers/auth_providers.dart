@@ -9,6 +9,7 @@ import 'package:moneyplan_pro/core/services/security/secure_storage_service.dart
 import 'package:moneyplan_pro/core/services/security/biometric_service.dart';
 import 'package:moneyplan_pro/core/providers/common_providers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 
 // Supabase client
 final supabaseClientProvider = Provider<SupabaseClient>((ref) {
@@ -124,6 +125,19 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
+  Future<void> signInWithApple() async {
+    try {
+      state = AuthLoading();
+      final userResult = await _repository.signInWithApple();
+      final user = _checkLocalCompletion(userResult);
+      state = AuthAuthenticated(user);
+      await PushNotificationService().login(user.id);
+    } catch (e) {
+      state = AuthError(e.toString());
+      rethrow;
+    }
+  }
+
   Future<void> updateProfile(UserModel updatedUser) async {
     try {
       // Try DB update
@@ -221,6 +235,21 @@ class AuthNotifier extends StateNotifier<AuthState> {
       await _repository.sendPasswordResetEmail(email);
     } catch (e) {
       state = AuthError(e.toString());
+    }
+  }
+
+  Future<void> deleteAccount() async {
+    try {
+      state = AuthLoading();
+      await _repository.deleteAccount();
+      await PushNotificationService().logout();
+      await _secureStorage.clearAll();
+      await _prefs.clear();
+      await Hive.deleteFromDisk();
+      state = AuthUnauthenticated();
+    } catch (e) {
+      state = AuthError(e.toString());
+      rethrow;
     }
   }
 }

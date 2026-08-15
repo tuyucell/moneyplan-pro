@@ -6,6 +6,11 @@ import 'package:moneyplan_pro/core/utils/responsive.dart';
 import 'package:moneyplan_pro/core/constants/colors.dart';
 import 'package:moneyplan_pro/features/search/presentation/pages/markets_page.dart';
 import 'package:moneyplan_pro/features/wallet/providers/wallet_provider.dart';
+import 'package:moneyplan_pro/features/wallet/providers/bank_account_provider.dart';
+import 'package:moneyplan_pro/features/wallet/providers/bes_provider.dart';
+import 'package:moneyplan_pro/features/wallet/providers/portfolio_provider.dart';
+import 'package:moneyplan_pro/features/wallet/models/portfolio_asset.dart';
+import 'package:moneyplan_pro/features/wallet/providers/savings_goal_provider.dart';
 import 'package:moneyplan_pro/features/shared/services/widget_service.dart';
 import 'package:moneyplan_pro/features/shared/services/export_service.dart';
 import 'package:moneyplan_pro/features/monetization/services/ad_service.dart';
@@ -46,6 +51,7 @@ import 'package:moneyplan_pro/services/analytics/analytics_service.dart';
 import 'package:moneyplan_pro/features/auth/presentation/providers/auth_providers.dart';
 import 'package:moneyplan_pro/features/auth/data/models/user_model.dart';
 import 'package:moneyplan_pro/features/auth/presentation/widgets/auth_prompt_dialog.dart';
+import 'package:moneyplan_pro/core/services/remote_config_service.dart';
 
 class WalletPage extends ConsumerStatefulWidget {
   const WalletPage({super.key});
@@ -125,6 +131,16 @@ class _WalletPageState extends ConsumerState<WalletPage>
     final language = ref.watch(languageProvider);
     final lc = language.code;
     final activeSubs = ref.watch(activeSubscriptionsProvider);
+    final aiFeaturesEnabled = ref
+        .watch(featureEnabledProvider('ai_features'))
+        .maybeWhen(data: (enabled) => enabled, orElse: () => false);
+    final liveMarketsEnabled = ref
+        .watch(featureEnabledProvider('live_market_data'))
+        .maybeWhen(data: (enabled) => enabled, orElse: () => false);
+    final cryptoMarketsEnabled = ref
+        .watch(featureEnabledProvider('crypto_market_data'))
+        .maybeWhen(data: (enabled) => enabled, orElse: () => false);
+    final marketCatalogEnabled = liveMarketsEnabled || cryptoMarketsEnabled;
 
     final financeCurrency = ref.watch(financeDisplayCurrencyProvider);
     final investCurrency = ref.watch(investDisplayCurrencyProvider);
@@ -167,29 +183,30 @@ class _WalletPageState extends ConsumerState<WalletPage>
             onPressed: () =>
                 ref.read(balanceVisibilityProvider.notifier).toggle(),
           ),
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined,
-                color: AppColors.primary),
-            onPressed: () {
-              final authState = ref.read(authNotifierProvider);
-              if (authState is AuthAuthenticated) {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const AlertsPage()),
-                );
-              } else {
-                showDialog(
-                  context: context,
-                  builder: (ctx) => AuthPromptDialog(
-                    title: lc == 'tr' ? 'Hesap Gerekli' : 'Account Required',
-                    description: lc == 'tr'
-                        ? 'Fiyat alarmlarınızı görmek için lütfen giriş yapın veya kayıt olun.'
-                        : 'Please login or sign up to see your price alerts.',
-                  ),
-                );
-              }
-            },
-          ),
+          if (liveMarketsEnabled)
+            IconButton(
+              icon: const Icon(Icons.notifications_outlined,
+                  color: AppColors.primary),
+              onPressed: () {
+                final authState = ref.read(authNotifierProvider);
+                if (authState is AuthAuthenticated) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const AlertsPage()),
+                  );
+                } else {
+                  showDialog(
+                    context: context,
+                    builder: (ctx) => AuthPromptDialog(
+                      title: lc == 'tr' ? 'Hesap Gerekli' : 'Account Required',
+                      description: lc == 'tr'
+                          ? 'Fiyat alarmlarınızı görmek için lütfen giriş yapın veya kayıt olun.'
+                          : 'Please login or sign up to see your price alerts.',
+                    ),
+                  );
+                }
+              },
+            ),
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert, color: AppColors.primary),
             onSelected: (value) {
@@ -292,7 +309,12 @@ class _WalletPageState extends ConsumerState<WalletPage>
                         ),
                         onPressed: () {
                           setState(() {
-                            _showCalendar = !_showCalendar;
+                            if (_isYearlyView) {
+                              _isYearlyView = false;
+                              _showCalendar = true;
+                            } else {
+                              _showCalendar = !_showCalendar;
+                            }
                           });
                         },
                       ),
@@ -348,15 +370,17 @@ class _WalletPageState extends ConsumerState<WalletPage>
                   ),
                 ),
                 const SizedBox(height: 16),
-                _buildCollapsibleSection(
-                  title: AppStrings.tr(AppStrings.proFeatureAiAnalyst, lc),
-                  isVisible: _showAiAnalyst,
-                  icon: Icons.auto_awesome,
-                  onToggle: () =>
-                      setState(() => _showAiAnalyst = !_showAiAnalyst),
-                  child: const AiAnalystSummaryWidget(),
-                ),
-                const SizedBox(height: 16),
+                if (aiFeaturesEnabled) ...[
+                  _buildCollapsibleSection(
+                    title: AppStrings.tr(AppStrings.proFeatureAiAnalyst, lc),
+                    isVisible: _showAiAnalyst,
+                    icon: Icons.auto_awesome,
+                    onToggle: () =>
+                        setState(() => _showAiAnalyst = !_showAiAnalyst),
+                    child: const AiAnalystSummaryWidget(),
+                  ),
+                  const SizedBox(height: 16),
+                ],
                 const PortfolioView(),
               ],
             ),
@@ -372,10 +396,14 @@ class _WalletPageState extends ConsumerState<WalletPage>
                   builder: (context) => const AddTransactionPage()),
             );
           } else {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const MarketsPage()),
-            );
+            if (marketCatalogEnabled) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const MarketsPage()),
+              );
+            } else {
+              _showManualInvestmentDialog(lc);
+            }
           }
         },
         label: Text(_tabController.index == 0
@@ -384,6 +412,136 @@ class _WalletPageState extends ConsumerState<WalletPage>
         icon: const Icon(Icons.add),
       ),
     );
+  }
+
+  Future<void> _showManualInvestmentDialog(String lc) async {
+    final symbolController = TextEditingController();
+    final nameController = TextEditingController();
+    final unitsController = TextEditingController();
+    final costController = TextEditingController();
+    var currencyCode = 'TRY';
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(lc == 'tr' ? 'Yatırım Ekle' : 'Add Investment'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: symbolController,
+                  textCapitalization: TextCapitalization.characters,
+                  decoration: InputDecoration(
+                    labelText: lc == 'tr' ? 'Sembol / Kod' : 'Symbol / Code',
+                    hintText: 'Örn. ALTIN',
+                    border: const OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: nameController,
+                  decoration: InputDecoration(
+                    labelText: lc == 'tr' ? 'Varlık adı' : 'Asset name',
+                    border: const OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: unitsController,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration: InputDecoration(
+                    labelText: lc == 'tr' ? 'Miktar' : 'Quantity',
+                    border: const OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: costController,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration: InputDecoration(
+                    labelText: lc == 'tr' ? 'Ortalama maliyet' : 'Average cost',
+                    border: const OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  initialValue: currencyCode,
+                  decoration: InputDecoration(
+                    labelText: lc == 'tr' ? 'Para birimi' : 'Currency',
+                    border: const OutlineInputBorder(),
+                  ),
+                  items: const ['TRY', 'USD', 'EUR']
+                      .map((code) =>
+                          DropdownMenuItem(value: code, child: Text(code)))
+                      .toList(),
+                  onChanged: (value) {
+                    if (value != null) {
+                      setDialogState(() => currencyCode = value);
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(lc == 'tr' ? 'İptal' : 'Cancel'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                final symbol = symbolController.text.trim().toUpperCase();
+                final units = double.tryParse(
+                    unitsController.text.trim().replaceAll(',', '.'));
+                final averageCost = double.tryParse(
+                    costController.text.trim().replaceAll(',', '.'));
+                if (symbol.isEmpty ||
+                    units == null ||
+                    units <= 0 ||
+                    averageCost == null ||
+                    averageCost < 0) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(lc == 'tr'
+                          ? 'Sembol, miktar ve maliyet alanlarını kontrol edin.'
+                          : 'Check the symbol, quantity, and cost fields.'),
+                    ),
+                  );
+                  return;
+                }
+
+                await ref.read(portfolioProvider.notifier).addOrUpdateAsset(
+                      PortfolioAsset(
+                        id: symbol.toLowerCase(),
+                        symbol: symbol,
+                        name: nameController.text.trim().isEmpty
+                            ? symbol
+                            : nameController.text.trim(),
+                        units: units,
+                        averageCost: averageCost,
+                        category: 'manual',
+                        currencyCode: currencyCode,
+                      ),
+                    );
+                if (dialogContext.mounted) {
+                  Navigator.pop(dialogContext);
+                }
+              },
+              child: Text(lc == 'tr' ? 'Ekle' : 'Add'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    symbolController.dispose();
+    nameController.dispose();
+    unitsController.dispose();
+    costController.dispose();
   }
 
   Widget _buildContextualCurrencyToggle(
@@ -687,23 +845,41 @@ class _WalletPageState extends ConsumerState<WalletPage>
     );
 
     if (confirm == true) {
-      final transactions = ref.read(walletProvider);
-      for (final transaction in transactions) {
-        await ref
-            .read(walletProvider.notifier)
-            .deleteTransaction(transaction.id);
+      try {
+        await Future.wait<void>([
+          ref.read(walletProvider.notifier).clearAllTransactions(),
+          ref.read(savingsGoalProvider.notifier).clearAll(),
+          ref.read(bankAccountProvider.notifier).resetAll(),
+          ref.read(budgetProvider.notifier).clearAll(),
+          ref.read(besProvider.notifier).clearAccount(),
+          ref.read(portfolioProvider.notifier).clearAll(),
+        ]);
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(AppStrings.tr(AppStrings.allDataDeleted, lc)),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      } catch (error) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              lc == 'tr'
+                  ? 'Veriler temizlenirken bazı kayıtlar silinemedi.'
+                  : 'Some records could not be deleted.',
+            ),
+            backgroundColor: AppColors.error,
+          ),
+        );
       }
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(AppStrings.tr(AppStrings.allDataDeleted, lc)),
-          backgroundColor: AppColors.success,
-        ),
-      );
     }
   }
 
   void _showExportOptions(String lc) {
     final isPro = ref.read(subscriptionProvider) == SubscriptionTier.pro;
+    final aiFeaturesEnabled = ref
+        .read(featureEnabledProvider('ai_features'))
+        .maybeWhen(data: (enabled) => enabled, orElse: () => false);
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -720,71 +896,75 @@ class _WalletPageState extends ConsumerState<WalletPage>
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 24),
-            ListTile(
-              leading: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(Icons.auto_awesome, color: AppColors.primary),
-              ),
-              title: Row(
-                children: [
-                  Text(AppStrings.tr(AppStrings.importStatementAi, lc)),
-                  const SizedBox(width: 8),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.amber,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: const Text('PRO',
-                        style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black)),
+            if (aiFeaturesEnabled)
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                ],
+                  child:
+                      const Icon(Icons.auto_awesome, color: AppColors.primary),
+                ),
+                title: Row(
+                  children: [
+                    Text(AppStrings.tr(AppStrings.importStatementAi, lc)),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.amber,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Text('PRO',
+                          style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black)),
+                    ),
+                  ],
+                ),
+                subtitle:
+                    Text(AppStrings.tr(AppStrings.importStatementAiDesc, lc)),
+                onTap: () async {
+                  final isPro = ref.read(isProUserProvider);
+                  const featureKey = 'import_statement_ai';
+                  final isLocked =
+                      await ref.read(featureLockedProvider(featureKey).future);
+
+                  if (!isLocked) {
+                    if (!isPro) {
+                      await ref
+                          .read(featureUsageProvider)
+                          .trackUsage(featureKey);
+                      // Analytics: Free use
+                      await ref.read(analyticsServiceProvider).logEvent(
+                            name: 'pro_feature_free_use',
+                            category: 'monetization',
+                            properties: {'feature': featureKey},
+                            screenName: 'WalletPage',
+                          );
+                    }
+
+                    if (context.mounted) {
+                      Navigator.pop(context);
+                      unawaited(Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (context) => const ImportStatementPage()),
+                      ));
+                    }
+                  } else {
+                    if (context.mounted) {
+                      Navigator.pop(context);
+                      _showProUpsellDialog(context, lc);
+                    }
+                  }
+                },
               ),
-              subtitle:
-                  Text(AppStrings.tr(AppStrings.importStatementAiDesc, lc)),
-              onTap: () async {
-                final isPro = ref.read(isProUserProvider);
-                const featureKey = 'import_statement_ai';
-                final isLocked =
-                    await ref.read(featureLockedProvider(featureKey).future);
-
-                if (!isLocked) {
-                  if (!isPro) {
-                    await ref.read(featureUsageProvider).trackUsage(featureKey);
-                    // Analytics: Free use
-                    await ref.read(analyticsServiceProvider).logEvent(
-                          name: 'pro_feature_free_use',
-                          category: 'monetization',
-                          properties: {'feature': featureKey},
-                          screenName: 'WalletPage',
-                        );
-                  }
-
-                  if (context.mounted) {
-                    Navigator.pop(context);
-                    unawaited(Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (context) => const ImportStatementPage()),
-                    ));
-                  }
-                } else {
-                  if (context.mounted) {
-                    Navigator.pop(context);
-                    _showProUpsellDialog(context, lc);
-                  }
-                }
-              },
-            ),
-            const Divider(),
+            if (aiFeaturesEnabled) const Divider(),
             ListTile(
               leading: Container(
                 padding: const EdgeInsets.all(8),

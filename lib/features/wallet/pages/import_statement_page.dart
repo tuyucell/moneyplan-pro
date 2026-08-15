@@ -11,6 +11,7 @@ import 'package:moneyplan_pro/features/wallet/models/transaction_category.dart';
 import 'package:moneyplan_pro/core/i18n/app_strings.dart';
 import 'package:moneyplan_pro/core/providers/language_provider.dart';
 import 'package:uuid/uuid.dart';
+import 'package:moneyplan_pro/core/services/ai_privacy_consent_service.dart';
 
 class ImportStatementPage extends ConsumerStatefulWidget {
   const ImportStatementPage({super.key});
@@ -26,6 +27,8 @@ class _ImportStatementPageState extends ConsumerState<ImportStatementPage> {
   Set<int> _selectedIndices = {};
 
   Future<void> _pickAndProcessPdf() async {
+    if (!await AiPrivacyConsentService.ensureConsent(context)) return;
+    if (!mounted) return;
     final messenger = ScaffoldMessenger.of(context);
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,

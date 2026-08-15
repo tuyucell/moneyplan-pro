@@ -26,6 +26,7 @@ import { useState } from 'react';
 
 const { Title, Text, Paragraph } = Typography;
 import { API_BASE_URL } from '../config';
+import { adminFetch } from '../lib/adminFetch';
 
 const BACKEND_URL = API_BASE_URL;
 
@@ -49,7 +50,7 @@ export default function AdsManager() {
     const { data: ads, isLoading } = useQuery<AdPlacement[]>({
         queryKey: ['system-ads'],
         queryFn: async () => {
-            const resp = await fetch(`${BACKEND_URL}/api/v1/system/ads`);
+            const resp = await adminFetch(`${BACKEND_URL}/api/v1/system/ads`);
             if (!resp.ok) throw new Error('Backend connection failed');
             return resp.json();
         }
@@ -58,7 +59,7 @@ export default function AdsManager() {
     // 2. Update Ad Mutation
     const updateMutation = useMutation({
         mutationFn: async ({ id, updates }: { id: number, updates: any }) => {
-            const resp = await fetch(`${BACKEND_URL}/api/v1/system/ads/${id}`, {
+            const resp = await adminFetch(`${BACKEND_URL}/api/v1/system/ads/${id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(updates)

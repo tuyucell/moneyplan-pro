@@ -68,9 +68,9 @@ This system allows you to **control app features remotely** without deploying to
 
 **Features:**
 - ✅ Fetches flags on app start
-- ✅ Caches for 1 hour (reduces API calls)
+- ✅ Caches for 5 minutes (reduces API calls)
 - ✅ Persistent cache (works offline)
-- ✅ Fail-open strategy (shows features on error)
+- ✅ Release-blocking flags fail closed
 
 ## 🚀 Usage
 
@@ -79,7 +79,7 @@ This system allows you to **control app features remotely** without deploying to
 1. Navigate to **System → Feature Flags**
 2. Toggle switches to enable/disable features
 3. Change PRO status or daily limits
-4. Changes take effect immediately
+4. Mobil uygulamada değişiklikler en geç 5 dakikalık cache süresi sonunda uygulanır
 
 ### Flutter App
 
@@ -118,6 +118,21 @@ if (isAvailable) {
 | `compound_interest` | Bileşik Faiz | ❌ | ∞ |
 | `loan_calculator` | Kredi Hesaplayıcı | ❌ | ∞ |
 | `credit_card_assistant` | Kredi Kartı Asistanı | ❌ | ∞ |
+| `crypto_market_data` | CoinGecko Kripto Verileri | ❌ | ∞ |
+| `market_ticker` | CoinGecko Kripto Kayan Yazısı | ❌ | ∞ |
+| `market_news` | Lisanslı Piyasa Haberleri | ❌ | ∞ |
+| `financial_calendar` | Yönetilen Finansal Takvim | ❌ | ∞ |
+| `financial_calendar_fxstreet` | FXStreet Takvim Yedeği | ❌ | ∞ |
+| `live_market_data` | Canlı Piyasa Verileri | ❌ | ∞ |
+| `gmail_import` | Gmail İçe Aktarma | ✅ | 0 |
+| `ai_features` | AI Eğitim Özellikleri | ✅ | 0 |
+
+İlk mağaza sürümünde `live_market_data`, `market_news`, `financial_calendar`,
+`financial_calendar_fxstreet`, `gmail_import` ve `ai_features` kapalıdır.
+`crypto_market_data` ile ona bağlı
+`market_ticker`, yalnızca CoinGecko ticari kullanım hakkı olan bir plan
+etkinleştirildikten sonra açılmalıdır. Bu üst seviye flag'ler mobil arayüzü ve
+backend endpoint'lerini birlikte kapatır.
 
 ## 🔧 Configuration
 
@@ -131,36 +146,38 @@ static const String _baseUrl = 'https://your-api.com/api/v1';
 
 ### Cache Duration
 
-Default: 1 hour. Change in `feature_flag_service.py`:
+Default: 5 minutes. Change in `feature_flag_service.py`:
 
 ```python
-cached_until=datetime.now() + timedelta(hours=1)
+cached_until=datetime.now() + timedelta(minutes=5)
 ```
 
 ## 📊 Benefits
 
-✅ **No App Store Deployment** - Change features instantly  
-✅ **A/B Testing** - Test features with segments  
-✅ **Kill Switch** - Disable broken features remotely  
-✅ **Gradual Rollout** - Enable features for specific users  
-✅ **Emergency Response** - Quick fixes without updates  
-✅ **Analytics** - Track which features drive conversions  
+- ✅ **No App Store Deployment** - Change features without a new binary
+- ✅ **Kill Switch** - Disable broken features remotely
+- ✅ **Emergency Response** - Quick fixes without updates
+- ✅ **Analytics** - Track which features drive conversions
 
 ## 🛡️ Fail-Safe Strategy
 
-The system uses a **"fail-open"** approach:
+Sistem iki seviyeli güvenli davranış kullanır:
 
-- ❌ Network error → Show feature (don't block users)
-- ❌ Backend down → Use cached flags
-- ❌ Cache expired → Still show feature
-- ✅ Only hide if explicitly disabled in backend
+- Ağ/backend hatası → geçerli cache varsa son bilinen değer kullanılır.
+- `crypto_market_data`, `market_ticker`, `market_news`, `financial_calendar`,
+  `financial_calendar_fxstreet`, `live_market_data`, `gmail_import`,
+  `ai_features` bilinmiyorsa → özellik kapalı
+  kabul edilir.
+- Diğer özellikler için mevcut ürün davranışı korunur.
+- Backend market/news/fund ve AI endpoint'leri de aynı üst seviye flag'leri
+  kontrol eder; yalnızca arayüzü gizlemeye güvenilmez.
 
 ## 🔐 Security
 
-- Admin endpoints should be protected with authentication
-- Consider rate limiting on `/api/v1/features`
+- Admin endpoint'leri admin oturumu ile korunur
+- Feature ID'leri backend tarafından doğrulanır
 - Use HTTPS in production
-- Validate feature IDs to prevent injection
+- Release-blocking endpoint'ler flag kapalıyken `503` döndürür
 
 ## 📝 Adding New Features
 
@@ -171,7 +188,7 @@ The system uses a **"fail-open"** approach:
 ## 🐛 Troubleshooting
 
 **Features not updating?**
-- Check cache expiry (1 hour default)
+- Check cache expiry (5 minutes default)
 - Force refresh: `remoteConfigService.fetchFlags(forceRefresh: true)`
 - Clear cache: `remoteConfigService.clearCache()`
 
@@ -189,8 +206,7 @@ The system uses a **"fail-open"** approach:
 1. **Test in staging first** - Don't disable critical features in production
 2. **Monitor analytics** - Track `pro_upsell_view` events
 3. **Document changes** - Use metadata field for notes
-4. **Gradual rollout** - Enable for small % first
-5. **Have a rollback plan** - Keep previous config handy
+4. **Have a rollback plan** - Keep previous config handy
 
 ## 🔄 Migration from Hardcoded Flags
 
@@ -212,6 +228,10 @@ RemoteProFeatureGate(
 
 ---
 
-**Created:** 2026-01-22  
-**Version:** 1.0.0  
+**Created:** 2026-01-22
+
+**Updated:** 2026-07-20
+
+**Version:** 1.1.0
+
 **Status:** ✅ Production Ready

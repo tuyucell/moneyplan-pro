@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
     Card,
@@ -25,6 +26,7 @@ import {
 
 const { Title, Text, Paragraph } = Typography;
 import { API_BASE_URL } from '../config';
+import { adminFetch } from '../lib/adminFetch';
 
 const BACKEND_URL = API_BASE_URL;
 
@@ -34,17 +36,19 @@ interface AppSetting {
     description: string;
     category: string;
     updated_at: string;
+    is_configured?: boolean;
 }
 
 export default function AppSettings() {
     const queryClient = useQueryClient();
     const { message: messageApi } = App.useApp();
+    const [drafts, setDrafts] = useState<Record<string, string>>({});
 
     // 1. Fetch Settings
     const { data: settings, isLoading } = useQuery({
         queryKey: ['system-settings'],
         queryFn: async () => {
-            const resp = await fetch(`${BACKEND_URL}/api/v1/system/settings`);
+            const resp = await adminFetch(`${BACKEND_URL}/api/v1/system/settings`);
             if (!resp.ok) throw new Error('Backend connection failed');
             return resp.json() as Promise<AppSetting[]>;
         }
@@ -53,20 +57,28 @@ export default function AppSettings() {
     // 2. Update Setting Mutation
     const updateMutation = useMutation({
         mutationFn: async ({ key, value }: { key: string, value: string }) => {
-            const resp = await fetch(`${BACKEND_URL}/api/v1/system/settings/${key}`, {
+            const resp = await adminFetch(`${BACKEND_URL}/api/v1/system/settings/${key}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ value })
             });
-            if (!resp.ok) throw new Error('Update failed');
+            if (!resp.ok) {
+                const body = await resp.json().catch(() => null);
+                throw new Error(body?.detail || 'Update failed');
+            }
             return resp.json();
         },
-        onSuccess: () => {
+        onSuccess: (_, variables) => {
+            setDrafts((current) => {
+                const next = { ...current };
+                delete next[variables.key];
+                return next;
+            });
             void messageApi.success('Setting updated successfully');
             void queryClient.invalidateQueries({ queryKey: ['system-settings'] });
         },
-        onError: () => {
-            void messageApi.error('Failed to update setting');
+        onError: (error: Error) => {
+            void messageApi.error(error.message);
         }
     });
 
@@ -134,6 +146,11 @@ export default function AppSettings() {
                                             <Space>
                                                 {getCategoryIcon(item.category)}
                                                 <Text strong style={{ fontSize: '13px' }}>{item.key.replaceAll('_', ' ')}</Text>
+                                                {item.is_configured !== undefined && (
+                                                    <Tag color={item.is_configured ? 'success' : 'default'}>
+                                                        {item.is_configured ? 'Configured' : 'Missing'}
+                                                    </Tag>
+                                                )}
                                             </Space>
                                         }
                                         extra={<Text type="secondary" style={{ fontSize: '11px' }}>{new Date(item.updated_at).toLocaleDateString()}</Text>}
@@ -143,15 +160,36 @@ export default function AppSettings() {
                                         </Paragraph>
                                         <Flex gap="small">
                                             <Input
-                                                defaultValue={item.value}
-                                                onChange={(e) => { item.value = e.target.value; }}
+                                                value={drafts[item.key] ?? item.value}
+                                                placeholder={item.is_configured ? '•••••••• (configured)' : 'Not configured'}
+                                                type={item.is_configured !== undefined ? 'password' : 'text'}
+                                                autoComplete="off"
+                                                onChange={(e) => {
+                                                    setDrafts((current) => ({
+                                                        ...current,
+                                                        [item.key]: e.target.value,
+                                                    }));
+                                                }}
                                                 style={{ borderRadius: '6px' }}
-                                                onPressEnter={() => updateMutation.mutate({ key: item.key, value: item.value })}
+                                                onPressEnter={() => {
+                                                    const value = drafts[item.key];
+                                                    if (value !== undefined && value.trim()) {
+                                                        updateMutation.mutate({ key: item.key, value });
+                                                    }
+                                                }}
                                             />
                                             <Button
                                                 icon={<SaveOutlined />}
                                                 type="primary"
-                                                onClick={() => updateMutation.mutate({ key: item.key, value: item.value })}
+                                                disabled={
+                                                    drafts[item.key] === undefined ||
+                                                    (item.is_configured !== undefined && !drafts[item.key].trim())
+                                                }
+                                                loading={updateMutation.isPending && updateMutation.variables?.key === item.key}
+                                                onClick={() => updateMutation.mutate({
+                                                    key: item.key,
+                                                    value: drafts[item.key] ?? '',
+                                                })}
                                                 style={{ borderRadius: '6px' }}
                                             />
                                         </Flex>

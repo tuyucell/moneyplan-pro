@@ -70,7 +70,7 @@ function App() {
       }}
     >
       <QueryClientProvider client={queryClient}>
-        <BrowserRouter>
+        <BrowserRouter basename="/admin">
           <AntdApp>
             <Routes>
               <Route

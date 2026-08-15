@@ -6,6 +6,7 @@ import 'package:moneyplan_pro/features/shared/widgets/enhanced_market_item_card.
 import 'package:moneyplan_pro/services/api/moneyplan_pro_api.dart';
 import 'package:moneyplan_pro/core/i18n/app_strings.dart';
 import 'package:moneyplan_pro/core/providers/language_provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class CategoryPage extends ConsumerStatefulWidget {
   final String categoryId;
@@ -30,85 +31,27 @@ class _CategoryPageState extends ConsumerState<CategoryPage>
   final TextEditingController _searchController = TextEditingController();
   List<MarketItem> _filteredItems = [];
   List<ExchangeItem> _filteredExchanges = [];
-  Map<String, dynamic>? _fearGreedData;
   String? _selectedCountry;
 
   late TabController _tabController;
 
+  bool get _showsExchangeTab => widget.categoryId != 'crypto';
+
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController =
+        TabController(length: _showsExchangeTab ? 2 : 1, vsync: this);
     _searchController.addListener(_onSearchChanged);
     _loadData();
-    _loadExchanges();
+    if (_showsExchangeTab) _loadExchanges();
   }
 
   Future<void> _loadExchanges() async {
-    final exchanges = _getMockExchanges(widget.categoryId);
     setState(() {
-      _exchanges = exchanges;
-      _filteredExchanges = List.from(_exchanges);
+      _exchanges = [];
+      _filteredExchanges = [];
     });
-  }
-
-  List<ExchangeItem> _getMockExchanges(String categoryId) {
-    final allExchanges = [
-      ExchangeItem(
-          id: 'binance',
-          name: 'Binance',
-          country: 'Global',
-          volume24h: 76540000000,
-          trustScore: 10,
-          supportedCategories: ['crypto']),
-      ExchangeItem(
-          id: 'coinbase',
-          name: 'Coinbase',
-          country: 'ABD',
-          volume24h: 21340000000,
-          trustScore: 9,
-          supportedCategories: ['crypto']),
-      ExchangeItem(
-          id: 'btcturk',
-          name: 'BtcTurk',
-          country: 'Türkiye',
-          volume24h: 125000000,
-          trustScore: 8,
-          supportedCategories: ['crypto']),
-      ExchangeItem(
-          id: 'paribu',
-          name: 'Paribu',
-          country: 'Türkiye',
-          volume24h: 98000000,
-          trustScore: 7,
-          supportedCategories: ['crypto']),
-      ExchangeItem(
-          id: 'nyse',
-          name: 'New York Stock Exchange',
-          country: 'ABD',
-          volume24h: 1200000000000,
-          trustScore: 10,
-          supportedCategories: ['stock', 'etf']),
-      ExchangeItem(
-          id: 'nasdaq',
-          name: 'NASDAQ',
-          country: 'ABD',
-          volume24h: 980000000000,
-          trustScore: 10,
-          supportedCategories: ['stock', 'etf']),
-      ExchangeItem(
-          id: 'bist',
-          name: 'Borsa İstanbul (BIST)',
-          country: 'Türkiye',
-          volume24h: 15000000000,
-          trustScore: 8,
-          supportedCategories: ['stock', 'etf', 'bond']),
-    ];
-
-    return allExchanges
-        .where((e) => e.supportedCategories.contains(categoryId))
-        .toList()
-      ..sort((a, b) => b.volume24h.compareTo(a.volume24h));
   }
 
   Future<void> _loadData() async {
@@ -118,11 +61,6 @@ class _CategoryPageState extends ConsumerState<CategoryPage>
     });
 
     try {
-      if (widget.categoryId == 'crypto') {
-        final data = await MoneyPlanProApi.getCryptoFearGreed();
-        if (mounted) setState(() => _fearGreedData = data);
-      }
-
       var items = <MarketItem>[];
 
       switch (widget.categoryId) {
@@ -323,20 +261,22 @@ class _CategoryPageState extends ConsumerState<CategoryPage>
         actions: [
           IconButton(icon: const Icon(Icons.refresh), onPressed: _loadData),
         ],
-        bottom: TabBar(
-          controller: _tabController,
-          labelColor: AppColors.primary,
-          unselectedLabelColor: AppColors.textSecondary(context),
-          indicatorColor: AppColors.primary,
-          labelStyle:
-              const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-          unselectedLabelStyle:
-              const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-          tabs: [
-            Tab(text: AppStrings.tr(AppStrings.instrumentsLabel, lc)),
-            Tab(text: AppStrings.tr(AppStrings.exchangesTitle, lc)),
-          ],
-        ),
+        bottom: _showsExchangeTab
+            ? TabBar(
+                controller: _tabController,
+                labelColor: AppColors.primary,
+                unselectedLabelColor: AppColors.textSecondary(context),
+                indicatorColor: AppColors.primary,
+                labelStyle:
+                    const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                unselectedLabelStyle:
+                    const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                tabs: [
+                  Tab(text: AppStrings.tr(AppStrings.instrumentsLabel, lc)),
+                  Tab(text: AppStrings.tr(AppStrings.exchangesTitle, lc)),
+                ],
+              )
+            : null,
       ),
       body: Column(
         children: [
@@ -413,9 +353,7 @@ class _CategoryPageState extends ConsumerState<CategoryPage>
             ),
           ),
 
-          // Fear Greed Display
-          if (_fearGreedData != null && widget.categoryId == 'crypto')
-            _buildFearGreedIndex(lc),
+          if (widget.categoryId == 'crypto') _buildCoinGeckoAttribution(),
 
           // Country Filters
           if (widget.categoryId == 'stock' && !_isLoading && _items.isNotEmpty)
@@ -483,24 +421,27 @@ class _CategoryPageState extends ConsumerState<CategoryPage>
                                     },
                                   ),
                                 ),
-                          _filteredExchanges.isEmpty
-                              ? Center(
-                                  child: Text(
-                                      AppStrings.tr(AppStrings.noDataFound, lc),
-                                      style: TextStyle(
-                                          color: AppColors.textSecondary(
-                                              context))))
-                              : ListView.separated(
-                                  padding:
-                                      const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                                  itemCount: _filteredExchanges.length,
-                                  separatorBuilder: (context, index) =>
-                                      const SizedBox(height: 12),
-                                  itemBuilder: (context, index) {
-                                    final exchange = _filteredExchanges[index];
-                                    return _ExchangeCard(exchange: exchange);
-                                  },
-                                ),
+                          if (_showsExchangeTab)
+                            _filteredExchanges.isEmpty
+                                ? Center(
+                                    child: Text(
+                                        AppStrings.tr(
+                                            AppStrings.noDataFound, lc),
+                                        style: TextStyle(
+                                            color: AppColors.textSecondary(
+                                                context))))
+                                : ListView.separated(
+                                    padding: const EdgeInsets.fromLTRB(
+                                        16, 0, 16, 16),
+                                    itemCount: _filteredExchanges.length,
+                                    separatorBuilder: (context, index) =>
+                                        const SizedBox(height: 12),
+                                    itemBuilder: (context, index) {
+                                      final exchange =
+                                          _filteredExchanges[index];
+                                      return _ExchangeCard(exchange: exchange);
+                                    },
+                                  ),
                         ],
                       ),
           ),
@@ -509,73 +450,28 @@ class _CategoryPageState extends ConsumerState<CategoryPage>
     );
   }
 
-  Widget _buildFearGreedIndex(String lc) {
-    final value = _fearGreedData?['value'] ?? 50;
-    final classification = _fearGreedData?['classification'] ?? 'Neutral';
-
-    Color getColor(int val) {
-      if (val < 25) return Colors.red;
-      if (val < 45) return Colors.orange;
-      if (val < 55) return Colors.amber;
-      if (val < 75) return Colors.lightGreen;
-      return Colors.green;
-    }
-
+  Widget _buildCoinGeckoAttribution() {
     return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.surface(context),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border(context)),
-      ),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
       child: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: getColor(value).withValues(alpha: 0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(Icons.speed, color: getColor(value), size: 20),
-          ),
-          const SizedBox(width: 12),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      AppStrings.tr(AppStrings.fearGreedIndexTitle, lc),
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.textSecondary(context),
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                    Text(
-                      '$value/100',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w900,
-                        color: getColor(value),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  classification.toUpperCase(),
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary(context),
-                  ),
-                ),
-              ],
+            child: Text(
+              'Fiyatlar yaklaşık 15 dakikada yenilenir.',
+              style: TextStyle(
+                fontSize: 10,
+                color: AppColors.textSecondary(context),
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () => launchUrl(
+              Uri.parse('https://www.coingecko.com/en/api'),
+              mode: LaunchMode.externalApplication,
+            ),
+            child: const Text(
+              'Data provided by CoinGecko',
+              style: TextStyle(fontSize: 10),
             ),
           ),
         ],

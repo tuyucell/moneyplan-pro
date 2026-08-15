@@ -1139,24 +1139,24 @@ class AppStrings {
       btnSkip: 'Atla',
       btnStart: 'Başla',
       btnContinue: 'Devam Et',
-      onboarding1Title: 'Yatırımlarını Tek Yerden Yönet',
+      onboarding1Title: 'Paranı Tek Yerden Yönet',
       onboarding1Desc:
-          'Hisse senedi, kripto para, döviz ve fonlarını tek bir uygulamadan takip et. Artık dağınıklık yok!',
+          'Gelirlerini, giderlerini, hesaplarını ve kendi girdiğin birikim kayıtlarını düzenli biçimde takip et.',
       onboarding2Title: 'Bütçene Hakim Ol',
       onboarding2Desc:
           'Gelir ve giderlerini kaydet, paranı nereye harcadığını gör. Akıllı bütçe takibiyle tasarrufunu artır.',
-      onboarding3Title: 'Sana Özel Yatırım Planı',
+      onboarding3Title: 'Tasarruf Hedeflerini Planla',
       onboarding3Desc:
-          'Yatırım sihirbazı ile risk profilini belirle, yapay zeka destekli önerilerle geleceğini planla.',
-      onboarding4Title: 'Piyasalar Cebinde',
+          'Hedeflerini oluştur, ilerlemeni izle ve düzenli birikim alışkanlığını küçük adımlarla geliştir.',
+      onboarding4Title: 'Finansal Bilgini Geliştir',
       onboarding4Desc:
-          'Anlık fiyatlar, son dakika haberleri ve gelişmiş grafiklerle piyasaları avucunun içi gibi bil.',
+          'Hesaplayıcılar ve sade eğitim araçlarıyla bütçe kararlarının olası sonuçlarını karşılaştır.',
       adLabel: 'REKLAM',
       closeIn: 'Kapatmak için:',
       sponsoredContent: 'Sponsorlu İçerik',
       secureInvestmentsTitle: 'Yatırımlarınızı Güvence Altına Alın',
       removeAdsDesc:
-          'InvestGuide Pro ile reklamsız deneyimin tadını çıkarın ve özel analiz araçlarına erişin.',
+          'MoneyPlan Pro ile gelişmiş analiz ve dışa aktarım araçlarına erişin.',
       learnMore: 'Daha Fazla Bilgi',
       removedFromList: 'listeden çıkarıldı',
 
@@ -1784,24 +1784,24 @@ class AppStrings {
       btnSkip: 'Skip',
       btnStart: 'Start',
       btnContinue: 'Continue',
-      onboarding1Title: 'Manage Your Investments in One Place',
+      onboarding1Title: 'Manage Your Money in One Place',
       onboarding1Desc:
-          'Track stocks, crypto, forex, and funds from a single app. No more clutter!',
+          'Keep your income, expenses, accounts, and manually entered savings records organized.',
       onboarding2Title: 'Master Your Budget',
       onboarding2Desc:
           'Record your income and expenses, see where your money goes. Increase your savings with smart budget tracking.',
-      onboarding3Title: 'Personalized Investment Plan',
+      onboarding3Title: 'Plan Your Savings Goals',
       onboarding3Desc:
-          'Determine your risk profile with the investment wizard, plan your future with AI-powered recommendations.',
-      onboarding4Title: 'Markets in Your Pocket',
+          'Create goals, follow your progress, and build a regular savings habit through small steps.',
+      onboarding4Title: 'Build Financial Confidence',
       onboarding4Desc:
-          'Know the markets like the back of your hand with instant prices, breaking news, and advanced charts.',
+          'Compare possible outcomes of budgeting decisions with calculators and clear educational tools.',
       adLabel: 'AD',
       closeIn: 'Close in:',
       sponsoredContent: 'Sponsored Content',
       secureInvestmentsTitle: 'Secure Your Investments',
       removeAdsDesc:
-          'Enjoy an ad-free experience and access exclusive analysis tools with InvestGuide Pro.',
+          'Access advanced analysis and export tools with MoneyPlan Pro.',
       learnMore: 'Learn More',
       removedFromList: 'removed from list',
 

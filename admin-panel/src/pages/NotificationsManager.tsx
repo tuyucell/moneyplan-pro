@@ -31,19 +31,29 @@ import {
 
 const { Title, Text } = Typography;
 import { API_BASE_URL } from '../config';
+import { adminFetch } from '../lib/adminFetch';
+import { supabase } from '../lib/supabase';
 
 const BACKEND_URL = API_BASE_URL;
 
 interface NotificationHistory {
-    id: number;
+    id: string;
     title: string;
     message: string;
     image_url: string | null;
     action_url: string | null;
     target_segment: string;
-    status: 'sent' | 'failed' | 'sending' | 'pending';
+    status: 'queued' | 'sending' | 'sent' | 'partial' | 'failed';
     delivered_count: number;
+    recipient_count: number;
+    failed_count: number;
     created_at: string;
+}
+
+interface NotificationTargetUser {
+    id: string;
+    email: string;
+    display_name: string | null;
 }
 
 export default function NotificationsManager() {
@@ -55,17 +65,33 @@ export default function NotificationsManager() {
     const { data: history, isLoading } = useQuery<NotificationHistory[]>({
         queryKey: ['notification-history'],
         queryFn: async () => {
-            const resp = await fetch(`${BACKEND_URL}/api/v1/system/notifications`);
+            const resp = await adminFetch(`${BACKEND_URL}/api/v1/system/notifications`);
             if (!resp.ok) throw new Error('Backend connection failed');
             return resp.json();
         },
         refetchInterval: 10000 // Refresh history every 10s
     });
 
-    // 2. Send Mutation
+    // 2. Fetch active users so admins can safely send a test to one account.
+    const { data: targetUsers = [], isLoading: areTargetsLoading } = useQuery<NotificationTargetUser[]>({
+        queryKey: ['notification-target-users'],
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from('users')
+                .select('id,email,display_name')
+                .eq('is_active', true)
+                .eq('is_banned', false)
+                .is('deleted_at', null)
+                .order('email');
+            if (error) throw error;
+            return data ?? [];
+        }
+    });
+
+    // 3. Send Mutation
     const sendMutation = useMutation({
         mutationFn: async (payload: any) => {
-            const resp = await fetch(`${BACKEND_URL}/api/v1/system/notifications/send`, {
+            const resp = await adminFetch(`${BACKEND_URL}/api/v1/system/notifications/send`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
@@ -77,7 +103,7 @@ export default function NotificationsManager() {
             return resp.json();
         },
         onSuccess: () => {
-            void messageApi.success('Notification sent to provider queue');
+            void messageApi.success('Bildirim kutuları oluşturuldu ve APNs teslimatı başlatıldı');
             form.resetFields();
             void queryClient.invalidateQueries({ queryKey: ['notification-history'] });
         },
@@ -113,9 +139,10 @@ export default function NotificationsManager() {
             title: 'Status',
             key: 'status',
             render: (record: NotificationHistory) => {
-                if (record.status === 'sent') return <Tag color="success" icon={<CheckCircleOutlined />}>SENT ({record.delivered_count})</Tag>;
+                if (record.status === 'sent') return <Tag color="success" icon={<CheckCircleOutlined />}>SENT ({record.delivered_count}/{record.recipient_count})</Tag>;
                 if (record.status === 'failed') return <Tag color="error" icon={<CloseCircleOutlined />}>FAILED</Tag>;
-                return <Tag color="processing" icon={<SyncOutlined spin />}>SENDING</Tag>;
+                if (record.status === 'partial') return <Tag color="warning">PARTIAL ({record.delivered_count}/{record.recipient_count})</Tag>;
+                return <Tag color="processing" icon={<SyncOutlined spin />}>IN-APP READY</Tag>;
             }
         },
         {
@@ -134,7 +161,7 @@ export default function NotificationsManager() {
 
             <Alert
                 title="Engagement Hub"
-                description="Compose and broadcast push notifications to your users via OneSignal. Ensure API keys are set in App Settings before broadcasting."
+                description="Supabase bildirim kutusuna yayın yapar; iOS cihazlarına doğrudan Apple APNs üzerinden teslim eder. OneSignal kullanılmaz."
                 type="info"
                 showIcon
                 style={{ marginBottom: '24px' }}
@@ -159,11 +186,28 @@ export default function NotificationsManager() {
                             </Form.Item>
 
                             <Form.Item name="segment" label="Target Segment">
-                                <Select options={[
-                                    { label: 'All Users', value: 'all' },
-                                    { label: 'Premium Only', value: 'premium' },
-                                    { label: 'Idle Users (7d+)', value: 'inactive' }
-                                ]} />
+                                <Select
+                                    loading={areTargetsLoading}
+                                    options={[
+                                        {
+                                            label: 'Segments',
+                                            options: [
+                                                { label: 'All Users', value: 'all' },
+                                                { label: 'Premium Only', value: 'premium' },
+                                                { label: 'Free Users', value: 'free' }
+                                            ]
+                                        },
+                                        {
+                                            label: 'Individual Users',
+                                            options: targetUsers.map((user) => ({
+                                                label: user.display_name
+                                                    ? `${user.email} (${user.display_name})`
+                                                    : user.email,
+                                                value: `user_${user.id}`
+                                            }))
+                                        }
+                                    ]}
+                                />
                             </Form.Item>
 
                             <Divider style={{ fontSize: '12px' }}>Rich Media (Optional)</Divider>

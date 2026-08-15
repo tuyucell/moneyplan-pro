@@ -39,6 +39,12 @@ class BudgetNotifier extends StateNotifier<List<BudgetLimit>> {
     _loadBudgets();
   }
 
+  Future<void> clearAll() async {
+    await _initCompleter.future;
+    await _box!.clear();
+    state = [];
+  }
+
   BudgetLimit? getBudget(String categoryId, int year, int month) {
     try {
       return state.firstWhere(
@@ -50,16 +56,22 @@ class BudgetNotifier extends StateNotifier<List<BudgetLimit>> {
   }
 }
 
-final budgetProvider = StateNotifierProvider<BudgetNotifier, List<BudgetLimit>>((ref) {
+final budgetProvider =
+    StateNotifierProvider<BudgetNotifier, List<BudgetLimit>>((ref) {
   return BudgetNotifier();
 });
 
 // Helper provider to get budget for a specific category and month
-final categoryBudgetProvider = Provider.family<BudgetLimit?, ({String categoryId, int year, int month})>((ref, arg) {
+final categoryBudgetProvider =
+    Provider.family<BudgetLimit?, ({String categoryId, int year, int month})>(
+        (ref, arg) {
   final budgets = ref.watch(budgetProvider);
   try {
     return budgets.firstWhere(
-      (b) => b.categoryId == arg.categoryId && b.year == arg.year && b.month == arg.month,
+      (b) =>
+          b.categoryId == arg.categoryId &&
+          b.year == arg.year &&
+          b.month == arg.month,
     );
   } catch (_) {
     return null;

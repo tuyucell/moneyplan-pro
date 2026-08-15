@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:moneyplan_pro/core/constants/colors.dart';
+import 'package:moneyplan_pro/core/providers/navigation_provider.dart';
 import 'package:moneyplan_pro/features/wallet/models/transaction_category.dart';
 import 'package:moneyplan_pro/features/wallet/models/wallet_transaction.dart';
 import 'package:moneyplan_pro/features/wallet/models/bank_account.dart';
@@ -12,6 +14,7 @@ import 'package:moneyplan_pro/core/services/currency_service.dart';
 import 'package:moneyplan_pro/features/wallet/providers/email_integration_provider.dart';
 import 'package:moneyplan_pro/features/wallet/pages/email_sync_page.dart';
 import 'package:moneyplan_pro/services/analytics/analytics_service.dart';
+import 'package:moneyplan_pro/core/services/remote_config_service.dart';
 
 class AddTransactionPage extends ConsumerStatefulWidget {
   final WalletTransaction? transaction;
@@ -83,9 +86,25 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
     super.dispose();
   }
 
+  void _closePage() {
+    final navigator = Navigator.of(context);
+    if (navigator.canPop()) {
+      navigator.pop();
+      return;
+    }
+
+    // Widget/deep-link routes can open this page as the root route. Popping
+    // that final GoRouter page leaves an empty configuration and crashes.
+    ref.read(bottomNavProvider.notifier).state = 1;
+    context.go('/home');
+  }
+
   @override
   Widget build(BuildContext context) {
     final currencyService = ref.watch(currencyServiceProvider);
+    final gmailImportEnabled = ref
+        .watch(featureEnabledProvider('gmail_import'))
+        .maybeWhen(data: (enabled) => enabled, orElse: () => false);
     final mainCategories = TransactionCategory.getMainCategories(_selectedType);
     final subCategories = _selectedMainCategory != null
         ? TransactionCategory.getSubCategories(_selectedMainCategory!.id)
@@ -101,7 +120,7 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
             Text(widget.transaction != null ? 'İŞLEMİ DÜZENLE' : 'YENİ İŞLEM'),
         leading: IconButton(
           icon: const Icon(Icons.close),
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: _closePage,
         ),
       ),
       body: SingleChildScrollView(
@@ -283,9 +302,7 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
                               style: TextStyle(fontSize: 12),
                             ),
                             TextButton(
-                              onPressed: () {
-                                Navigator.pop(context); // Close add page
-                              },
+                              onPressed: _closePage,
                               style: TextButton.styleFrom(
                                 padding: EdgeInsets.zero,
                                 minimumSize: const Size(0, 30),
@@ -366,12 +383,12 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
                         _selectedType == TransactionType.expense)
                       Consumer(
                         builder: (context, ref, _) {
-                          final hasEmailIntegration =
+                          final hasEmailIntegration = gmailImportEnabled &&
                               ref.watch(emailIntegrationProvider.select(
-                            (state) =>
-                                state.isGmailConnected ||
-                                state.isOutlookConnected,
-                          ));
+                                (state) =>
+                                    state.isGmailConnected ||
+                                    state.isOutlookConnected,
+                              ));
 
                           return Column(
                             children: [
@@ -423,7 +440,8 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
                                                                     .warning,
                                                       ),
                                                     ),
-                                                    if (!hasEmailIntegration) ...[
+                                                    if (!hasEmailIntegration &&
+                                                        gmailImportEnabled) ...[
                                                       const SizedBox(
                                                           height: 16),
                                                       SizedBox(
@@ -931,7 +949,7 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
     }
 
     if (mounted) {
-      Navigator.of(context).pop();
+      _closePage();
     }
   }
 }

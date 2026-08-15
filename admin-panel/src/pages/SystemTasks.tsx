@@ -29,6 +29,7 @@ import { useState } from 'react';
 const { Title, Text } = Typography;
 
 import { API_BASE_URL } from '../config';
+import { adminFetch } from '../lib/adminFetch';
 
 const BACKEND_URL = API_BASE_URL;
 
@@ -57,7 +58,7 @@ export default function SystemTasks() {
     const { data: jobs, isLoading } = useQuery<Job[]>({
         queryKey: ['system-jobs'],
         queryFn: async () => {
-            const resp = await fetch(`${BACKEND_URL}/api/v1/system/jobs`);
+            const resp = await adminFetch(`${BACKEND_URL}/api/v1/system/jobs`);
             if (!resp.ok) throw new Error('Backend connection failed');
             return resp.json();
         },
@@ -69,7 +70,7 @@ export default function SystemTasks() {
     // 2. Run Job Mutation
     const runMutation = useMutation({
         mutationFn: async (job_id: string) => {
-            const resp = await fetch(`${BACKEND_URL}/api/v1/system/jobs/${job_id}/run`, {
+            const resp = await adminFetch(`${BACKEND_URL}/api/v1/system/jobs/${job_id}/run`, {
                 method: 'POST'
             });
             if (!resp.ok) {
@@ -90,7 +91,7 @@ export default function SystemTasks() {
     // 3. Update Job Mutation
     const updateMutation = useMutation({
         mutationFn: async ({ id, updates }: { id: string, updates: any }) => {
-            const resp = await fetch(`${BACKEND_URL}/api/v1/system/jobs/${id}`, {
+            const resp = await adminFetch(`${BACKEND_URL}/api/v1/system/jobs/${id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(updates)

@@ -7,11 +7,12 @@ import 'dart:async';
 import 'package:moneyplan_pro/services/api/moneyplan_pro_api.dart';
 import 'package:moneyplan_pro/core/i18n/app_strings.dart';
 import 'package:moneyplan_pro/core/providers/language_provider.dart';
+import 'package:moneyplan_pro/core/services/remote_config_service.dart';
+import 'package:url_launcher/url_launcher.dart' as url_launcher;
 
 import 'package:moneyplan_pro/features/shared/widgets/economic_calendar_widget.dart';
 import 'package:moneyplan_pro/features/search/presentation/widgets/macro_indicators_widget.dart';
 import 'package:moneyplan_pro/features/search/presentation/widgets/search_overlay.dart';
-import 'package:moneyplan_pro/features/shared/services/widget_service.dart';
 import 'package:moneyplan_pro/core/router/app_router.dart';
 import 'package:moneyplan_pro/features/shared/widgets/notification_badge_icon.dart';
 
@@ -35,18 +36,29 @@ class _MarketsPageState extends ConsumerState<MarketsPage> {
 
   Future<void> _loadAllData() async {
     try {
-      final news = await MoneyPlanProApi.getNews(limit: 10);
+      final remoteConfig = ref.read(remoteConfigServiceProvider);
+      final newsEnabled = await remoteConfig.isFeatureEnabled('market_news');
+      final calendarEnabled =
+          await remoteConfig.isFeatureEnabled('financial_calendar');
+      final fullMarketsEnabled =
+          await remoteConfig.isFeatureEnabled('live_market_data');
 
-      // Invalidate providers to force refresh of Macro and Calendar widgets
-      ref.invalidate(macroDataProvider);
-      ref.invalidate(calendarDataProvider);
-
-      if (mounted) {
-        setState(() {
-          _newsList = news;
-          _isNewsLoading = false;
-        });
+      if (!newsEnabled && !calendarEnabled && !fullMarketsEnabled) {
+        if (mounted) setState(() => _isNewsLoading = false);
+        return;
       }
+
+      final news =
+          newsEnabled ? await MoneyPlanProApi.getNews(limit: 10) : <dynamic>[];
+
+      if (!mounted) return;
+      if (calendarEnabled) ref.invalidate(calendarDataProvider);
+      if (fullMarketsEnabled) ref.invalidate(macroDataProvider);
+
+      setState(() {
+        _newsList = news;
+        _isNewsLoading = false;
+      });
     } catch (e) {
       debugPrint('News Fetch Error: $e');
       if (mounted) {
@@ -66,7 +78,7 @@ class _MarketsPageState extends ConsumerState<MarketsPage> {
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.surface(context),
         title: Text(
-          lc == 'tr' ? 'Servis Bağlantı Durumu' : 'Service Connection Status',
+          lc == 'tr' ? 'Veri Kaynağı Bilgisi' : 'Data Source Info',
           style: TextStyle(color: AppColors.textPrimary(context), fontSize: 18),
         ),
         content: Column(
@@ -93,23 +105,55 @@ class _MarketsPageState extends ConsumerState<MarketsPage> {
                 }
 
                 final crypto = health['crypto'] as Map<String, dynamic>? ?? {};
+                final attribution =
+                    health['attribution'] as Map<String, dynamic>? ?? {};
 
                 return Column(
                   mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildHealthRow('Binance API', crypto['binance']),
                     _buildHealthRow('CoinGecko API', crypto['coingecko']),
-                    const SizedBox(height: 16),
-                    Text(
-                      lc == 'tr'
-                          ? 'Not: Binance kısıtlı olduğunda sistem otomatik olarak CoinGecko yedek hattına geçer.'
-                          : 'Note: When Binance is restricted, the system automatically falls back to CoinGecko.',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textSecondary(context),
-                        fontStyle: FontStyle.italic,
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AppColors.info.withValues(alpha: 0.07),
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                      textAlign: TextAlign.center,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            lc == 'tr'
+                                ? '• Sağlayıcı: ${attribution['provider'] ?? 'CoinGecko'}'
+                                : '• Provider: ${attribution['provider'] ?? 'CoinGecko'}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textSecondary(context),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            lc == 'tr'
+                                ? '• Önbellek: ${attribution['cache_minutes'] ?? 15} dakika'
+                                : '• Cache: ${attribution['cache_minutes'] ?? 15} minutes',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textSecondary(context),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            lc == 'tr'
+                                ? '• Geniş piyasa kategori ekranları: lisans durumuna göre kapalı'
+                                : '• Extended market category screens: disabled pending license confirmation',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textSecondary(context),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 );
@@ -118,6 +162,13 @@ class _MarketsPageState extends ConsumerState<MarketsPage> {
           ],
         ),
         actions: [
+          TextButton(
+            onPressed: () => url_launcher.launchUrl(
+              Uri.parse('https://www.coingecko.com/en/api'),
+              mode: url_launcher.LaunchMode.externalApplication,
+            ),
+            child: const Text('CoinGecko API'),
+          ),
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: Text(lc == 'tr' ? 'Kapat' : 'Close'),
@@ -169,6 +220,89 @@ class _MarketsPageState extends ConsumerState<MarketsPage> {
   Widget build(BuildContext context) {
     final language = ref.watch(languageProvider);
     final lc = language.code;
+    final liveMarketsEnabled = ref
+        .watch(featureEnabledProvider('live_market_data'))
+        .maybeWhen(data: (enabled) => enabled, orElse: () => false);
+    final cryptoMarketsEnabled = ref
+        .watch(featureEnabledProvider('crypto_market_data'))
+        .maybeWhen(data: (enabled) => enabled, orElse: () => false);
+    final tickerEnabled = ref
+        .watch(featureEnabledProvider('market_ticker'))
+        .maybeWhen(data: (enabled) => enabled, orElse: () => false);
+    final newsEnabled = ref
+        .watch(featureEnabledProvider('market_news'))
+        .maybeWhen(data: (enabled) => enabled, orElse: () => false);
+    final calendarEnabled = ref
+        .watch(featureEnabledProvider('financial_calendar'))
+        .maybeWhen(data: (enabled) => enabled, orElse: () => false);
+    final categoryCards = <Widget>[
+      if (cryptoMarketsEnabled)
+        _CategoryCard(
+          title: AppStrings.tr(AppStrings.catCrypto, lc),
+          subtitle: AppStrings.tr(AppStrings.catCryptoDesc, lc),
+          icon: Icons.currency_bitcoin,
+          color: AppColors.crypto,
+          onTap: () => context.push(
+              '/category/crypto?name=${AppStrings.tr(AppStrings.catCrypto, lc)}'),
+        ),
+      if (liveMarketsEnabled) ...[
+        _CategoryCard(
+          title: AppStrings.tr(AppStrings.catStock, lc),
+          subtitle: AppStrings.tr(AppStrings.catStockDesc, lc),
+          icon: Icons.candlestick_chart,
+          color: AppColors.stock,
+          onTap: () => context.push(
+              '/category/stock?name=${AppStrings.tr(AppStrings.catStock, lc)}'),
+        ),
+        _CategoryCard(
+          title: AppStrings.tr(AppStrings.catForex, lc),
+          subtitle: AppStrings.tr(AppStrings.catForexDesc, lc),
+          icon: Icons.currency_exchange,
+          color: AppColors.forex,
+          onTap: () => context.push(
+              '/category/forex?name=${AppStrings.tr(AppStrings.catForex, lc)}'),
+        ),
+        _CategoryCard(
+          title: AppStrings.tr(AppStrings.catCommodity, lc),
+          subtitle: AppStrings.tr(AppStrings.catCommodityDesc, lc),
+          icon: Icons.diamond_outlined,
+          color: AppColors.commodity,
+          onTap: () => context.push(
+              '/category/commodity?name=${AppStrings.tr(AppStrings.catCommodity, lc)}'),
+        ),
+        _CategoryCard(
+          title: AppStrings.tr(AppStrings.catFunds, lc),
+          subtitle: AppStrings.tr(AppStrings.catFundsDesc, lc),
+          icon: Icons.pie_chart_outline,
+          color: AppColors.etf,
+          onTap: () => context.push('/funds'),
+        ),
+        _CategoryCard(
+          title: AppStrings.tr(AppStrings.catBond, lc),
+          subtitle: AppStrings.tr(AppStrings.catBondDesc, lc),
+          icon: Icons.receipt_long,
+          color: AppColors.bond,
+          onTap: () => context.push(
+              '/category/bond?name=${AppStrings.tr(AppStrings.catBond, lc)}'),
+        ),
+        _CategoryCard(
+          title: AppStrings.tr(AppStrings.catPension, lc),
+          subtitle: AppStrings.tr(AppStrings.catPensionDesc, lc),
+          icon: Icons.savings_outlined,
+          color: AppColors.success,
+          onTap: () => context.push(
+              '/category/pension_fund?name=${AppStrings.tr(AppStrings.catPension, lc)}'),
+        ),
+        _CategoryCard(
+          title: AppStrings.tr(AppStrings.catInsurance, lc),
+          subtitle: AppStrings.tr(AppStrings.catInsuranceDesc, lc),
+          icon: Icons.security,
+          color: AppColors.info,
+          onTap: () => context.push(
+              '/category/life_insurance?name=${AppStrings.tr(AppStrings.catInsurance, lc)}'),
+        ),
+      ],
+    ];
 
     return Scaffold(
       backgroundColor: AppColors.background(context),
@@ -205,15 +339,17 @@ class _MarketsPageState extends ConsumerState<MarketsPage> {
                 ),
               ),
             ),
-            SliverToBoxAdapter(
-              child: _MarketTickerWidget(lc: lc),
-            ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                child: SearchOverlay(languageCode: lc),
+            if (tickerEnabled && cryptoMarketsEnabled)
+              SliverToBoxAdapter(
+                child: _MarketTickerWidget(lc: lc),
               ),
-            ),
+            if (liveMarketsEnabled)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                  child: SearchOverlay(languageCode: lc),
+                ),
+              ),
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
@@ -233,7 +369,7 @@ class _MarketsPageState extends ConsumerState<MarketsPage> {
                       icon: const Icon(Icons.info_outline, size: 20),
                       color: AppColors.primary,
                       onPressed: _showServiceHealth,
-                      tooltip: lc == 'tr' ? 'Servis Durumu' : 'Service Status',
+                      tooltip: lc == 'tr' ? 'Veri Kaynağı' : 'Data Source',
                     ),
                   ],
                 ),
@@ -248,89 +384,101 @@ class _MarketsPageState extends ConsumerState<MarketsPage> {
                   crossAxisSpacing: context.isTablet ? 16 : 12,
                   mainAxisSpacing: context.isTablet ? 16 : 12,
                 ),
-                delegate: SliverChildListDelegate([
-                  _CategoryCard(
-                    title: AppStrings.tr(AppStrings.catCrypto, lc),
-                    subtitle: AppStrings.tr(AppStrings.catCryptoDesc, lc),
-                    icon: Icons.currency_bitcoin,
-                    color: AppColors.crypto,
-                    onTap: () => context.push(
-                        '/category/crypto?name=${AppStrings.tr(AppStrings.catCrypto, lc)}'),
-                  ),
-                  _CategoryCard(
-                    title: AppStrings.tr(AppStrings.catStock, lc),
-                    subtitle: AppStrings.tr(AppStrings.catStockDesc, lc),
-                    icon: Icons.candlestick_chart,
-                    color: AppColors.stock,
-                    onTap: () => context.push(
-                        '/category/stock?name=${AppStrings.tr(AppStrings.catStock, lc)}'),
-                  ),
-                  _CategoryCard(
-                    title: AppStrings.tr(AppStrings.catForex, lc),
-                    subtitle: AppStrings.tr(AppStrings.catForexDesc, lc),
-                    icon: Icons.currency_exchange,
-                    color: AppColors.forex,
-                    onTap: () => context.push(
-                        '/category/forex?name=${AppStrings.tr(AppStrings.catForex, lc)}'),
-                  ),
-                  _CategoryCard(
-                    title: AppStrings.tr(AppStrings.catCommodity, lc),
-                    subtitle: AppStrings.tr(AppStrings.catCommodityDesc, lc),
-                    icon: Icons.diamond_outlined,
-                    color: AppColors.commodity,
-                    onTap: () => context.push(
-                        '/category/commodity?name=${AppStrings.tr(AppStrings.catCommodity, lc)}'),
-                  ),
-                  _CategoryCard(
-                    title: AppStrings.tr(AppStrings.catFunds, lc),
-                    subtitle: AppStrings.tr(AppStrings.catFundsDesc, lc),
-                    icon: Icons.pie_chart_outline,
-                    color: AppColors.etf,
-                    onTap: () => context.push('/funds'),
-                  ),
-                  _CategoryCard(
-                    title: AppStrings.tr(AppStrings.catBond, lc),
-                    subtitle: AppStrings.tr(AppStrings.catBondDesc, lc),
-                    icon: Icons.receipt_long,
-                    color: AppColors.bond,
-                    onTap: () => context.push(
-                        '/category/bond?name=${AppStrings.tr(AppStrings.catBond, lc)}'),
-                  ),
-                  _CategoryCard(
-                    title: AppStrings.tr(AppStrings.catPension, lc),
-                    subtitle: AppStrings.tr(AppStrings.catPensionDesc, lc),
-                    icon: Icons.savings_outlined,
-                    color: AppColors.success,
-                    onTap: () => context.push(
-                        '/category/pension_fund?name=${AppStrings.tr(AppStrings.catPension, lc)}'),
-                  ),
-                  _CategoryCard(
-                    title: AppStrings.tr(AppStrings.catInsurance, lc),
-                    subtitle: AppStrings.tr(AppStrings.catInsuranceDesc, lc),
-                    icon: Icons.security,
-                    color: AppColors.info,
-                    onTap: () => context.push(
-                        '/category/life_insurance?name=${AppStrings.tr(AppStrings.catInsurance, lc)}'),
-                  ),
-                ]),
+                delegate: SliverChildListDelegate(categoryCards),
               ),
             ),
-            const SliverToBoxAdapter(
-              child: EconomicCalendarWidget(),
-            ),
-            const SliverToBoxAdapter(
-              child: MacroIndicatorsWidget(),
-            ),
+            if (calendarEnabled)
+              const SliverToBoxAdapter(
+                child: EconomicCalendarWidget(),
+              ),
+            if (liveMarketsEnabled)
+              const SliverToBoxAdapter(
+                child: MacroIndicatorsWidget(),
+              ),
+            if (newsEnabled)
+              SliverToBoxAdapter(
+                child: _LatestNewsWidget(
+                  news: _newsList,
+                  isLoading: _isNewsLoading,
+                  lc: lc,
+                ),
+              ),
             SliverToBoxAdapter(
-              child: _LatestNewsWidget(
-                news: _newsList,
-                isLoading: _isNewsLoading,
-                lc: lc,
+              child: _MarketInformationCard(
+                languageCode: lc,
+                showCoinGeckoAttribution: cryptoMarketsEnabled,
               ),
             ),
             const SliverPadding(padding: EdgeInsets.only(bottom: 24)),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _MarketInformationCard extends StatelessWidget {
+  final String languageCode;
+  final bool showCoinGeckoAttribution;
+
+  const _MarketInformationCard({
+    required this.languageCode,
+    required this.showCoinGeckoAttribution,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 28, 16, 0),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.info.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.info.withValues(alpha: 0.22)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.school_outlined, color: AppColors.info, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  showCoinGeckoAttribution
+                      ? (languageCode == 'tr'
+                          ? 'Kripto verileri CoinGecko tarafından sağlanır ve yaklaşık 15 dakikada yenilenir. Yatırım tavsiyesi değildir.'
+                          : 'Crypto data is provided by CoinGecko and refreshes about every 15 minutes. Not investment advice.')
+                      : (languageCode == 'tr'
+                          ? 'Finansal eğitim ve takip amaçlıdır; yatırım tavsiyesi değildir. Veriler gecikmeli olabilir.'
+                          : 'For financial education and tracking only; not investment advice. Market data may be delayed.'),
+                  style: TextStyle(
+                    color: AppColors.textSecondary(context),
+                    fontSize: 12,
+                    height: 1.35,
+                  ),
+                ),
+                if (showCoinGeckoAttribution)
+                  TextButton(
+                    onPressed: () => url_launcher.launchUrl(
+                      Uri.parse('https://www.coingecko.com/en/api'),
+                      mode: url_launcher.LaunchMode.externalApplication,
+                    ),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.only(top: 4),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: const Text(
+                      'Powered by CoinGecko',
+                      style: TextStyle(fontSize: 10),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -354,7 +502,7 @@ class _MarketTickerWidgetState extends State<_MarketTickerWidget> {
   void initState() {
     super.initState();
     _scrollController = ScrollController();
-    _items = _getDemoItems();
+    _items = _getLoadingItems();
     _loadData();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _startAutoScroll();
@@ -366,116 +514,47 @@ class _MarketTickerWidgetState extends State<_MarketTickerWidget> {
       final data = await MoneyPlanProApi.getMarketSummary();
       if (data.isEmpty) return;
 
-      final newItems = <_TickerItem>[];
-
-      if (data['bist100'] != null) {
-        final price = (data['bist100']['price'] as num).toDouble();
-        final change = (data['bist100']['change_percent'] as num).toDouble();
-        newItems.add(_TickerItem(
-            'BIST 100',
-            price.toStringAsFixed(2),
-            '${change >= 0 ? '+' : ''}${change.toStringAsFixed(2)}%',
-            change >= 0));
-      }
-
-      if (data['dolar'] != null) {
-        final price = (data['dolar']['price'] as num).toDouble();
-        final change = (data['dolar']['change_percent'] as num).toDouble();
-        newItems.add(_TickerItem(
-            'USD/TRY',
-            '₺${price.toStringAsFixed(2)}',
-            '${change >= 0 ? '+' : ''}${change.toStringAsFixed(2)}%',
-            change >= 0));
-      }
-
-      if (data['euro'] != null) {
-        final price = (data['euro']['price'] as num).toDouble();
-        final change = (data['euro']['change_percent'] as num).toDouble();
-        newItems.add(_TickerItem(
-            'EUR/TRY',
-            '₺${price.toStringAsFixed(2)}',
-            '${change >= 0 ? '+' : ''}${change.toStringAsFixed(2)}%',
-            change >= 0));
-      }
-
-      if (data['gram_altin'] != null) {
-        final price = (data['gram_altin']['price'] as num).toDouble();
-        final change = (data['gram_altin']['change_percent'] as num).toDouble();
-        newItems.add(_TickerItem(
-            AppStrings.tr(AppStrings.goldGram, widget.lc),
-            '₺${price.toStringAsFixed(2)}',
-            '${change >= 0 ? '+' : ''}${change.toStringAsFixed(2)}%',
-            change >= 0));
-      }
-
-      if (data['bitcoin'] != null) {
-        final price = (data['bitcoin']['price'] as num).toDouble();
-        final change = (data['bitcoin']['change_percent'] as num).toDouble();
-        newItems.add(_TickerItem(
-            'BTC/USD',
-            '\$${price.toStringAsFixed(0)}',
-            '${change >= 0 ? '+' : ''}${change.toStringAsFixed(2)}%',
-            change >= 0));
-      }
+      final rawItems = data['items'] as List<dynamic>? ?? const [];
+      final newItems = rawItems
+          .whereType<Map<String, dynamic>>()
+          .map((item) {
+            final price = (item['price'] as num?)?.toDouble() ?? 0;
+            final change = (item['change_percent'] as num?)?.toDouble() ?? 0;
+            final symbol = item['symbol']?.toString() ?? '';
+            return _TickerItem(
+              symbol,
+              _formatUsdPrice(price),
+              '${change >= 0 ? '+' : ''}${change.toStringAsFixed(2)}%',
+              change >= 0,
+            );
+          })
+          .where((item) => item.symbol.isNotEmpty)
+          .toList();
 
       if (mounted && newItems.isNotEmpty) {
         setState(() {
           _items = newItems;
         });
-
-        // Update Home Screen Widget
-        var pBist = '9.100,50', cBist = '+1.2%';
-        var pUsd = '32.50', cUsd = '+0.1%';
-        var pGold = '2.450', cGold = '+0.5%';
-
-        /* Note: Since the free API might not return BIST data, 
-           we keep default/demo values for missing items or implement additional logic.
-           For now we map what we have:
-        */
-
-        if (data['bist100'] != null) {
-          pBist = (data['bist100']['price'] as num).toStringAsFixed(2);
-          final ch = (data['bist100']['change_percent'] as num).toDouble();
-          cBist = '${ch >= 0 ? '+' : ''}${ch.toStringAsFixed(2)}%';
-        }
-
-        if (data['dolar'] != null) {
-          pUsd = (data['dolar']['price'] as num).toStringAsFixed(2);
-          final ch = (data['dolar']['change_percent'] as num).toDouble();
-          cUsd = '${ch >= 0 ? '+' : ''}${ch.toStringAsFixed(2)}%';
-        }
-
-        if (data['gram_altin'] != null) {
-          pGold = (data['gram_altin']['price'] as num).toStringAsFixed(0);
-          final ch = (data['gram_altin']['change_percent'] as num).toDouble();
-          cGold = '${ch >= 0 ? '+' : ''}${ch.toStringAsFixed(2)}%';
-        }
-
-        // BIST data is not in the summary endpoint usually, using hardcoded or waiting for dedicated API
-        // Updating widget with latest Available data
-
-        await WidgetService.updateMarketData(
-          priceBist: pBist,
-          changeBist: cBist,
-          priceUsd: pUsd,
-          changeUsd: cUsd,
-          priceGold: pGold,
-          changeGold: cGold,
-        );
       }
     } catch (e) {
       debugPrint('Ticker Load Error: $e');
     }
   }
 
-  List<_TickerItem> _getDemoItems() {
+  List<_TickerItem> _getLoadingItems() {
     return [
-      _TickerItem('BIST 100', '...', '...', true),
-      _TickerItem('USD/TRY', '...', '...', true),
-      _TickerItem('EUR/TRY', '...', '...', true),
-      _TickerItem('ALTIN', '...', '...', true),
       _TickerItem('BTC/USD', '...', '...', true),
+      _TickerItem('ETH/USD', '...', '...', true),
+      _TickerItem('SOL/USD', '...', '...', true),
+      _TickerItem('BNB/USD', '...', '...', true),
+      _TickerItem('XRP/USD', '...', '...', true),
     ];
+  }
+
+  String _formatUsdPrice(double price) {
+    if (price >= 1000) return '\$${price.toStringAsFixed(0)}';
+    if (price >= 1) return '\$${price.toStringAsFixed(2)}';
+    return '\$${price.toStringAsFixed(4)}';
   }
 
   void _startAutoScroll() {

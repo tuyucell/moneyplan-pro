@@ -1,5 +1,27 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
     <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
+
+    <!--
+      File and statement imports use Android's system document picker. The
+      open_filex dependency declares broad storage/media permissions that are
+      unnecessary for this user-selected, one-time access, so remove them from
+      the merged release manifest.
+    -->
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        tools:node="remove"/>
+    <uses-permission
+        android:name="android.permission.READ_MEDIA_IMAGES"
+        tools:node="remove"/>
+    <uses-permission
+        android:name="android.permission.READ_MEDIA_VIDEO"
+        tools:node="remove"/>
+    <uses-permission
+        android:name="android.permission.READ_MEDIA_AUDIO"
+        tools:node="remove"/>
     <application
         android:label="MoneyPlan Pro"
         android:name="${applicationName}"
@@ -32,7 +54,7 @@
             android:name="flutterEmbedding"
             android:value="2" />
 
-        <receiver android:name="com.turgayyucel.investguide.HomeWidgetProvider" android:exported="true">
+        <receiver android:name="pro.moneyplan.app.HomeWidgetProvider" android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>

@@ -77,11 +77,29 @@ class _PensionFundPageState extends ConsumerState<PensionFundPage> {
           : _errorKey != null
               ? Center(child: Text(AppStrings.tr(_errorKey!, lc)))
               : _funds.isEmpty
-                  ? Center(child: Text(AppStrings.tr(AppStrings.noDataFound, lc)))
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.cloud_off_outlined, size: 44),
+                            const SizedBox(height: 12),
+                            Text(
+                              lc == 'tr'
+                                  ? 'Lisanslı canlı BEFAS verisi henüz bağlı değil. Yanıltıcı örnek getiri göstermiyoruz.'
+                                  : 'A licensed live BEFAS feed is not connected yet. We do not display simulated returns.',
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
                   : ListView.separated(
                       padding: const EdgeInsets.all(16),
                       itemCount: _funds.length,
-                      separatorBuilder: (context, index) => const SizedBox(height: 12),
+                      separatorBuilder: (context, index) =>
+                          const SizedBox(height: 12),
                       itemBuilder: (context, index) {
                         final fund = _funds[index];
                         return _BesFundCard(fund: fund);
@@ -100,7 +118,7 @@ class _BesFundCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final language = ref.watch(languageProvider);
     final lc = language.code;
-    
+
     final dailyReturn = (fund['daily_return'] as num).toDouble();
     final monthlyReturn = (fund['monthly_return'] as num).toDouble();
 
@@ -119,7 +137,8 @@ class _BesFundCard extends ConsumerWidget {
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: AppColors.primary.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(6),

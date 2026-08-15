@@ -128,7 +128,6 @@ class EnhancedMarketItemCard extends ConsumerWidget {
                       isPositive: isPositive,
                       width: 60,
                       height: 30,
-                      // We utilize the boolean isPositive to generate a mock trend that matches the color
                     ),
                   ),
                 ],

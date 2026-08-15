@@ -41,14 +41,7 @@ class _UserDetailsPageState extends ConsumerState<UserDetailsPage> {
       final authState = ref.read(authNotifierProvider);
       if (authState is AuthAuthenticated) {
         final user = authState.user;
-        final updatedUser = UserModel(
-          id: user.id,
-          email: user.email,
-          displayName: user.displayName,
-          avatarUrl: user.avatarUrl,
-          createdAt: user.createdAt,
-          lastLoginAt: user.lastLoginAt,
-          authProvider: user.authProvider,
+        final updatedUser = user.copyWith(
           birthYear: int.tryParse(_birthYearController.text),
           gender: _selectedGender,
           occupation: _occupationController.text,

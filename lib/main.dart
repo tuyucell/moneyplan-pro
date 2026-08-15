@@ -41,12 +41,12 @@ void main() async {
 
     // Set App Group ID (Try-catch to prevent splash crash)
     try {
-      await HomeWidget.setAppGroupId('group.com.turgayyucel.investguide');
+      await HomeWidget.setAppGroupId('group.pro.moneyplan.app');
     } catch (e) {
       debugPrint('APP_START_ERROR: HomeWidget GroupID failed: $e');
     }
 
-    // Initialize OneSignal
+    // Configure native push callbacks without showing the iOS permission prompt.
     unawaited(PushNotificationService().initialize());
 
     // Initialize Remote Config Service
@@ -103,6 +103,9 @@ class MyApp extends ConsumerStatefulWidget {
 }
 
 class _MyAppState extends ConsumerState<MyApp> {
+  Timer? _priceAlertStartTimer;
+  StreamSubscription<Uri?>? _widgetClickSubscription;
+
   @override
   void initState() {
     super.initState();
@@ -111,9 +114,12 @@ class _MyAppState extends ConsumerState<MyApp> {
   }
 
   void _startPriceAlertMonitoring() {
-    Future.delayed(const Duration(seconds: 2), () {
-      if (mounted) {
-        ref.read(priceAlertMonitorProvider).start();
+    _priceAlertStartTimer = Timer(const Duration(seconds: 2), () async {
+      final liveMarketsEnabled = await ref
+          .read(remoteConfigServiceProvider)
+          .isFeatureEnabled('live_market_data');
+      if (mounted && liveMarketsEnabled) {
+        await ref.read(priceAlertMonitorProvider).start();
       }
     });
   }
@@ -122,13 +128,20 @@ class _MyAppState extends ConsumerState<MyApp> {
     HomeWidget.initiallyLaunchedFromHomeWidget().then((uri) {
       if (uri != null) _handleWidgetLaunch(uri);
     });
-    HomeWidget.widgetClicked.listen((uri) {
+    _widgetClickSubscription = HomeWidget.widgetClicked.listen((uri) {
       if (uri != null) _handleWidgetLaunch(uri);
     });
   }
 
   Future<void> _handleWidgetLaunch(Uri uri) async {
     debugPrint('WIDGET_LOG: Received URI: $uri');
+  }
+
+  @override
+  void dispose() {
+    _priceAlertStartTimer?.cancel();
+    _widgetClickSubscription?.cancel();
+    super.dispose();
   }
 
   @override

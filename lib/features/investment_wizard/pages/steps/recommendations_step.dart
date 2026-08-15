@@ -14,6 +14,7 @@ import 'package:moneyplan_pro/features/search/presentation/pages/asset_detail_pa
 import 'package:moneyplan_pro/features/shared/services/export_service.dart';
 import 'package:moneyplan_pro/core/i18n/app_strings.dart';
 import 'package:moneyplan_pro/core/providers/language_provider.dart';
+import 'package:moneyplan_pro/core/services/ai_privacy_consent_service.dart';
 
 class RecommendationsStep extends ConsumerStatefulWidget {
   final VoidCallback onReset;
@@ -42,6 +43,8 @@ class _RecommendationsStepState extends ConsumerState<RecommendationsStep> {
   Future<void> _checkAndLoadAI() async {
     final plan = ref.read(investmentPlanProvider);
     if (plan.aiRecommendation == null) {
+      if (!await AiPrivacyConsentService.ensureConsent(context)) return;
+      if (!mounted) return;
       await ref
           .read(investmentPlanProvider.notifier)
           .generateAIRecommendations();

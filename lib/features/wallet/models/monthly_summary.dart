@@ -202,18 +202,16 @@ class MonthlySummary {
       final isCashAccount = transaction.bankAccountId == null ||
           cashAccountIds.contains(transaction.bankAccountId);
 
-      // Meta: Bakiyeden tamamen hariç tutulanlar (Hatırlatıcılar vb)
-      if (transaction.excludeFromBalance) {
-        if (!transaction.isPaid) {
-          pendingPayments += normalizedAmount;
-          pendingPaymentTransactions.add(transaction);
-          debugPrint(
-              '   📝 PENDING (Excluded): $normalizedAmount on ${transaction.bankAccountId} (${transaction.note})');
-        } else {
-          debugPrint(
-              '   ✅ PAID (Excluded): $normalizedAmount on ${transaction.bankAccountId} (${transaction.note}) - Not added to pending');
-        }
-        continue;
+      // Some recurring/card entries are excluded from the cash balance, but
+      // they must remain visible in expense analytics and yearly reports.
+      final affectsCashBalance =
+          !transaction.excludeFromBalance && isCashAccount;
+
+      if (transaction.excludeFromBalance && !transaction.isPaid) {
+        pendingPayments += normalizedAmount;
+        pendingPaymentTransactions.add(transaction);
+        debugPrint(
+            '   📝 PENDING (Excluded from cash): $normalizedAmount on ${transaction.bankAccountId} (${transaction.note})');
       }
 
       // Analytics: Tüm gider/gelir işlemlerini toplarız
@@ -224,7 +222,7 @@ class MonthlySummary {
         incomeByCategory[transaction.categoryId] =
             (incomeByCategory[transaction.categoryId] ?? 0) + normalizedAmount;
 
-        if (isCashAccount) {
+        if (affectsCashBalance) {
           cashIncome += normalizedAmount;
         }
       } else {
@@ -244,10 +242,16 @@ class MonthlySummary {
               (pendingExpenseByCurrency[currency] ?? 0) + amount;
         }
 
-        if (isCashAccount) {
-          cashExpense += normalizedAmount;
-          debugPrint(
-              '   💸 CASH Deduction: $normalizedAmount on ${transaction.bankAccountId} (${transaction.note})');
+        if (affectsCashBalance) {
+          if (transaction.isPaid) {
+            cashExpense += normalizedAmount;
+            debugPrint(
+                '   💸 CASH Deduction: $normalizedAmount on ${transaction.bankAccountId} (${transaction.note})');
+          } else {
+            cashPendingExpense += normalizedAmount;
+            debugPrint(
+                '   ⏳ CASH Pending: $normalizedAmount on ${transaction.bankAccountId} (${transaction.note})');
+          }
         }
 
         // Kategori bazlı döküm (Analytics)
@@ -262,7 +266,7 @@ class MonthlySummary {
         // Gecikme faizi (Sadece nakit/vadesiz hesaplardaki borçlar için)
         if (transaction.isOverdue &&
             transaction.bankAccountId != null &&
-            isCashAccount) {
+            affectsCashBalance) {
           final bankAccount = bankAccountsMap[transaction.bankAccountId];
           if (bankAccount != null) {
             totalInterest += bankAccount.calculateInterest(

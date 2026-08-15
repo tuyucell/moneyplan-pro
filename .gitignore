@@ -139,3 +139,11 @@ markets_*.txt
 !.env.example
 !.gitignore
 !README.md
+# Apple private signing keys must never be committed.
+ios/AuthKey_*.p8
+ios/client_*.apps.googleusercontent.com.plist
+ios/OneSignalNotificationServiceExtension/
+!ios/**/Contents.json
+
+# Local database/storage backups must never enter source control.
+money-plan-pro-backup/

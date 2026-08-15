@@ -20,6 +20,9 @@ class _FundListPageState extends State<FundListPage> {
   }
 
   Future<void> _loadFunds() async {
+    if (mounted) {
+      setState(() => _isLoading = true);
+    }
     final funds = await MoneyPlanProApi.getTopFunds();
     if (mounted) {
       setState(() {
@@ -46,12 +49,26 @@ class _FundListPageState extends State<FundListPage> {
         iconTheme: IconThemeData(color: AppColors.textPrimary(context)),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+          ? const Center(
+              child: CircularProgressIndicator(color: AppColors.primary),
+            )
           : _funds.isEmpty
               ? Center(
-                  child: Text(
-                    'Veri alınamadı veya liste boş.',
-                    style: TextStyle(color: AppColors.textSecondary(context)),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Fon verileri şu anda alınamıyor.',
+                        style:
+                            TextStyle(color: AppColors.textSecondary(context)),
+                      ),
+                      const SizedBox(height: 12),
+                      OutlinedButton.icon(
+                        onPressed: _loadFunds,
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Tekrar dene'),
+                      ),
+                    ],
                   ),
                 )
               : ListView.separated(
@@ -59,9 +76,18 @@ class _FundListPageState extends State<FundListPage> {
                   itemCount: _funds.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 12),
                   itemBuilder: (context, index) {
-                    final fund = _funds[index];
-                    final double returnRate = fund['daily_return'] ?? 0.0;
-                    
+                    final fund =
+                        Map<String, dynamic>.from(_funds[index] as Map);
+                    final price =
+                        double.tryParse(fund['price']?.toString() ?? '') ?? 0;
+                    final returnRate = double.tryParse(
+                          fund['daily_return']?.toString() ?? '',
+                        ) ??
+                        0;
+                    final hasLivePrice = price > 0;
+                    final returnColor =
+                        returnRate >= 0 ? AppColors.success : AppColors.error;
+
                     return Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
@@ -81,7 +107,7 @@ class _FundListPageState extends State<FundListPage> {
                             ),
                             child: Center(
                               child: Text(
-                                fund['code'] ?? '',
+                                fund['code']?.toString() ?? '',
                                 style: const TextStyle(
                                   color: AppColors.primary,
                                   fontWeight: FontWeight.bold,
@@ -96,7 +122,7 @@ class _FundListPageState extends State<FundListPage> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  fund['title'] ?? '',
+                                  fund['title']?.toString() ?? '',
                                   style: TextStyle(
                                     color: AppColors.textPrimary(context),
                                     fontWeight: FontWeight.w600,
@@ -107,7 +133,7 @@ class _FundListPageState extends State<FundListPage> {
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  fund['type'] ?? 'Fon',
+                                  fund['type']?.toString() ?? 'Fon',
                                   style: TextStyle(
                                     color: AppColors.textSecondary(context),
                                     fontSize: 12,
@@ -121,7 +147,9 @@ class _FundListPageState extends State<FundListPage> {
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
                               Text(
-                                '₺${(fund['price'] as num).toStringAsFixed(4)}',
+                                hasLivePrice
+                                    ? '₺${price.toStringAsFixed(4)}'
+                                    : 'Veri bekleniyor',
                                 style: TextStyle(
                                   color: AppColors.textPrimary(context),
                                   fontWeight: FontWeight.bold,
@@ -130,15 +158,20 @@ class _FundListPageState extends State<FundListPage> {
                               ),
                               const SizedBox(height: 4),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 2,
+                                ),
                                 decoration: BoxDecoration(
-                                  color: AppColors.success.withValues(alpha: 0.1),
+                                  color: returnColor.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(4),
                                 ),
                                 child: Text(
-                                  '%${returnRate.toStringAsFixed(2)}',
-                                  style: const TextStyle(
-                                    color: AppColors.success,
+                                  hasLivePrice
+                                      ? '%${returnRate.toStringAsFixed(2)}'
+                                      : 'TEFAS',
+                                  style: TextStyle(
+                                    color: returnColor,
                                     fontWeight: FontWeight.bold,
                                     fontSize: 13,
                                   ),

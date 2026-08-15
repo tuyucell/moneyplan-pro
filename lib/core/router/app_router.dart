@@ -465,7 +465,6 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
         'app_version': packageInfo.version,
         'build_number': packageInfo.buildNumber,
         'os_version': Platform.operatingSystemVersion,
-        'model': Platform.localHostname, // Simplified for now
       });
     } catch (e) {
       debugPrint('Failed to start analytics session: $e');

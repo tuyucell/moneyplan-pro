@@ -1,0 +1,6 @@
+# Copy this file to android/app/key.properties. Do not commit key.properties.
+# Store the upload keystore outside the repository and back it up securely.
+KEYSTORE_FILE=/absolute/path/to/moneyplan-pro-upload.jks
+KEYSTORE_PASSWORD=replace-with-keystore-password
+KEY_ALIAS=moneyplan-pro-upload
+KEY_PASSWORD=replace-with-key-password

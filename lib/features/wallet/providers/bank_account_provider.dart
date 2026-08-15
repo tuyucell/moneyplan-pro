@@ -114,6 +114,15 @@ class BankAccountNotifier extends StateNotifier<List<BankAccount>> {
     }
   }
 
+  Future<void> resetAll() async {
+    state = List<BankAccount>.from(DefaultBankAccounts.accounts);
+    await _saveToDisk();
+
+    if (userId != null) {
+      await _client.from('user_bank_accounts').delete().eq('user_id', userId!);
+    }
+  }
+
   Future<void> _saveToDisk() async {
     final box = await Hive.openBox(_boxName);
     await box.put('accounts', state.map((e) => e.toJson()).toList());

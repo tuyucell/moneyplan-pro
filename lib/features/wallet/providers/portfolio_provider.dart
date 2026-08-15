@@ -113,6 +113,18 @@ class PortfolioNotifier extends StateNotifier<List<PortfolioAsset>> {
     }
   }
 
+  Future<void> clearAll() async {
+    state = [];
+    await _saveToPrefs();
+
+    if (userId != null) {
+      await _client
+          .from('user_portfolio_assets')
+          .delete()
+          .eq('user_id', userId!);
+    }
+  }
+
   Future<void> updateAssetUnits(String symbol, double units) async {
     state = [
       for (final asset in state)

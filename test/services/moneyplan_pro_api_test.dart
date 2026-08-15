@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:moneyplan_pro/services/api/moneyplan_pro_api.dart';
 
 void main() {
-  group('InvestGuide API Integration Tests', () {
+  group('MoneyPlan Pro API Integration Tests', () {
     // NOT: Bu testlerin geçmesi için backend sunucusunun (uvicorn) yerelde çalışıyor olması gerekir.
     // Backend çalışmıyorsa testler başarısız olabilir, bu beklenen bir durumdur.
 
@@ -18,8 +18,11 @@ void main() {
       }
 
       debugPrint('Market Summary: $summary');
-      expect(summary.containsKey('dolar'), true);
-      expect(summary.containsKey('bitcoin'), true);
+      expect(summary['source'], 'CoinGecko');
+      expect(summary['items'], isA<List<dynamic>>());
+      final items = summary['items'] as List<dynamic>;
+      expect(items, isNotEmpty);
+      expect(items.every((item) => item['symbol'].endsWith('/USD')), true);
     });
 
     test('getCryptoMarkets returns list', () async {

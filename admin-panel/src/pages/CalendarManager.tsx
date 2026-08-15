@@ -6,11 +6,13 @@ import {
     ImportOutlined,
     SyncOutlined
 } from '@ant-design/icons';
+import { API_BASE_URL } from '../config';
+import { adminFetch } from '../lib/adminFetch';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
 
-const API_BASE_URL = 'http://localhost:8000/api/v1';
+const BACKEND_URL = `${API_BASE_URL}/api/v1`;
 
 export default function CalendarManager() {
     const { message, modal } = App.useApp();
@@ -21,7 +23,7 @@ export default function CalendarManager() {
     const { data: events, isLoading, refetch } = useQuery({
         queryKey: ['admin_calendar'],
         queryFn: async () => {
-            const resp = await fetch(`${API_BASE_URL}/system/calendar?limit=200`);
+            const resp = await adminFetch(`${BACKEND_URL}/system/calendar?limit=200`);
             if (!resp.ok) throw new Error('Failed to fetch calendar');
             return resp.json();
         },
@@ -29,7 +31,7 @@ export default function CalendarManager() {
 
     const deleteMutation = useMutation({
         mutationFn: async (id: number) => {
-            const resp = await fetch(`${API_BASE_URL}/system/calendar/${id}`, {
+            const resp = await adminFetch(`${BACKEND_URL}/system/calendar/${id}`, {
                 method: 'DELETE'
             });
             if (!resp.ok) throw new Error('Delete failed');
@@ -42,7 +44,7 @@ export default function CalendarManager() {
 
     const importMutation = useMutation({
         mutationFn: async (payload: { events: any[], clear: boolean }) => {
-            const resp = await fetch(`${API_BASE_URL}/market/calendar?clear=${payload.clear}`, {
+            const resp = await adminFetch(`${BACKEND_URL}/market/calendar?clear=${payload.clear}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ events: payload.events })

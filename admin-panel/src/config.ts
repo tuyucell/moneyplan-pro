@@ -57,7 +57,7 @@ export function getSupabaseAnonKey(): string {
  */
 export function getAppInfo() {
     return {
-        name: runtimeConfig?.app_name || 'InvestGuide Admin Panel',
+        name: runtimeConfig?.app_name || 'MoneyPlan Pro Admin Panel',
         version: runtimeConfig?.app_version || '1.0.0',
     };
 }

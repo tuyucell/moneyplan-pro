@@ -1,12 +1,14 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
-import App from './App.tsx'
 import { fetchRuntimeConfig } from './config'
 
 // Fetch runtime config before rendering app
 try {
   await fetchRuntimeConfig()
+  // App and its Supabase client read runtime config during module evaluation,
+  // so import them only after the config request has completed.
+  const { default: App } = await import('./App.tsx')
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
       <App />

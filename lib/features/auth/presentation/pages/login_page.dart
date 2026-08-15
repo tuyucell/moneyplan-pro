@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:moneyplan_pro/core/router/app_router.dart';
@@ -12,6 +13,7 @@ import 'package:moneyplan_pro/core/services/security/biometric_service.dart';
 import 'package:moneyplan_pro/core/services/security/secure_storage_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:moneyplan_pro/core/providers/common_providers.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
@@ -118,6 +120,37 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         SnackBar(
           content: Text(
             '${AppStrings.tr(AppStrings.googleLoginFailed, lc)}: ${e.toString()}',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _handleAppleLogin(String lc) async {
+    setState(() => _isLoading = true);
+    final messenger = ScaffoldMessenger.of(context);
+
+    try {
+      await ref.read(authNotifierProvider.notifier).signInWithApple();
+      if (mounted) {
+        await ref.read(auditServiceProvider).logAction(
+          action: 'LOGIN_APPLE',
+          details: {'method': 'apple'},
+        );
+        await _navigateAfterLogin();
+      }
+    } catch (error) {
+      debugPrint('APPLE_AUTH_ERROR: $error');
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            lc == 'tr'
+                ? 'Apple ile giriş başarısız: $error'
+                : 'Apple sign-in failed: $error',
           ),
         ),
       );
@@ -499,6 +532,19 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       ),
                     ),
                   ),
+
+                  if (defaultTargetPlatform == TargetPlatform.iOS) ...[
+                    const SizedBox(height: 16),
+                    SignInWithAppleButton(
+                      onPressed:
+                          _isLoading ? null : () => _handleAppleLogin(lc),
+                      text: lc == 'tr'
+                          ? 'Apple ile Devam Et'
+                          : 'Continue with Apple',
+                      height: 54,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ],
 
                   const SizedBox(height: 16),
 
