@@ -46,12 +46,16 @@ class BankAccount {
   final double kkdfRate; // Faiz üzerinden alınan KKDF oranı
   final double overdraftLimit; // KMH veya Kredi Kartı Limiti
   final int paymentDay; // Hesap kesim / Vade günü (1-31)
-  final int dueDay; // Son ödeme günü (Kredi kartı için)
+  final int dueDay; // Eski kayıtlarla uyumluluk için sabit son ödeme günü
+  final int dueDaysAfterStatement; // Ekstre kesiminden son ödemeye gün sayısı
   final bool isActive;
 
   final String currencyCode; // Para birimi (TRY, USD, EUR vb.)
   final double initialBalance; // Başlangıç bakiyesi
   final DateTime? createdAt; // İlk faiz dönemini belirlemek için
+  final DateTime?
+      balanceEffectiveDate; // Başlangıç bakiyesinin geçerli olduğu an
+  final DateTime? updatedAt; // Yerel/uzak senkronizasyon karşılaştırması
   final List<CreditCardInstallmentEntry> installmentPlan;
 
   const BankAccount({
@@ -64,10 +68,13 @@ class BankAccount {
     this.overdraftLimit = 0,
     this.paymentDay = 1,
     this.dueDay = 10,
+    this.dueDaysAfterStatement = 10,
     this.isActive = true,
     this.currencyCode = 'TRY',
     this.initialBalance = 0,
     this.createdAt,
+    this.balanceEffectiveDate,
+    this.updatedAt,
     this.installmentPlan = const [],
   });
 
@@ -75,6 +82,27 @@ class BankAccount {
         0,
         (total, installment) => total + installment.amount,
       );
+
+  DateTime get balanceEffectiveFrom =>
+      balanceEffectiveDate ?? createdAt ?? DateTime(1970);
+
+  DateTime statementDateFor(int year, int month) {
+    final lastDay = DateTime(year, month + 1, 0).day;
+    return DateTime(year, month, paymentDay.clamp(1, lastDay));
+  }
+
+  DateTime dueDateForStatement(DateTime statementDate) => statementDate.add(
+        Duration(days: dueDaysAfterStatement.clamp(1, 45)),
+      );
+
+  DateTime nextStatementOnOrAfter(DateTime date) {
+    var statementDate = statementDateFor(date.year, date.month);
+    final calendarDate = DateTime(date.year, date.month, date.day);
+    if (statementDate.isBefore(calendarDate)) {
+      statementDate = statementDateFor(date.year, date.month + 1);
+    }
+    return statementDate;
+  }
 
   Map<String, dynamic> toJson() {
     return {
@@ -87,16 +115,21 @@ class BankAccount {
       'overdraftLimit': overdraftLimit,
       'paymentDay': paymentDay,
       'dueDay': dueDay,
+      'dueDaysAfterStatement': dueDaysAfterStatement,
       'isActive': isActive,
       'currencyCode': currencyCode,
       'initialBalance': initialBalance,
       'createdAt': createdAt?.toIso8601String(),
+      'balanceEffectiveDate': balanceEffectiveDate?.toIso8601String(),
+      'updatedAt': updatedAt?.toIso8601String(),
       'installmentPlan':
           installmentPlan.map((entry) => entry.toJson()).toList(),
     };
   }
 
   factory BankAccount.fromJson(Map<String, dynamic> json) {
+    final paymentDay = json['paymentDay'] as int? ?? 1;
+    final dueDay = json['dueDay'] as int? ?? 10;
     return BankAccount(
       id: json['id'] as String,
       name: json['name'] as String,
@@ -106,13 +139,21 @@ class BankAccount {
       bsmvRate: (json['bsmvRate'] as num?)?.toDouble() ?? 15,
       kkdfRate: (json['kkdfRate'] as num?)?.toDouble() ?? 15,
       overdraftLimit: (json['overdraftLimit'] as num?)?.toDouble() ?? 0,
-      paymentDay: json['paymentDay'] as int? ?? 1,
-      dueDay: json['dueDay'] as int? ?? 10,
+      paymentDay: paymentDay,
+      dueDay: dueDay,
+      dueDaysAfterStatement: json['dueDaysAfterStatement'] as int? ??
+          _legacyDueOffset(paymentDay, dueDay),
       isActive: json['isActive'] as bool? ?? true,
       currencyCode: json['currencyCode'] as String? ?? 'TRY',
       initialBalance: (json['initialBalance'] as num?)?.toDouble() ?? 0,
       createdAt: json['createdAt'] != null
           ? DateTime.tryParse(json['createdAt'] as String)
+          : null,
+      balanceEffectiveDate: json['balanceEffectiveDate'] != null
+          ? DateTime.tryParse(json['balanceEffectiveDate'] as String)
+          : null,
+      updatedAt: json['updatedAt'] != null
+          ? DateTime.tryParse(json['updatedAt'] as String)
           : null,
       installmentPlan: (json['installmentPlan'] as List<dynamic>? ?? const [])
           .whereType<Map>()
@@ -135,10 +176,13 @@ class BankAccount {
     double? overdraftLimit,
     int? paymentDay,
     int? dueDay,
+    int? dueDaysAfterStatement,
     bool? isActive,
     String? currencyCode,
     double? initialBalance,
     DateTime? createdAt,
+    DateTime? balanceEffectiveDate,
+    DateTime? updatedAt,
     List<CreditCardInstallmentEntry>? installmentPlan,
   }) {
     return BankAccount(
@@ -152,12 +196,21 @@ class BankAccount {
       overdraftLimit: overdraftLimit ?? this.overdraftLimit,
       paymentDay: paymentDay ?? this.paymentDay,
       dueDay: dueDay ?? this.dueDay,
+      dueDaysAfterStatement:
+          dueDaysAfterStatement ?? this.dueDaysAfterStatement,
       isActive: isActive ?? this.isActive,
       currencyCode: currencyCode ?? this.currencyCode,
       initialBalance: initialBalance ?? this.initialBalance,
       createdAt: createdAt ?? this.createdAt,
+      balanceEffectiveDate: balanceEffectiveDate ?? this.balanceEffectiveDate,
+      updatedAt: updatedAt ?? this.updatedAt,
       installmentPlan: installmentPlan ?? this.installmentPlan,
     );
+  }
+
+  static int _legacyDueOffset(int paymentDay, int dueDay) {
+    final difference = dueDay - paymentDay;
+    return (difference > 0 ? difference : difference + 30).clamp(1, 45);
   }
 
   /// Gecikme faizi hesapla

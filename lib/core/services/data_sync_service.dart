@@ -73,10 +73,12 @@ class DataSyncService {
         'overdraft_limit': acc.overdraftLimit,
         'payment_day': acc.paymentDay,
         'due_day': acc.dueDay,
+        'due_days_after_statement': acc.dueDaysAfterStatement,
+        'balance_effective_date': acc.balanceEffectiveFrom.toIso8601String(),
         'is_active': acc.isActive,
         'installment_plan':
             acc.installmentPlan.map((entry) => entry.toJson()).toList(),
-        'updated_at': DateTime.now().toIso8601String(),
+        'updated_at': (acc.updatedAt ?? DateTime.now()).toIso8601String(),
       };
     }).toList();
 

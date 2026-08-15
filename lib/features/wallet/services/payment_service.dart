@@ -79,9 +79,13 @@ class PaymentService {
     List<WalletTransaction> transactions,
   ) {
     var balance = account.initialBalance;
+    final effectiveDate = account.balanceEffectiveDate ?? account.createdAt;
 
     for (final tx in transactions) {
       if (tx.bankAccountId != account.id || tx.excludeFromBalance) {
+        continue;
+      }
+      if (effectiveDate != null && tx.date.isBefore(effectiveDate)) {
         continue;
       }
 

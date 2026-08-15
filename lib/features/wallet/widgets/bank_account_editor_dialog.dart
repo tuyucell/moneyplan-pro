@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 import '../../../core/services/currency_service.dart';
 import '../models/bank_account.dart';
 import '../providers/bank_account_provider.dart';
+import '../providers/wallet_provider.dart';
 
 Future<BankAccount?> showBankAccountEditorDialog(
   BuildContext context, {
@@ -70,7 +71,7 @@ class _BankAccountEditorDialogState
       text: _bank?.paymentDay.toString() ?? '1',
     );
     _dueDayController = TextEditingController(
-      text: _bank?.dueDay.toString() ?? '10',
+      text: _bank?.dueDaysAfterStatement.toString() ?? '10',
     );
     _initialBalanceController = TextEditingController(
       text: _formatNumber(_bank?.initialBalance ?? 0),
@@ -133,6 +134,47 @@ class _BankAccountEditorDialogState
     return null;
   }
 
+  String? _validateDueOffset(String? value) {
+    final dayCount = int.tryParse(value ?? '');
+    if (dayCount == null || dayCount < 1 || dayCount > 45) {
+      return '1 ile 45 gün arasında girin';
+    }
+    return null;
+  }
+
+  DateTime? get _previewStatementDate {
+    final statementDay = int.tryParse(_statementDayController.text);
+    if (statementDay == null || statementDay < 1 || statementDay > 31) {
+      return null;
+    }
+    final now = DateTime.now();
+    final lastDay = DateTime(now.year, now.month + 1, 0).day;
+    var statementDate = DateTime(
+      now.year,
+      now.month,
+      statementDay.clamp(1, lastDay),
+    );
+    final today = DateTime(now.year, now.month, now.day);
+    if (statementDate.isBefore(today)) {
+      final nextMonthLastDay = DateTime(now.year, now.month + 2, 0).day;
+      statementDate = DateTime(
+        now.year,
+        now.month + 1,
+        statementDay.clamp(1, nextMonthLastDay),
+      );
+    }
+    return statementDate;
+  }
+
+  DateTime? get _previewDueDate {
+    final statementDate = _previewStatementDate;
+    final offset = int.tryParse(_dueDayController.text);
+    if (statementDate == null || offset == null || offset < 1 || offset > 45) {
+      return null;
+    }
+    return statementDate.add(Duration(days: offset));
+  }
+
   void _addInstallment() {
     var nextMonth = DateTime(DateTime.now().year, DateTime.now().month + 1);
     if (_installmentDrafts.isNotEmpty) {
@@ -185,6 +227,13 @@ class _BankAccountEditorDialogState
       _errorMessage = null;
     });
 
+    final now = DateTime.now();
+    final initialBalance = _parseAmount(_initialBalanceController.text);
+    final balanceChanged =
+        _bank == null || (initialBalance - _bank!.initialBalance).abs() > 0.005;
+    final dueOffset = _isCreditCard
+        ? int.parse(_dueDayController.text)
+        : _bank?.dueDaysAfterStatement ?? 10;
     final savedAccount = BankAccount(
       id: _bank?.id ?? const Uuid().v4(),
       name: _nameController.text.trim(),
@@ -194,11 +243,16 @@ class _BankAccountEditorDialogState
       kkdfRate: _parseAmount(_kkdfRateController.text),
       overdraftLimit: _parseAmount(_limitController.text),
       paymentDay: int.parse(_statementDayController.text),
-      dueDay: _isCreditCard ? int.parse(_dueDayController.text) : 10,
+      dueDay: _isCreditCard ? (_previewDueDate?.day ?? 10) : 10,
+      dueDaysAfterStatement: dueOffset,
       isActive: _bank?.isActive ?? true,
       currencyCode: _selectedCurrency,
-      initialBalance: _parseAmount(_initialBalanceController.text),
-      createdAt: _bank?.createdAt ?? DateTime.now(),
+      initialBalance: initialBalance,
+      createdAt: _bank?.createdAt ?? now,
+      balanceEffectiveDate: balanceChanged
+          ? now
+          : _bank?.balanceEffectiveDate ?? _bank?.createdAt,
+      updatedAt: now,
       installmentPlan: _hasFutureInstallments
           ? (_installmentDrafts
               .map(
@@ -263,6 +317,9 @@ class _BankAccountEditorDialogState
     if (confirmed != true || !mounted) return;
     setState(() => _isSaving = true);
     try {
+      await ref
+          .read(walletProvider.notifier)
+          .deleteGeneratedTransactionsForAccount(bank.id);
       await ref.read(bankAccountProvider.notifier).deleteAccount(bank.id);
       if (mounted) Navigator.of(context).pop();
     } catch (error) {
@@ -354,8 +411,9 @@ class _BankAccountEditorDialogState
                     labelText: _isCreditCard
                         ? 'Aylık Kart Faizi (%)'
                         : 'Aylık KMH / Eksi Bakiye Faizi (%)',
-                    helperText:
-                        'Negatif bakiye varsa hesap kesiminde uygulanır.',
+                    helperText: _isCreditCard
+                        ? 'Yalnız son ödeme tarihinde ödenmemiş ekstre borcuna uygulanır.'
+                        : 'Negatif bakiye varsa vade gününde uygulanır.',
                   ),
                   keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
@@ -404,17 +462,39 @@ class _BankAccountEditorDialogState
                   ),
                   keyboardType: TextInputType.number,
                   validator: _validateDay,
+                  onChanged: (_) => setState(() {}),
                 ),
                 if (_isCreditCard) ...[
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: _dueDayController,
                     decoration: const InputDecoration(
-                      labelText: 'Son Ödeme Günü (1-31)',
+                      labelText: 'Hesap Kesiminden Sonra Ödeme Süresi',
+                      suffixText: 'gün',
+                      helperText:
+                          'Ayın gün sayısına göre son ödeme tarihi otomatik değişir.',
                     ),
                     keyboardType: TextInputType.number,
-                    validator: _validateDay,
+                    validator: _validateDueOffset,
+                    onChanged: (_) => setState(() {}),
                   ),
+                  if (_previewStatementDate != null &&
+                      _previewDueDate != null) ...[
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Yaklaşan ekstre: ${DateFormat('dd.MM.yyyy').format(_previewStatementDate!)}  •  '
+                        'Son ödeme: ${DateFormat('dd.MM.yyyy').format(_previewDueDate!)}',
+                        key: const ValueKey('credit_card_due_date_preview'),
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.primary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
                 const SizedBox(height: 16),
                 TextFormField(
@@ -425,7 +505,7 @@ class _BankAccountEditorDialogState
                         ? 'Güncel Ekstre / Başlangıç Borcu'
                         : 'Başlangıç Bakiyesi',
                     helperText: _isCreditCard
-                        ? 'Yalnız şu an ödenecek borcu eksi girin. Örn: -10000'
+                        ? 'Bugünkü toplam kart borcunu eksi girin. Faiz, ekstre kesilip son ödeme tarihi geçmeden oluşmaz.'
                         : 'Eksi hesap borcunu negatif girin. Örn: -5000',
                     suffixText: currencySymbol,
                   ),

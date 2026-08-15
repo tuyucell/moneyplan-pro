@@ -5,7 +5,9 @@ import 'package:moneyplan_pro/features/wallet/models/bank_account.dart';
 import 'package:moneyplan_pro/features/wallet/models/monthly_summary.dart';
 import 'package:moneyplan_pro/features/wallet/models/transaction_category.dart';
 import 'package:moneyplan_pro/features/wallet/models/wallet_transaction.dart';
+import 'package:moneyplan_pro/features/wallet/providers/bank_account_provider.dart';
 import 'package:moneyplan_pro/features/wallet/services/installment_schedule_service.dart';
+import 'package:moneyplan_pro/features/wallet/services/payment_service.dart';
 import 'package:moneyplan_pro/features/wallet/services/statement_charge_service.dart';
 import 'package:moneyplan_pro/features/wallet/widgets/bank_account_editor_dialog.dart';
 
@@ -53,6 +55,7 @@ void main() {
       kkdfRate: 15,
       paymentDay: 10,
       dueDay: 20,
+      dueDaysAfterStatement: 10,
       createdAt: DateTime(2026, 8, 1),
     );
 
@@ -86,7 +89,7 @@ void main() {
             bankAccountId: account.id,
           ),
         ],
-        asOf: DateTime(2026, 8, 15),
+        asOf: DateTime(2026, 8, 21),
       );
 
       expect(charges, hasLength(2));
@@ -95,22 +98,20 @@ void main() {
       expect(charges[1].id, 'statement_tax_card-2_202608');
       expect(charges[1].amount, 14.4); // 48 x (15% + 15%)
       expect(charges[0].dueDate, DateTime(2026, 8, 20));
+      expect(charges[0].date, DateTime(2026, 8, 21));
     });
 
     test('does not create the same statement charge twice', () {
-      final existing = WalletTransaction(
-        id: 'statement_interest_card-2_202608',
-        categoryId: 'bank_interest',
-        amount: 40,
-        date: DateTime(2026, 8, 10),
-        type: TransactionType.expense,
-        bankAccountId: account.id,
+      final existing = StatementChargeService.createDueCharges(
+        account: account,
+        transactions: const [],
+        asOf: DateTime(2026, 8, 21),
       );
 
       final charges = StatementChargeService.createDueCharges(
         account: account,
-        transactions: [existing],
-        asOf: DateTime(2026, 8, 15),
+        transactions: existing,
+        asOf: DateTime(2026, 8, 21),
       );
 
       expect(charges, isEmpty);
@@ -123,7 +124,7 @@ void main() {
         StatementChargeService.createDueCharges(
           account: justOpened,
           transactions: const [],
-          asOf: DateTime(2026, 8, 15),
+          asOf: DateTime(2026, 8, 31),
         ),
         isEmpty,
       );
@@ -131,9 +132,109 @@ void main() {
       final septemberCharges = StatementChargeService.createDueCharges(
         account: justOpened,
         transactions: const [],
-        asOf: DateTime(2026, 9, 10),
+        asOf: DateTime(2026, 9, 21),
       );
       expect(septemberCharges, hasLength(2));
+    });
+
+    test('uses a day offset so month length changes the calendar due day', () {
+      final dynamicCard = account.copyWith(
+        paymentDay: 25,
+        dueDaysAfterStatement: 10,
+      );
+
+      expect(
+        dynamicCard.dueDateForStatement(DateTime(2026, 8, 25)),
+        DateTime(2026, 9, 4),
+      );
+      expect(
+        dynamicCard.dueDateForStatement(DateTime(2026, 9, 25)),
+        DateTime(2026, 10, 5),
+      );
+    });
+
+    test('a balance entered on the 15th gets no interest before its due date',
+        () {
+      final newSnapshot = account.copyWith(
+        initialBalance: -10000,
+        paymentDay: 25,
+        dueDaysAfterStatement: 10,
+        balanceEffectiveDate: DateTime(2026, 8, 15),
+      );
+
+      for (final asOf in [
+        DateTime(2026, 8, 15),
+        DateTime(2026, 8, 25),
+        DateTime(2026, 9, 4),
+      ]) {
+        expect(
+          StatementChargeService.createDueCharges(
+            account: newSnapshot,
+            transactions: const [],
+            asOf: asOf,
+          ),
+          isEmpty,
+        );
+      }
+
+      final afterDue = StatementChargeService.createDueCharges(
+        account: newSnapshot,
+        transactions: const [],
+        asOf: DateTime(2026, 9, 5),
+      );
+      expect(afterDue, hasLength(2));
+      expect(afterDue.first.date, DateTime(2026, 9, 5));
+    });
+
+    test('payment by the due date prevents interest', () {
+      final newSnapshot = account.copyWith(
+        initialBalance: -10000,
+        paymentDay: 25,
+        dueDaysAfterStatement: 10,
+        balanceEffectiveDate: DateTime(2026, 8, 15),
+      );
+      final payment = WalletTransaction(
+        id: 'full-payment',
+        categoryId: 'transfer_deposit',
+        amount: 10000,
+        date: DateTime(2026, 9, 4),
+        type: TransactionType.income,
+        bankAccountId: newSnapshot.id,
+      );
+
+      expect(
+        StatementChargeService.createDueCharges(
+          account: newSnapshot,
+          transactions: [payment],
+          asOf: DateTime(2026, 9, 5),
+        ),
+        isEmpty,
+      );
+    });
+
+    test('reconciliation removes stale automatic interest after a reset', () {
+      final resetSnapshot = account.copyWith(
+        initialBalance: 0,
+        paymentDay: 25,
+        balanceEffectiveDate: DateTime(2026, 8, 15),
+      );
+      final stale = WalletTransaction(
+        id: 'statement_interest_card-2_202608',
+        categoryId: 'bank_interest',
+        amount: 224,
+        date: DateTime(2026, 8, 10),
+        type: TransactionType.expense,
+        bankAccountId: resetSnapshot.id,
+      );
+
+      final plan = StatementChargeService.buildPlan(
+        account: resetSnapshot,
+        transactions: [stale],
+        asOf: DateTime(2026, 8, 20),
+      );
+
+      expect(plan.upserts, isEmpty);
+      expect(plan.removals, [stale.id]);
     });
   });
 
@@ -147,6 +248,7 @@ void main() {
       overdraftInterestRate: 4,
       paymentDay: 10,
       dueDay: 20,
+      dueDaysAfterStatement: 10,
       createdAt: DateTime(2026, 8, 10),
       installmentPlan: [
         for (var month = 9; month <= 12; month++)
@@ -239,11 +341,74 @@ void main() {
       final charges = StatementChargeService.createDueCharges(
         account: account,
         transactions: scheduled,
-        asOf: DateTime(2026, 9, 10),
+        asOf: DateTime(2026, 9, 21),
       );
 
       expect(charges, hasLength(2));
       expect(charges.first.amount, 800); // 20.000 x %4
+    });
+  });
+
+  group('Account snapshot persistence', () {
+    test('transactions before a new balance snapshot do not change it', () {
+      final account = BankAccount(
+        id: 'snapshot-card',
+        name: 'Güncel Kart',
+        accountType: 'Kredi Kartı',
+        initialBalance: -10000,
+        balanceEffectiveDate: DateTime(2026, 8, 15),
+      );
+      final staleInterest = WalletTransaction(
+        id: 'old-interest',
+        categoryId: 'bank_interest',
+        amount: 224,
+        date: DateTime(2026, 8, 10),
+        type: TransactionType.expense,
+        bankAccountId: account.id,
+      );
+
+      final result = PaymentService.calculateAccountBalance(
+        account,
+        [staleInterest],
+      );
+      expect(result.balance, -10000);
+    });
+
+    test('legacy local customizations win over an older remote default row',
+        () {
+      const local = BankAccount(
+        id: 'card',
+        name: 'Benim Kartım',
+        accountType: 'Kredi Kartı',
+        overdraftLimit: 98765,
+      );
+      final remote = local.copyWith(
+        name: 'Varsayılan Kart',
+        overdraftLimit: 1000,
+        updatedAt: DateTime(2026, 8, 15),
+      );
+
+      final merged = mergeBankAccountSnapshots(
+        local: const [local],
+        remote: [remote],
+        hasLocalSnapshot: true,
+        defaults: DefaultBankAccounts.accounts,
+      );
+
+      expect(merged.single.name, 'Benim Kartım');
+      expect(merged.single.overdraftLimit, 98765);
+    });
+
+    test('deleted default accounts are not recreated', () {
+      final merged = mergeBankAccountSnapshots(
+        local: const [],
+        remote: const [],
+        hasLocalSnapshot: false,
+        defaults: DefaultBankAccounts.accounts,
+        deletedIds: const {'isbank_cc'},
+      );
+
+      expect(merged.any((account) => account.id == 'isbank_cc'), isFalse);
     });
   });
 

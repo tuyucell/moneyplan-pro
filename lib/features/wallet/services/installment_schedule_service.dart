@@ -23,8 +23,9 @@ class InstallmentScheduleService {
     final dueTransactions = <WalletTransaction>[];
 
     if (account.initialBalance < 0) {
-      final date = account.createdAt ?? asOf;
+      final date = account.balanceEffectiveFrom;
       if (!date.isAfter(asOf)) {
+        final statementDate = account.nextStatementOnOrAfter(date);
         final openingDebt = WalletTransaction(
           id: openingDebtTransactionId(account.id),
           categoryId: 'bank_credit_card',
@@ -33,7 +34,7 @@ class InstallmentScheduleService {
           note: '${account.name} başlangıç ekstre borcu',
           type: TransactionType.expense,
           bankAccountId: account.id,
-          dueDate: _dueDateFor(account, date),
+          dueDate: account.dueDateForStatement(statementDate),
           isPaid: true,
           currencyCode: account.currencyCode,
           paymentMethod: PaymentMethod.creditCard,
@@ -51,11 +52,11 @@ class InstallmentScheduleService {
       if (installment.amount <= 0) continue;
 
       final transactionId = installment.ledgerTransactionId(account.id);
-      final statementDate = _dateWithClampedDay(
+      final statementDate = account.statementDateFor(
         installment.statementMonth.year,
         installment.statementMonth.month,
-        account.paymentDay,
       );
+      if (statementDate.isBefore(account.balanceEffectiveFrom)) continue;
       if (statementDate.isAfter(asOf)) continue;
 
       final description = installment.note?.trim();
@@ -69,7 +70,7 @@ class InstallmentScheduleService {
             : '${account.name} taksit borcu - $description',
         type: TransactionType.expense,
         bankAccountId: account.id,
-        dueDate: _dueDateFor(account, statementDate),
+        dueDate: account.dueDateForStatement(statementDate),
         isPaid: false,
         currencyCode: account.currencyCode,
         paymentMethod: PaymentMethod.creditCard,
@@ -92,37 +93,17 @@ class InstallmentScheduleService {
         transactions.map((transaction) => transaction.id).toSet();
     return account.installmentPlan.fold<double>(0, (total, installment) {
       if (installment.amount <= 0) return total;
+      final statementDate = account.statementDateFor(
+        installment.statementMonth.year,
+        installment.statementMonth.month,
+      );
+      if (statementDate.isBefore(account.balanceEffectiveFrom)) return total;
       if (transactionIds
           .contains(installment.ledgerTransactionId(account.id))) {
         return total;
       }
       return total + installment.amount;
     });
-  }
-
-  static DateTime _dateWithClampedDay(
-    int year,
-    int month,
-    int requestedDay,
-  ) {
-    final lastDay = DateTime(year, month + 1, 0).day;
-    return DateTime(year, month, requestedDay.clamp(1, lastDay));
-  }
-
-  static DateTime _dueDateFor(
-    BankAccount account,
-    DateTime statementDate,
-  ) {
-    var dueMonth = statementDate.month;
-    var dueYear = statementDate.year;
-    if (account.dueDay <= statementDate.day) {
-      dueMonth += 1;
-      if (dueMonth > 12) {
-        dueMonth = 1;
-        dueYear += 1;
-      }
-    }
-    return _dateWithClampedDay(dueYear, dueMonth, account.dueDay);
   }
 
   static double _roundCurrency(double value) =>

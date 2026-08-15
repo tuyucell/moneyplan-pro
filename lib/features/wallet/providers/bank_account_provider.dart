@@ -10,7 +10,9 @@ class BankAccountNotifier extends StateNotifier<List<BankAccount>> {
   String get _boxName =>
       userId != null ? 'bank_accounts_box_$userId' : 'bank_accounts_box_guest';
 
-  BankAccountNotifier(this.userId) : super(DefaultBankAccounts.accounts) {
+  final Set<String> _deletedAccountIds = {};
+
+  BankAccountNotifier(this.userId) : super(const []) {
     _loadAccounts();
   }
 
@@ -19,21 +21,22 @@ class BankAccountNotifier extends StateNotifier<List<BankAccount>> {
   Future<void> _loadAccounts() async {
     final box = await Hive.openBox(_boxName);
     final List<dynamic>? savedData = box.get('accounts');
-
-    if (savedData != null) {
-      final savedAccounts = savedData
-          .map((e) => BankAccount.fromJson(Map<String, dynamic>.from(e)))
-          .toList();
-
-      // Merge: Keep saved settings for existing accounts, add missing default accounts
-      final merged = [...savedAccounts];
-      for (final defaultAcc in DefaultBankAccounts.accounts) {
-        if (!merged.any((a) => a.id == defaultAcc.id)) {
-          merged.add(defaultAcc);
-        }
-      }
-      state = merged;
+    final deletedData = box.get('deleted_account_ids');
+    if (deletedData is List) {
+      _deletedAccountIds.addAll(deletedData.whereType<String>());
     }
+
+    final hasLocalSnapshot = savedData != null;
+    final savedAccounts = (savedData ?? const [])
+        .map((e) => BankAccount.fromJson(Map<String, dynamic>.from(e)))
+        .where((account) => !_deletedAccountIds.contains(account.id))
+        .toList();
+
+    state = hasLocalSnapshot
+        ? savedAccounts
+        : DefaultBankAccounts.accounts
+            .where((account) => !_deletedAccountIds.contains(account.id))
+            .toList();
 
     // Sync from Supabase
     if (userId != null) {
@@ -44,53 +47,72 @@ class BankAccountNotifier extends StateNotifier<List<BankAccount>> {
             .eq('user_id', userId!);
 
         final localAccounts = {
-          for (final account in state) account.id: account
+          for (final account in savedAccounts) account.id: account
         };
-        final remoteAccounts = response.map((json) {
-          final local = localAccounts[json['id'] as String];
-          final remoteInstallmentPlan = json['installment_plan'];
-          return BankAccount(
-            id: json['id'] as String,
-            name: json['account_name'] as String,
-            accountType: json['account_type'] as String,
-            initialBalance: (json['balance'] as num).toDouble(),
-            currencyCode: json['currency'] as String,
-            overdraftInterestRate:
-                (json['monthly_interest_rate'] as num?)?.toDouble() ??
-                    local?.overdraftInterestRate ??
-                    4.5,
-            bsmvRate: (json['bsmv_rate'] as num?)?.toDouble() ??
-                local?.bsmvRate ??
-                15,
-            kkdfRate: (json['kkdf_rate'] as num?)?.toDouble() ??
-                local?.kkdfRate ??
-                15,
-            overdraftLimit: (json['overdraft_limit'] as num?)?.toDouble() ??
-                local?.overdraftLimit ??
-                0,
-            paymentDay: json['payment_day'] as int? ?? local?.paymentDay ?? 1,
-            dueDay: json['due_day'] as int? ?? local?.dueDay ?? 10,
-            isActive: json['is_active'] as bool? ?? local?.isActive ?? true,
-            createdAt: json['created_at'] != null
-                ? DateTime.tryParse(json['created_at'] as String)
-                : local?.createdAt,
-            installmentPlan: remoteInstallmentPlan is List
-                ? remoteInstallmentPlan
-                    .whereType<Map>()
-                    .map(
-                      (entry) => CreditCardInstallmentEntry.fromJson(
-                        Map<String, dynamic>.from(entry),
-                      ),
-                    )
-                    .toList()
-                : local?.installmentPlan ?? const [],
-          );
-        }).toList();
+        final remoteAccounts = response
+            .map((json) {
+              final local = localAccounts[json['id'] as String];
+              final remoteInstallmentPlan = json['installment_plan'];
+              return BankAccount(
+                id: json['id'] as String,
+                name: json['account_name'] as String,
+                accountType: json['account_type'] as String,
+                initialBalance: (json['balance'] as num).toDouble(),
+                currencyCode: json['currency'] as String,
+                overdraftInterestRate:
+                    (json['monthly_interest_rate'] as num?)?.toDouble() ??
+                        local?.overdraftInterestRate ??
+                        4.5,
+                bsmvRate: (json['bsmv_rate'] as num?)?.toDouble() ??
+                    local?.bsmvRate ??
+                    15,
+                kkdfRate: (json['kkdf_rate'] as num?)?.toDouble() ??
+                    local?.kkdfRate ??
+                    15,
+                overdraftLimit: (json['overdraft_limit'] as num?)?.toDouble() ??
+                    local?.overdraftLimit ??
+                    0,
+                paymentDay:
+                    json['payment_day'] as int? ?? local?.paymentDay ?? 1,
+                dueDay: json['due_day'] as int? ?? local?.dueDay ?? 10,
+                dueDaysAfterStatement:
+                    json['due_days_after_statement'] as int? ??
+                        local?.dueDaysAfterStatement ??
+                        10,
+                isActive: json['is_active'] as bool? ?? local?.isActive ?? true,
+                createdAt: json['created_at'] != null
+                    ? DateTime.tryParse(json['created_at'] as String)
+                    : local?.createdAt,
+                balanceEffectiveDate: json['balance_effective_date'] != null
+                    ? DateTime.tryParse(
+                        json['balance_effective_date'] as String)
+                    : local?.balanceEffectiveDate,
+                updatedAt: json['updated_at'] != null
+                    ? DateTime.tryParse(json['updated_at'] as String)
+                    : null,
+                installmentPlan: remoteInstallmentPlan is List
+                    ? remoteInstallmentPlan
+                        .whereType<Map>()
+                        .map(
+                          (entry) => CreditCardInstallmentEntry.fromJson(
+                            Map<String, dynamic>.from(entry),
+                          ),
+                        )
+                        .toList()
+                    : local?.installmentPlan ?? const [],
+              );
+            })
+            .where((account) => !_deletedAccountIds.contains(account.id))
+            .toList();
 
-        if (remoteAccounts.isNotEmpty) {
-          state = remoteAccounts;
-          await _saveToDisk();
-        }
+        state = mergeBankAccountSnapshots(
+          local: savedAccounts,
+          remote: remoteAccounts,
+          hasLocalSnapshot: hasLocalSnapshot,
+          defaults: DefaultBankAccounts.accounts,
+          deletedIds: _deletedAccountIds,
+        );
+        await _saveToDisk();
       } catch (e) {
         // ignore
       }
@@ -98,29 +120,37 @@ class BankAccountNotifier extends StateNotifier<List<BankAccount>> {
   }
 
   Future<void> updateAccount(BankAccount updatedAccount) async {
+    final normalized = updatedAccount.copyWith(updatedAt: DateTime.now());
+    _deletedAccountIds.remove(normalized.id);
     state = [
       for (final account in state)
-        if (account.id == updatedAccount.id) updatedAccount else account
+        if (account.id == normalized.id) normalized else account
     ];
     await _saveToDisk();
 
     // Sync to Supabase
     if (userId != null) {
-      await _upsertRemoteAccount(updatedAccount);
+      await _upsertRemoteAccount(normalized);
     }
   }
 
   Future<void> addAccount(BankAccount newAccount) async {
-    state = [...state, newAccount];
+    final normalized = newAccount.copyWith(updatedAt: DateTime.now());
+    _deletedAccountIds.remove(normalized.id);
+    state = [
+      ...state.where((account) => account.id != normalized.id),
+      normalized
+    ];
     await _saveToDisk();
 
     // Sync to Supabase
     if (userId != null) {
-      await _upsertRemoteAccount(newAccount);
+      await _upsertRemoteAccount(normalized);
     }
   }
 
   Future<void> deleteAccount(String id) async {
+    _deletedAccountIds.add(id);
     state = state.where((a) => a.id != id).toList();
     await _saveToDisk();
 
@@ -135,6 +165,7 @@ class BankAccountNotifier extends StateNotifier<List<BankAccount>> {
   }
 
   Future<void> resetAll() async {
+    _deletedAccountIds.clear();
     state = List<BankAccount>.from(DefaultBankAccounts.accounts);
     await _saveToDisk();
 
@@ -146,6 +177,7 @@ class BankAccountNotifier extends StateNotifier<List<BankAccount>> {
   Future<void> _saveToDisk() async {
     final box = await Hive.openBox(_boxName);
     await box.put('accounts', state.map((e) => e.toJson()).toList());
+    await box.put('deleted_account_ids', _deletedAccountIds.toList());
   }
 
   Future<void> _upsertRemoteAccount(BankAccount account) async {
@@ -157,6 +189,7 @@ class BankAccountNotifier extends StateNotifier<List<BankAccount>> {
       'account_type': account.accountType,
       'balance': account.initialBalance,
       'currency': account.currencyCode,
+      'updated_at': (account.updatedAt ?? DateTime.now()).toIso8601String(),
     };
 
     try {
@@ -168,6 +201,9 @@ class BankAccountNotifier extends StateNotifier<List<BankAccount>> {
         'overdraft_limit': account.overdraftLimit,
         'payment_day': account.paymentDay,
         'due_day': account.dueDay,
+        'due_days_after_statement': account.dueDaysAfterStatement,
+        'balance_effective_date':
+            account.balanceEffectiveFrom.toIso8601String(),
         'is_active': account.isActive,
         'installment_plan':
             account.installmentPlan.map((entry) => entry.toJson()).toList(),
@@ -178,6 +214,46 @@ class BankAccountNotifier extends StateNotifier<List<BankAccount>> {
       await _client.from('user_bank_accounts').upsert(basePayload);
     }
   }
+}
+
+List<BankAccount> mergeBankAccountSnapshots({
+  required List<BankAccount> local,
+  required List<BankAccount> remote,
+  required bool hasLocalSnapshot,
+  required List<BankAccount> defaults,
+  Set<String> deletedIds = const {},
+}) {
+  if (!hasLocalSnapshot) {
+    final source = remote.isNotEmpty ? remote : defaults;
+    return source.where((account) => !deletedIds.contains(account.id)).toList();
+  }
+
+  final merged = <String, BankAccount>{
+    for (final account in local)
+      if (!deletedIds.contains(account.id)) account.id: account,
+  };
+
+  for (final remoteAccount in remote) {
+    if (deletedIds.contains(remoteAccount.id)) continue;
+    final localAccount = merged[remoteAccount.id];
+    if (localAccount == null) {
+      merged[remoteAccount.id] = remoteAccount;
+      continue;
+    }
+
+    // Legacy local records do not have an updatedAt value. They are kept as
+    // the safest source so an app update cannot replace user customizations
+    // with an older/default cloud row.
+    final localUpdatedAt = localAccount.updatedAt;
+    final remoteUpdatedAt = remoteAccount.updatedAt;
+    if (localUpdatedAt != null &&
+        remoteUpdatedAt != null &&
+        remoteUpdatedAt.isAfter(localUpdatedAt)) {
+      merged[remoteAccount.id] = remoteAccount;
+    }
+  }
+
+  return merged.values.toList();
 }
 
 final bankAccountProvider =

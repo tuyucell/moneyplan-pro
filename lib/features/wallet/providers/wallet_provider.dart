@@ -133,6 +133,7 @@ class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
 
   Future<void> _syncStatementCharges() async {
     final pendingCharges = <WalletTransaction>[];
+    final asOf = DateTime.now();
     for (final account in _accounts) {
       final openingDebtId =
           InstallmentScheduleService.openingDebtTransactionId(account.id);
@@ -145,16 +146,18 @@ class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
         InstallmentScheduleService.createDueTransactions(
           account: account,
           transactions: [...state, ...pendingCharges],
-          asOf: DateTime.now(),
+          asOf: asOf,
         ),
       );
-      pendingCharges.addAll(
-        StatementChargeService.createDueCharges(
-          account: account,
-          transactions: [...state, ...pendingCharges],
-          asOf: DateTime.now(),
-        ),
+      final statementPlan = StatementChargeService.buildPlan(
+        account: account,
+        transactions: [...state, ...pendingCharges],
+        asOf: asOf,
       );
+      for (final transactionId in statementPlan.removals) {
+        await deleteTransaction(transactionId);
+      }
+      pendingCharges.addAll(statementPlan.upserts);
     }
     if (pendingCharges.isNotEmpty) {
       await addTransactions(pendingCharges);
@@ -345,6 +348,51 @@ class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
       state = oldState;
       rethrow;
     }
+  }
+
+  /// Removes only ledger rows generated from a bank/card configuration.
+  /// Manual expenses and payments intentionally remain untouched.
+  Future<void> deleteGeneratedTransactionsForAccount(String accountId) async {
+    await _initCompleter.future;
+    if (_box == null) {
+      throw Exception('Hive box not initialized');
+    }
+
+    final generatedIds = state
+        .where(
+          (transaction) =>
+              transaction.bankAccountId == accountId &&
+              (transaction.id ==
+                      InstallmentScheduleService.openingDebtTransactionId(
+                        accountId,
+                      ) ||
+                  transaction.id.startsWith(
+                    'card_installment_${accountId}_',
+                  ) ||
+                  transaction.id.startsWith(
+                    'statement_interest_${accountId}_',
+                  ) ||
+                  transaction.id.startsWith(
+                    'statement_tax_${accountId}_',
+                  )),
+        )
+        .map((transaction) => transaction.id)
+        .toSet();
+
+    for (final id in generatedIds) {
+      await _box!.delete(id);
+    }
+
+    if (userId != null) {
+      for (final id in generatedIds) {
+        await SupabaseService.client
+            .from('user_transactions')
+            .delete()
+            .eq('user_id', userId!)
+            .eq('id', id);
+      }
+    }
+    _loadTransactions();
   }
 
   Future<void> clearAllTransactions() async {
@@ -659,6 +707,7 @@ final accountStatsProvider = Provider<Map<String, AccountStats>>((ref) {
   final accounts = ref.watch(bankAccountProvider);
 
   final stats = <String, AccountStats>{};
+  final accountsById = {for (final account in accounts) account.id: account};
 
   // Initialize with initial balances from accounts
   for (final acc in accounts) {
@@ -674,6 +723,9 @@ final accountStatsProvider = Provider<Map<String, AccountStats>>((ref) {
     if (tx.bankAccountId == null || tx.excludeFromBalance) continue;
 
     final bankId = tx.bankAccountId!;
+    final account = accountsById[bankId];
+    final effectiveDate = account?.balanceEffectiveDate ?? account?.createdAt;
+    if (effectiveDate != null && tx.date.isBefore(effectiveDate)) continue;
     if (!stats.containsKey(bankId)) {
       stats[bankId] = AccountStats(balances: {});
     }
