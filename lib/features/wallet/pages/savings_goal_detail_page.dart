@@ -479,6 +479,7 @@ class _SavingsGoalDetailPageState extends ConsumerState<SavingsGoalDetailPage> {
       BuildContext context, WidgetRef ref, SavingsGoal goal, String lc) {
     final controller = TextEditingController();
     var deductFromWallet = true;
+    var transactionDate = DateTime.now();
 
     showDialog(
       context: context,
@@ -502,6 +503,33 @@ class _SavingsGoalDetailPageState extends ConsumerState<SavingsGoalDetailPage> {
                     border: const OutlineInputBorder()),
                 autofocus: true,
               ),
+              if (goal.planType == SavingsPlanType.savingsFinance) ...[
+                const SizedBox(height: 12),
+                InkWell(
+                  onTap: () async {
+                    final selected = await showDatePicker(
+                      context: context,
+                      initialDate: transactionDate,
+                      firstDate: goal.contractStartDate != null &&
+                              !goal.contractStartDate!.isAfter(DateTime.now())
+                          ? goal.contractStartDate!
+                          : DateTime(2000),
+                      lastDate: DateTime.now(),
+                    );
+                    if (selected != null) {
+                      setState(() => transactionDate = selected);
+                    }
+                  },
+                  child: InputDecorator(
+                    decoration: const InputDecoration(
+                      labelText: 'Ödeme tarihi',
+                      border: OutlineInputBorder(),
+                    ),
+                    child:
+                        Text(DateFormat('dd.MM.yyyy').format(transactionDate)),
+                  ),
+                ),
+              ],
               const SizedBox(height: 16),
               Row(
                 children: [
@@ -571,7 +599,7 @@ class _SavingsGoalDetailPageState extends ConsumerState<SavingsGoalDetailPage> {
                           'savings_finance_principal',
                       },
                       amount: amount,
-                      date: DateTime.now(),
+                      date: transactionDate,
                       type: TransactionType.expense,
                       bankAccountId: account?.id,
                       currencyCode: goal.currencyCode,
@@ -726,6 +754,7 @@ class _SavingsGoalDetailPageState extends ConsumerState<SavingsGoalDetailPage> {
       paymentAccountId = null;
     }
     var createExpense = true;
+    var paymentDate = DateTime.now();
     showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -772,6 +801,28 @@ class _SavingsGoalDetailPageState extends ConsumerState<SavingsGoalDetailPage> {
                 ],
                 onChanged: (value) => setState(() => paymentAccountId = value),
               ),
+              const SizedBox(height: 12),
+              InkWell(
+                onTap: () async {
+                  final selected = await showDatePicker(
+                    context: context,
+                    initialDate: paymentDate,
+                    firstDate: goal.contractStartDate != null &&
+                            !goal.contractStartDate!.isAfter(DateTime.now())
+                        ? goal.contractStartDate!
+                        : DateTime(2000),
+                    lastDate: DateTime.now(),
+                  );
+                  if (selected != null) setState(() => paymentDate = selected);
+                },
+                child: InputDecorator(
+                  decoration: const InputDecoration(
+                    labelText: 'Ödeme tarihi',
+                    border: OutlineInputBorder(),
+                  ),
+                  child: Text(DateFormat('dd.MM.yyyy').format(paymentDate)),
+                ),
+              ),
               CheckboxListTile(
                 contentPadding: EdgeInsets.zero,
                 value: createExpense,
@@ -807,7 +858,7 @@ class _SavingsGoalDetailPageState extends ConsumerState<SavingsGoalDetailPage> {
                           id: const Uuid().v4(),
                           categoryId: 'savings_finance_fee',
                           amount: amount,
-                          date: DateTime.now(),
+                          date: paymentDate,
                           type: TransactionType.expense,
                           bankAccountId: account?.id,
                           currencyCode: goal.currencyCode,
