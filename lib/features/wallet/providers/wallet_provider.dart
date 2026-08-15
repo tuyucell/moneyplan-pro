@@ -9,6 +9,7 @@ import 'package:moneyplan_pro/features/wallet/models/transaction_category.dart';
 import 'package:moneyplan_pro/core/services/currency_service.dart';
 import 'package:moneyplan_pro/features/wallet/models/bank_account.dart';
 import 'package:moneyplan_pro/features/wallet/providers/bank_account_provider.dart';
+import 'package:moneyplan_pro/features/wallet/services/statement_charge_service.dart';
 import 'package:moneyplan_pro/features/auth/presentation/providers/auth_providers.dart';
 import 'package:moneyplan_pro/features/auth/data/models/user_model.dart';
 import 'package:moneyplan_pro/services/api/supabase_service.dart';
@@ -23,8 +24,11 @@ class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
   bool _isInitialized = false;
   final _initCompleter = Completer<void>();
   final CurrencyService _currencyService;
+  final List<BankAccount> _accounts;
+  Timer? _statementChargeTimer;
 
-  WalletNotifier(this._currencyService, this.userId) : super([]) {
+  WalletNotifier(this._currencyService, this.userId, this._accounts)
+      : super([]) {
     _initHive();
   }
 
@@ -85,6 +89,15 @@ class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
       if (!_initCompleter.isCompleted) {
         _initCompleter.complete();
       }
+      try {
+        await _syncStatementCharges();
+      } catch (error, stackTrace) {
+        if (kDebugMode) {
+          debugPrint('Statement charge sync failed: $error');
+          debugPrint('$stackTrace');
+        }
+      }
+      _scheduleStatementChargeSync();
     } catch (e, stackTrace) {
       if (kDebugMode) {
         debugPrint('Error initializing Hive: $e');
@@ -102,8 +115,36 @@ class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
 
   @override
   void dispose() {
+    _statementChargeTimer?.cancel();
     _box?.close();
     super.dispose();
+  }
+
+  Future<void> _syncStatementCharges() async {
+    final pendingCharges = <WalletTransaction>[];
+    for (final account in _accounts) {
+      pendingCharges.addAll(
+        StatementChargeService.createDueCharges(
+          account: account,
+          transactions: [...state, ...pendingCharges],
+          asOf: DateTime.now(),
+        ),
+      );
+    }
+    if (pendingCharges.isNotEmpty) {
+      await addTransactions(pendingCharges);
+    }
+  }
+
+  void _scheduleStatementChargeSync() {
+    _statementChargeTimer?.cancel();
+    _statementChargeTimer = Timer(const Duration(hours: 6), () async {
+      try {
+        await _syncStatementCharges();
+      } finally {
+        if (mounted) _scheduleStatementChargeSync();
+      }
+    });
   }
 
   /// Load transactions from Hive with error handling
@@ -504,12 +545,13 @@ class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
 final walletProvider =
     StateNotifierProvider<WalletNotifier, List<WalletTransaction>>((ref) {
   final currencyService = ref.watch(currencyServiceProvider);
+  final accounts = ref.watch(bankAccountProvider);
   final authState = ref.watch(authNotifierProvider);
   String? userId;
   if (authState is AuthAuthenticated) {
     userId = authState.user.id;
   }
-  return WalletNotifier(currencyService, userId);
+  return WalletNotifier(currencyService, userId, accounts);
 });
 
 // Provider for current month summary

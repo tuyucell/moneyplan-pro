@@ -44,6 +44,9 @@ class _BankAccountEditorDialogState
   late final TextEditingController _statementDayController;
   late final TextEditingController _dueDayController;
   late final TextEditingController _initialBalanceController;
+  late final TextEditingController _interestRateController;
+  late final TextEditingController _bsmvRateController;
+  late final TextEditingController _kkdfRateController;
   late String _selectedCurrency;
   bool _isSaving = false;
   String? _errorMessage;
@@ -66,7 +69,16 @@ class _BankAccountEditorDialogState
       text: _bank?.dueDay.toString() ?? '10',
     );
     _initialBalanceController = TextEditingController(
-      text: _bank?.initialBalance.toStringAsFixed(0) ?? '0',
+      text: _formatNumber(_bank?.initialBalance ?? 0),
+    );
+    _interestRateController = TextEditingController(
+      text: _formatNumber(_bank?.overdraftInterestRate ?? 4.5),
+    );
+    _bsmvRateController = TextEditingController(
+      text: _formatNumber(_bank?.bsmvRate ?? 15),
+    );
+    _kkdfRateController = TextEditingController(
+      text: _formatNumber(_bank?.kkdfRate ?? 15),
     );
     _selectedCurrency = _bank?.currencyCode ?? 'TRY';
   }
@@ -78,12 +90,25 @@ class _BankAccountEditorDialogState
     _statementDayController.dispose();
     _dueDayController.dispose();
     _initialBalanceController.dispose();
+    _interestRateController.dispose();
+    _bsmvRateController.dispose();
+    _kkdfRateController.dispose();
     super.dispose();
   }
 
   double _parseAmount(String value) {
     final normalized = value.trim().replaceAll(' ', '').replaceAll(',', '.');
     return double.tryParse(normalized) ?? 0;
+  }
+
+  String _formatNumber(double value) => value == value.roundToDouble()
+      ? value.toStringAsFixed(0)
+      : value.toString();
+
+  String? _validateRate(String? value) {
+    final rate = _parseAmount(value ?? '');
+    if (rate < 0 || rate > 100) return '0 ile 100 arasında bir oran girin';
+    return null;
   }
 
   String? _validateDay(String? value) {
@@ -106,13 +131,16 @@ class _BankAccountEditorDialogState
       id: _bank?.id ?? const Uuid().v4(),
       name: _nameController.text.trim(),
       accountType: _accountType,
-      overdraftInterestRate: _bank?.overdraftInterestRate ?? 4.5,
+      overdraftInterestRate: _parseAmount(_interestRateController.text),
+      bsmvRate: _parseAmount(_bsmvRateController.text),
+      kkdfRate: _parseAmount(_kkdfRateController.text),
       overdraftLimit: _parseAmount(_limitController.text),
       paymentDay: int.parse(_statementDayController.text),
       dueDay: _isCreditCard ? int.parse(_dueDayController.text) : 10,
       isActive: _bank?.isActive ?? true,
       currencyCode: _selectedCurrency,
       initialBalance: _parseAmount(_initialBalanceController.text),
+      createdAt: _bank?.createdAt ?? DateTime.now(),
     );
 
     try {
@@ -245,6 +273,54 @@ class _BankAccountEditorDialogState
                 ),
                 const SizedBox(height: 16),
                 TextFormField(
+                  key: const ValueKey('bank_account_interest_rate'),
+                  controller: _interestRateController,
+                  decoration: InputDecoration(
+                    labelText: _isCreditCard
+                        ? 'Aylık Kart Faizi (%)'
+                        : 'Aylık KMH / Eksi Bakiye Faizi (%)',
+                    helperText:
+                        'Negatif bakiye varsa hesap kesiminde uygulanır.',
+                  ),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  validator: _validateRate,
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        key: const ValueKey('bank_account_bsmv_rate'),
+                        controller: _bsmvRateController,
+                        decoration: const InputDecoration(
+                          labelText: 'BSMV (%)',
+                        ),
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        validator: _validateRate,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TextFormField(
+                        key: const ValueKey('bank_account_kkdf_rate'),
+                        controller: _kkdfRateController,
+                        decoration: const InputDecoration(
+                          labelText: 'KKDF (%)',
+                        ),
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        validator: _validateRate,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
                   controller: _statementDayController,
                   decoration: InputDecoration(
                     labelText: _isCreditCard
@@ -267,14 +343,19 @@ class _BankAccountEditorDialogState
                 ],
                 const SizedBox(height: 16),
                 TextFormField(
+                  key: const ValueKey('bank_account_initial_balance'),
                   controller: _initialBalanceController,
                   decoration: InputDecoration(
-                    labelText:
-                        _isCreditCard ? 'Başlangıç Borcu' : 'Mevcut Bakiye',
+                    labelText: 'Başlangıç Bakiyesi',
+                    helperText: _isCreditCard
+                        ? 'Mevcut borcu eksi girin. Örn: -12500'
+                        : 'Eksi hesap borcunu negatif girin. Örn: -5000',
                     suffixText: currencySymbol,
                   ),
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    signed: true,
+                    decimal: true,
+                  ),
                 ),
                 if (_errorMessage != null) ...[
                   const SizedBox(height: 12),

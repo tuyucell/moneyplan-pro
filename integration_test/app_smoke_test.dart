@@ -126,6 +126,18 @@ void main() {
         reason: 'Yeni kart düğmesi çalışırken Flutter hatası oluştu.');
     await pumpUntilFound(tester, find.byType(BankAccountEditorDialog));
     expect(find.text('Yeni Kart Ekle'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('bank_account_interest_rate')),
+      findsOneWidget,
+    );
+    final initialBalanceField =
+        find.byKey(const ValueKey('bank_account_initial_balance'));
+    await tester.ensureVisible(initialBalanceField);
+    await tester.enterText(initialBalanceField, '-12500');
+    expect(
+      tester.widget<TextFormField>(initialBalanceField).controller!.text,
+      '-12500',
+    );
     expect(tester.takeException(), isNull,
         reason: 'Yeni kart ekranı açılırken Flutter hatası oluştu.');
     await tester.tap(find.text('İPTAL').last);

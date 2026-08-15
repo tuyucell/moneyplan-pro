@@ -43,13 +43,36 @@ class BankAccountNotifier extends StateNotifier<List<BankAccount>> {
             .select('*')
             .eq('user_id', userId!);
 
+        final localAccounts = {
+          for (final account in state) account.id: account
+        };
         final remoteAccounts = response.map((json) {
+          final local = localAccounts[json['id'] as String];
           return BankAccount(
             id: json['id'] as String,
             name: json['account_name'] as String,
             accountType: json['account_type'] as String,
             initialBalance: (json['balance'] as num).toDouble(),
             currencyCode: json['currency'] as String,
+            overdraftInterestRate:
+                (json['monthly_interest_rate'] as num?)?.toDouble() ??
+                    local?.overdraftInterestRate ??
+                    4.5,
+            bsmvRate: (json['bsmv_rate'] as num?)?.toDouble() ??
+                local?.bsmvRate ??
+                15,
+            kkdfRate: (json['kkdf_rate'] as num?)?.toDouble() ??
+                local?.kkdfRate ??
+                15,
+            overdraftLimit: (json['overdraft_limit'] as num?)?.toDouble() ??
+                local?.overdraftLimit ??
+                0,
+            paymentDay: json['payment_day'] as int? ?? local?.paymentDay ?? 1,
+            dueDay: json['due_day'] as int? ?? local?.dueDay ?? 10,
+            isActive: json['is_active'] as bool? ?? local?.isActive ?? true,
+            createdAt: json['created_at'] != null
+                ? DateTime.tryParse(json['created_at'] as String)
+                : local?.createdAt,
           );
         }).toList();
 
@@ -72,14 +95,7 @@ class BankAccountNotifier extends StateNotifier<List<BankAccount>> {
 
     // Sync to Supabase
     if (userId != null) {
-      await _client.from('user_bank_accounts').upsert({
-        'id': updatedAccount.id,
-        'user_id': userId,
-        'account_name': updatedAccount.name,
-        'account_type': updatedAccount.accountType,
-        'balance': updatedAccount.initialBalance,
-        'currency': updatedAccount.currencyCode,
-      });
+      await _upsertRemoteAccount(updatedAccount);
     }
   }
 
@@ -89,14 +105,7 @@ class BankAccountNotifier extends StateNotifier<List<BankAccount>> {
 
     // Sync to Supabase
     if (userId != null) {
-      await _client.from('user_bank_accounts').upsert({
-        'id': newAccount.id,
-        'user_id': userId,
-        'account_name': newAccount.name,
-        'account_type': newAccount.accountType,
-        'balance': newAccount.initialBalance,
-        'currency': newAccount.currencyCode,
-      });
+      await _upsertRemoteAccount(newAccount);
     }
   }
 
@@ -126,6 +135,35 @@ class BankAccountNotifier extends StateNotifier<List<BankAccount>> {
   Future<void> _saveToDisk() async {
     final box = await Hive.openBox(_boxName);
     await box.put('accounts', state.map((e) => e.toJson()).toList());
+  }
+
+  Future<void> _upsertRemoteAccount(BankAccount account) async {
+    if (userId == null) return;
+    final basePayload = {
+      'id': account.id,
+      'user_id': userId,
+      'account_name': account.name,
+      'account_type': account.accountType,
+      'balance': account.initialBalance,
+      'currency': account.currencyCode,
+    };
+
+    try {
+      await _client.from('user_bank_accounts').upsert({
+        ...basePayload,
+        'monthly_interest_rate': account.overdraftInterestRate,
+        'bsmv_rate': account.bsmvRate,
+        'kkdf_rate': account.kkdfRate,
+        'overdraft_limit': account.overdraftLimit,
+        'payment_day': account.paymentDay,
+        'due_day': account.dueDay,
+        'is_active': account.isActive,
+      });
+    } catch (_) {
+      // Older deployments may not have the finance columns yet. Keep account
+      // creation functional; Hive remains the source for the extra settings.
+      await _client.from('user_bank_accounts').upsert(basePayload);
+    }
   }
 }
 
