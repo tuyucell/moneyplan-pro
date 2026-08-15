@@ -8,20 +8,20 @@ import '../providers/bank_account_provider.dart';
 import '../../../../core/providers/balance_visibility_provider.dart';
 import '../../../../core/services/currency_service.dart';
 import '../services/payment_service.dart';
-
-import 'package:uuid/uuid.dart';
+import 'bank_account_editor_dialog.dart';
 
 class BankAccountsCard extends ConsumerWidget {
   const BankAccountsCard({super.key});
 
   void _showAccountActions(
       BuildContext context, WidgetRef ref, BankAccount bank) {
+    final pageContext = context;
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (context) => Container(
+      builder: (sheetContext) => Container(
         decoration: BoxDecoration(
-          color: Theme.of(context).cardColor,
+          color: Theme.of(sheetContext).cardColor,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
         ),
         padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
@@ -59,9 +59,14 @@ class BankAccountsCard extends ConsumerWidget {
               title: const Text('Borç Öde / Ödeme Yap',
                   style: TextStyle(fontWeight: FontWeight.w600)),
               subtitle: const Text('Bekleyen ekstreleri veya borçları kapat'),
-              onTap: () {
-                Navigator.pop(context);
-                _showPaymentDialog(context, ref, bank);
+              onTap: () async {
+                Navigator.of(sheetContext).pop();
+                await Future<void>.delayed(
+                  const Duration(milliseconds: 150),
+                );
+                if (pageContext.mounted) {
+                  _showPaymentDialog(pageContext, ref, bank);
+                }
               },
             ),
             const Divider(height: 16, indent: 56),
@@ -79,9 +84,14 @@ class BankAccountsCard extends ConsumerWidget {
                   style: TextStyle(fontWeight: FontWeight.w600)),
               subtitle:
                   const Text('Limit, tarih ve isim ayarlarını güncelleyin'),
-              onTap: () {
-                Navigator.pop(context);
-                _showEditDialog(context, ref, bank: bank);
+              onTap: () async {
+                Navigator.of(sheetContext).pop();
+                await Future<void>.delayed(
+                  const Duration(milliseconds: 150),
+                );
+                if (pageContext.mounted) {
+                  await showBankAccountEditorDialog(pageContext, bank: bank);
+                }
               },
             ),
           ],
@@ -449,192 +459,6 @@ class BankAccountsCard extends ConsumerWidget {
     }
   }
 
-  void _showDeleteConfirmation(
-      BuildContext context, WidgetRef ref, BankAccount bank) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Hesabı Sil'),
-        content: Text(
-            '${bank.name} hesabını silmek istediğinize emin misiniz? Bu işlem geri alınamaz.'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx), child: const Text('İPTAL')),
-          TextButton(
-            onPressed: () {
-              ref.read(bankAccountProvider.notifier).deleteAccount(bank.id);
-              Navigator.pop(ctx); // Close confirmation
-              Navigator.pop(context); // Close edit dialog if open
-            },
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('SİL'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showEditDialog(BuildContext context, WidgetRef ref,
-      {BankAccount? bank, String? defaultType}) {
-    final nameController = TextEditingController(text: bank?.name);
-    final limitController = TextEditingController(
-        text: bank?.overdraftLimit.toStringAsFixed(0) ?? '0');
-    final dayController =
-        TextEditingController(text: bank?.paymentDay.toString() ?? '1');
-    final dueDayController =
-        TextEditingController(text: bank?.dueDay.toString() ?? '10');
-    final initialBalanceController = TextEditingController(
-        text: bank?.initialBalance.toStringAsFixed(0) ?? '0');
-
-    final type = bank?.accountType ?? defaultType ?? 'Vadesiz Hesap';
-    final isCC = type == 'Kredi Kartı';
-    var selectedCurrency = bank?.currencyCode ?? 'TRY';
-
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          title:
-              Text(bank == null ? 'Yeni Hesap Ekle' : '${bank.name} Ayarları'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Banka / Hesap Adı',
-                    hintText: 'Örn: Finansbank, Kuveyt Türk',
-                  ),
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  initialValue: selectedCurrency,
-                  decoration: const InputDecoration(
-                    labelText: 'Para Birimi',
-                    prefixIcon: Icon(Icons.attach_money, size: 20),
-                  ),
-                  items: const [
-                    DropdownMenuItem(
-                        value: 'TRY', child: Text('🇹🇷 TRY (Türk Lirası)')),
-                    DropdownMenuItem(
-                        value: 'USD', child: Text('🇺🇸 USD (Dolar)')),
-                    DropdownMenuItem(
-                        value: 'EUR', child: Text('🇪🇺 EUR (Euro)')),
-                    DropdownMenuItem(
-                        value: 'GBP', child: Text('🇬🇧 GBP (Sterlin)')),
-                  ],
-                  onChanged: (val) {
-                    if (val != null) setState(() => selectedCurrency = val);
-                  },
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: limitController,
-                  decoration: InputDecoration(
-                    labelText:
-                        isCC ? 'Kredi Kartı Limiti' : 'KMH / Eksi Hesap Limiti',
-                    suffixText: ref
-                        .read(currencyServiceProvider)
-                        .getSymbol(selectedCurrency),
-                  ),
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: dayController,
-                  decoration: InputDecoration(
-                    labelText: isCC
-                        ? 'Hesap Kesim Günü (1-31)'
-                        : 'Vade / Faiz Günü (1-31)',
-                    hintText: 'Örn: 15',
-                  ),
-                  keyboardType: TextInputType.number,
-                ),
-                if (isCC) ...[
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: dueDayController,
-                    decoration: const InputDecoration(
-                      labelText: 'Son Ödeme Günü (1-31)',
-                      hintText: 'Örn: 25',
-                    ),
-                    keyboardType: TextInputType.number,
-                  ),
-                ],
-                const SizedBox(height: 16),
-                TextField(
-                  controller: initialBalanceController,
-                  decoration: InputDecoration(
-                    labelText:
-                        isCC ? 'Başlangıç Borcu (Ekstreden)' : 'Mevcut Bakiye',
-                    hintText: isCC ? 'Örn: 35000' : 'Örn: 10000',
-                    suffixText: ref
-                        .read(currencyServiceProvider)
-                        .getSymbol(selectedCurrency),
-                  ),
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            if (bank != null)
-              TextButton(
-                onPressed: () => _showDeleteConfirmation(ctx, ref, bank),
-                style: TextButton.styleFrom(foregroundColor: Colors.red),
-                child: const Text('SİL'),
-              ),
-            const Spacer(),
-            TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('İPTAL')),
-            ElevatedButton(
-              onPressed: () {
-                final name = nameController.text.trim();
-                if (name.isEmpty) return;
-
-                final limit = double.tryParse(limitController.text) ?? 0;
-                final day = int.tryParse(dayController.text) ?? 1;
-                final dueDay = int.tryParse(dueDayController.text) ?? 10;
-
-                final notifier = ref.read(bankAccountProvider.notifier);
-
-                if (bank != null) {
-                  notifier.updateAccount(bank.copyWith(
-                    name: name,
-                    currencyCode: selectedCurrency,
-                    overdraftLimit: limit,
-                    paymentDay: day,
-                    dueDay: dueDay,
-                    initialBalance:
-                        double.tryParse(initialBalanceController.text) ?? 0,
-                  ));
-                } else {
-                  notifier.addAccount(BankAccount(
-                    id: const Uuid().v4(),
-                    name: name,
-                    accountType: type,
-                    currencyCode: selectedCurrency,
-                    overdraftLimit: limit,
-                    paymentDay: day,
-                    dueDay: dueDay,
-                    initialBalance:
-                        double.tryParse(initialBalanceController.text) ?? 0,
-                  ));
-                }
-                Navigator.pop(ctx);
-              },
-              child: const Text('KAYDET'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final accounts = ref.watch(bankAccountProvider);
@@ -725,9 +549,8 @@ class BankAccountsCard extends ConsumerWidget {
               IconButton(
                 icon: const Icon(Icons.add_circle_outline,
                     color: Colors.indigo, size: 22),
-                onPressed: () => _showEditDialog(
+                onPressed: () => showBankAccountEditorDialog(
                   context,
-                  ref,
                   defaultType: title == 'VADESİZ HESAPLARIM'
                       ? 'Vadesiz Hesap'
                       : 'Kredi Kartı',

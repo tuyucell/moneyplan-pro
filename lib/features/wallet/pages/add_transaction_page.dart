@@ -13,6 +13,7 @@ import 'package:uuid/uuid.dart';
 import 'package:moneyplan_pro/core/services/currency_service.dart';
 import 'package:moneyplan_pro/features/wallet/providers/email_integration_provider.dart';
 import 'package:moneyplan_pro/features/wallet/pages/email_sync_page.dart';
+import 'package:moneyplan_pro/features/wallet/widgets/bank_account_editor_dialog.dart';
 import 'package:moneyplan_pro/services/analytics/analytics_service.dart';
 import 'package:moneyplan_pro/core/services/remote_config_service.dart';
 
@@ -266,7 +267,11 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
                   label: 'Banka Hesabı',
                   value: _selectedBankAccount?.name,
                   icon: Icons.account_balance,
-                  onTap: () => _showBankPicker(ref.read(bankAccountProvider)),
+                  onTap: () => _showBankPicker(
+                    filterType: _selectedSubCategory?.id == 'bank_credit_card'
+                        ? 'Kredi Kartı'
+                        : null,
+                  ),
                 ),
               ],
 
@@ -782,8 +787,7 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
                             // Delayed call to ensure the keyboard or previous bottom sheet is cleared
                             Future.delayed(const Duration(milliseconds: 300),
                                 () {
-                              _showBankPicker(ref.read(bankAccountProvider),
-                                  filterType: filter);
+                              _showBankPicker(filterType: filter);
                             });
                           }
                         }
@@ -826,62 +830,157 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
     );
   }
 
-  void _showBankPicker(List<BankAccount> accounts, {String? filterType}) {
-    final filteredAccounts = filterType != null
-        ? accounts.where((a) => a.accountType == filterType).toList()
-        : accounts;
-
-    showModalBottomSheet(
+  void _showBankPicker({String? filterType}) {
+    showModalBottomSheet<void>(
       context: context,
+      isScrollControlled: true,
       backgroundColor: AppColors.surface(context),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Text(filterType ?? 'Banka Hesabı',
-                  style: Theme.of(context).textTheme.titleLarge),
-            ),
-            ListTile(
-              leading: const Icon(Icons.close),
-              title: const Text('Seçim Yapma'),
-              onTap: () {
-                setState(() => _selectedBankAccount = null);
-                Navigator.pop(context);
-              },
-            ),
-            const Divider(),
-            Expanded(
-              child: ListView.builder(
-                shrinkWrap: true,
-                itemCount: filteredAccounts.length,
-                itemBuilder: (context, index) {
-                  final bank = filteredAccounts[index];
-                  final isSelected = _selectedBankAccount?.id == bank.id;
+      builder: (sheetContext) => FractionallySizedBox(
+        heightFactor: 0.72,
+        child: SafeArea(
+          child: Consumer(
+            builder: (context, pickerRef, _) {
+              final accounts = pickerRef.watch(bankAccountProvider);
+              final filteredAccounts = accounts
+                  .where((account) =>
+                      account.isActive &&
+                      (filterType == null || account.accountType == filterType))
+                  .toList();
+              final isCreditCardPicker = filterType == 'Kredi Kartı';
+              final newAccountType = filterType ?? 'Vadesiz Hesap';
 
-                  return ListTile(
+              return Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            filterType ?? 'Banka Hesabı',
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                        ),
+                        TextButton.icon(
+                          key: const ValueKey('add_bank_account_from_picker'),
+                          icon: const Icon(Icons.add),
+                          label: Text(
+                              isCreditCardPicker ? 'Yeni Kart' : 'Yeni Hesap'),
+                          onPressed: () async {
+                            Navigator.of(sheetContext).pop();
+                            await Future<void>.delayed(
+                              const Duration(milliseconds: 150),
+                            );
+                            if (!mounted) return;
+                            final created = await showBankAccountEditorDialog(
+                              this.context,
+                              defaultType: newAccountType,
+                            );
+                            if (created != null && mounted) {
+                              setState(() => _selectedBankAccount = created);
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.close),
+                    title: const Text('Seçim Yapma'),
                     onTap: () {
-                      setState(() => _selectedBankAccount = bank);
-                      Navigator.pop(context);
+                      setState(() => _selectedBankAccount = null);
+                      Navigator.of(sheetContext).pop();
                     },
-                    selected: isSelected,
-                    selectedColor: AppColors.primary,
-                    leading: Icon(Icons.account_balance,
-                        color: isSelected ? AppColors.primary : null),
-                    title: Text(bank.name),
-                    subtitle: Text(bank.accountType == 'Kredi Kartı'
-                        ? 'Limit: ${bank.overdraftLimit}₺ | Kesim: ${bank.paymentDay} / Son: ${bank.dueDay}'
-                        : 'KMH Limit: ${bank.overdraftLimit}₺ | Vade: ${bank.paymentDay}. gün'),
-                    trailing: isSelected ? const Icon(Icons.check) : null,
-                  );
-                },
-              ),
-            ),
-          ],
+                  ),
+                  const Divider(height: 1),
+                  Expanded(
+                    child: filteredAccounts.isEmpty
+                        ? Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(24),
+                              child: Text(
+                                isCreditCardPicker
+                                    ? 'Henüz kart yok. “Yeni Kart” ile ekleyebilirsiniz.'
+                                    : 'Henüz uygun hesap yok. “Yeni Hesap” ile ekleyebilirsiniz.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: AppColors.textTertiary(context),
+                                ),
+                              ),
+                            ),
+                          )
+                        : ListView.builder(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            itemCount: filteredAccounts.length,
+                            itemBuilder: (context, index) {
+                              final bank = filteredAccounts[index];
+                              final isSelected =
+                                  _selectedBankAccount?.id == bank.id;
+
+                              return ListTile(
+                                onTap: () {
+                                  setState(() => _selectedBankAccount = bank);
+                                  Navigator.of(sheetContext).pop();
+                                },
+                                selected: isSelected,
+                                selectedColor: AppColors.primary,
+                                leading: Icon(
+                                  bank.accountType == 'Kredi Kartı'
+                                      ? Icons.credit_card
+                                      : Icons.account_balance,
+                                  color: isSelected ? AppColors.primary : null,
+                                ),
+                                title: Text(bank.name),
+                                subtitle: Text(
+                                  bank.accountType == 'Kredi Kartı'
+                                      ? 'Limit: ${bank.overdraftLimit.toStringAsFixed(0)} ${bank.currencyCode} | Kesim: ${bank.paymentDay} / Son: ${bank.dueDay}'
+                                      : 'KMH: ${bank.overdraftLimit.toStringAsFixed(0)} ${bank.currencyCode} | Vade: ${bank.paymentDay}. gün',
+                                ),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      key: ValueKey(
+                                        'edit_bank_account_${bank.id}',
+                                      ),
+                                      tooltip: bank.accountType == 'Kredi Kartı'
+                                          ? 'Kartı düzenle'
+                                          : 'Hesabı düzenle',
+                                      icon: const Icon(Icons.edit_outlined),
+                                      onPressed: () async {
+                                        Navigator.of(sheetContext).pop();
+                                        await Future<void>.delayed(
+                                          const Duration(milliseconds: 150),
+                                        );
+                                        if (!mounted) return;
+                                        final updated =
+                                            await showBankAccountEditorDialog(
+                                          this.context,
+                                          bank: bank,
+                                        );
+                                        if (updated != null &&
+                                            mounted &&
+                                            _selectedBankAccount?.id ==
+                                                updated.id) {
+                                          setState(() =>
+                                              _selectedBankAccount = updated);
+                                        }
+                                      },
+                                    ),
+                                    if (isSelected) const Icon(Icons.check),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              );
+            },
+          ),
         ),
       ),
     );

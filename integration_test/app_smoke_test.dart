@@ -9,6 +9,8 @@ import 'package:moneyplan_pro/features/search/presentation/pages/asset_detail_pa
 import 'package:moneyplan_pro/features/search/presentation/pages/economic_calendar_page.dart';
 import 'package:moneyplan_pro/features/search/presentation/pages/fund_list_page.dart';
 import 'package:moneyplan_pro/features/subscription/presentation/pages/subscription_page.dart';
+import 'package:moneyplan_pro/features/wallet/pages/add_transaction_page.dart';
+import 'package:moneyplan_pro/features/wallet/widgets/bank_account_editor_dialog.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:moneyplan_pro/main.dart' as app;
@@ -86,7 +88,8 @@ void main() {
       AppRouter.router.go(path);
       await pumpUntilFound(tester, pageFinder);
       await tester.pump(const Duration(seconds: 4));
-      expect(tester.takeException(), isNull, reason: '$path ekranı hata verdi.');
+      expect(tester.takeException(), isNull,
+          reason: '$path ekranı hata verdi.');
 
       AppRouter.router.go(AppRouter.home);
       await pumpUntilFound(tester, find.byType(BottomNavigationBar));
@@ -98,6 +101,83 @@ void main() {
       '/exchanges/bitcoin',
       find.byType(AssetDetailPage),
     );
+
+    AppRouter.router.go('/add-transaction');
+    await pumpUntilFound(tester, find.byType(AddTransactionPage));
+
+    await tester.tap(find.text('Ana Kategori').first);
+    await pumpUntilFound(tester, find.text('Banka'));
+    await tester.tap(find.text('Banka').last);
+    await pumpUntilFound(tester, find.text('Kredi Kartı'));
+    await tester.tap(find.text('Kredi Kartı').last);
+    await pumpUntilFound(tester, find.text('Yeni Kart'));
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull,
+        reason: 'Kart seçim ekranı açılırken Flutter hatası oluştu.');
+
+    final newCardButton = find.byKey(
+      const ValueKey('add_bank_account_from_picker'),
+    );
+    expect(newCardButton, findsOneWidget);
+    await tester.tap(newCardButton);
+    await tester.pump(const Duration(seconds: 1));
+    expect(tester.takeException(), isNull,
+        reason: 'Yeni kart düğmesi çalışırken Flutter hatası oluştu.');
+    await pumpUntilFound(tester, find.byType(BankAccountEditorDialog));
+    expect(find.text('Yeni Kart Ekle'), findsOneWidget);
+    expect(tester.takeException(), isNull,
+        reason: 'Yeni kart ekranı açılırken Flutter hatası oluştu.');
+    await tester.tap(find.text('İPTAL').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Banka Hesabı').first);
+    await pumpUntilFound(tester, find.byTooltip('Kartı düzenle'));
+    await tester.pumpAndSettle();
+
+    final editCardButton =
+        find.byKey(const ValueKey('edit_bank_account_isbank_cc'));
+    expect(editCardButton, findsOneWidget);
+    await tester.tap(editCardButton);
+    await pumpUntilFound(tester, find.byType(BankAccountEditorDialog));
+    expect(find.text('Maximum Kart Ayarları'), findsOneWidget);
+    expect(tester.takeException(), isNull,
+        reason: 'Kart ayarları açılırken Flutter hatası oluştu.');
+    await tester.tap(find.text('İPTAL').last);
+    await tester.pumpAndSettle();
+
+    AppRouter.router.go(AppRouter.home);
+    await pumpUntilFound(tester, find.byType(BottomNavigationBar));
+
+    final walletNavigationBar = tester.widget<BottomNavigationBar>(
+      find.byType(BottomNavigationBar),
+    );
+    final walletLabel = walletNavigationBar.items[1].label!;
+    await tester.tap(
+      find.descendant(
+        of: find.byType(BottomNavigationBar),
+        matching: find.text(walletLabel),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final creditCardsSection = find.text('KREDİ KARTLARIM');
+    await tester.ensureVisible(creditCardsSection);
+    await tester.tap(creditCardsSection);
+    await tester.pumpAndSettle();
+
+    final maximumCard = find.text('Maximum Kart').first;
+    await tester.ensureVisible(maximumCard);
+    await tester.tap(maximumCard);
+    await pumpUntilFound(tester, find.text('Hesap Ayarları / Düzenle'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Hesap Ayarları / Düzenle'));
+    await pumpUntilFound(tester, find.byType(BankAccountEditorDialog));
+    expect(find.text('Maximum Kart Ayarları'), findsOneWidget);
+    expect(tester.takeException(), isNull,
+        reason: 'Cüzdandaki kart ayarları açılırken Flutter hatası oluştu.');
+    await tester.tap(find.text('İPTAL').last);
+    await tester.pumpAndSettle();
 
     var navigationBar = tester.widget<BottomNavigationBar>(
       find.byType(BottomNavigationBar),
