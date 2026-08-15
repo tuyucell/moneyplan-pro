@@ -78,6 +78,29 @@ void main() {
       expect(summary.availableBalance, 3000, reason: '7000 - 4000');
     });
 
+    test('KMH limits are not reported as wallet cash after a full reset', () {
+      final resetAccounts = DefaultBankAccounts.accounts
+          .where((account) => account.accountType != 'Kredi Kartı')
+          .map((account) => account.copyWith(
+                initialBalance: 0,
+                balanceEffectiveDate: DateTime(2026, 8, 15),
+              ))
+          .toList();
+
+      final summary = MonthlySummary.fromTransactions(
+        const [],
+        2026,
+        8,
+        bankAccountList: resetAccounts,
+      );
+
+      expect(summary.remainingBalance, 0);
+      expect(summary.totalOverdraftLimit, 100000,
+          reason: 'KMH configuration must remain intact');
+      expect(summary.availableBalance, 0,
+          reason: 'KMH is borrowing capacity, not the user\'s cash');
+    });
+
     test('Yearly summaries include every monthly recurring income and expense',
         () {
       final transactions = [

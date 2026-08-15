@@ -222,12 +222,12 @@ class _AvailableBalanceCardState extends ConsumerState<AvailableBalanceCard> {
 
           const Divider(color: Colors.white24, height: 24),
 
-          // Kullanılabilir Bakiye
+          // Kullanılabilir nakit (KMH/kredi limitleri hariç)
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                '✅ Kullanılabilir Bakiye',
+                '✅ Kullanılabilir Nakit',
                 style: TextStyle(
                   fontSize: context.adaptiveSp(16),
                   color: Colors.white.withValues(alpha: 0.9),
@@ -249,7 +249,7 @@ class _AvailableBalanceCardState extends ConsumerState<AvailableBalanceCard> {
             ),
           ),
           Text(
-            'Harcayabileceğiniz tutar',
+            'Bekleyen ödemeler sonrası • KMH ve kart limitleri hariç',
             style: TextStyle(
               fontSize: context.adaptiveSp(11),
               color: Colors.white.withValues(alpha: 0.6),

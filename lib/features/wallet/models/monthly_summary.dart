@@ -60,12 +60,12 @@ class MonthlySummary {
   // Kalan Bakiye: Başlangıç Nakit + Nakit Gelir - Nakit Gider
   double get remainingBalance => initialBalance + cashIncome - cashExpense;
 
-  // Kullanılabilir Bakiye: Kalan Bakiye + KMH Limiti - (Nakit Bekleyen + Bekleyen Ödemeler)
-  // Kredi kartı ekstreleri nakit bakiyeyi ve KMH limitini etkilemez (ödenene kadar)
+  // Kullanılabilir Bakiye yalnızca kullanıcının gerçek nakit pozisyonudur.
+  // KMH limiti borçlanma kapasitesidir; gelir/nakit gibi cüzdan toplamına
+  // eklenmez. Hesap bazındaki KMH kullanılabilirliği ayrıca gösterilebilir.
+  // Kredi kartı ekstreleri nakit bakiyeyi etkilemez (ödenene kadar).
   double get availableBalance =>
-      remainingBalance +
-      totalOverdraftLimit -
-      (cashPendingExpense + pendingPayments);
+      remainingBalance - (cashPendingExpense + pendingPayments);
 
   // Toplam Gider (Tüm Harcamalar)
   double get totalOutflow => totalExpense;
