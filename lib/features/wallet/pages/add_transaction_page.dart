@@ -57,7 +57,7 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
 
     if (widget.transaction != null) {
       final tx = widget.transaction!;
-      _amountController.text = tx.amount.toStringAsFixed(0);
+      _amountController.text = CurrencyInputFormatter.formatNumber(tx.amount);
       _noteController.text = tx.note ?? '';
       _selectedType = tx.type;
       _selectedDate = tx.date;
@@ -194,7 +194,7 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
                     child: TextFormField(
                       controller: _amountController,
                       keyboardType: TextInputType.number,
-                      inputFormatters: [CurrencyInputFormatter()],
+                      inputFormatters: const [CurrencyInputFormatter()],
                       style:
                           Theme.of(context).textTheme.headlineMedium?.copyWith(
                                 color: _selectedType == TransactionType.income
@@ -224,10 +224,8 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
                         if (value == null || value.isEmpty) {
                           return 'Lütfen tutar girin';
                         }
-                        final cleanValue =
-                            value.replaceAll('.', '').replaceAll(',', '');
-                        if (int.tryParse(cleanValue) == null ||
-                            int.parse(cleanValue) <= 0) {
+                        final amount = CurrencyInputFormatter.parse(value);
+                        if (amount == null || amount <= 0) {
                           return 'Geçerli bir tutar girin';
                         }
                         return null;
@@ -675,6 +673,8 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
     final now = DateTime.now();
     final picked = await showDatePicker(
       context: context,
+      useRootNavigator: false,
+      barrierDismissible: false,
       initialDate:
           isTransactionDate ? _selectedDate : (_recurrenceEndDate ?? now),
       firstDate: DateTime(2020),
@@ -687,6 +687,7 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
       ),
     );
 
+    if (!mounted) return;
     if (picked != null) {
       setState(() {
         if (isTransactionDate) {
@@ -999,10 +1000,7 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
     final finalCategory = _selectedSubCategory ?? _selectedMainCategory!;
 
     // Temiz tutar değerini al (bindelik ayracı kaldır)
-    final cleanAmount =
-        _amountController.text.replaceAll('.', '').replaceAll(',', '');
-
-    final amount = double.parse(cleanAmount);
+    final amount = CurrencyInputFormatter.parse(_amountController.text)!;
     final existing = widget.transaction;
     final currencyService = ref.read(currencyServiceProvider);
     final keepsExistingSnapshot =

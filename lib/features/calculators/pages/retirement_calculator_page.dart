@@ -5,6 +5,7 @@ import 'package:moneyplan_pro/core/i18n/app_strings.dart';
 import 'package:moneyplan_pro/core/providers/language_provider.dart';
 import 'package:intl/intl.dart';
 import 'package:moneyplan_pro/services/analytics/analytics_service.dart';
+import 'package:moneyplan_pro/core/utils/currency_input_formatter.dart';
 
 class RetirementCalculatorPage extends ConsumerStatefulWidget {
   const RetirementCalculatorPage({super.key});
@@ -25,8 +26,8 @@ class _RetirementCalculatorPageState
   final _currentDaysController = TextEditingController(text: '2500');
 
   // BES Fields
-  final _besMonthlyController = TextEditingController(text: '2000');
-  final _besCurrentBalanceController = TextEditingController(text: '50000');
+  final _besMonthlyController = TextEditingController(text: '2.000');
+  final _besCurrentBalanceController = TextEditingController(text: '50.000');
   final _besDurationYearsController = TextEditingController(text: '20');
   final _besReturnRateController = TextEditingController(text: '12');
 
@@ -124,8 +125,10 @@ class _RetirementCalculatorPageState
   }
 
   Widget _buildBesTab(String lc) {
-    final monthly = double.tryParse(_besMonthlyController.text) ?? 0;
-    final current = double.tryParse(_besCurrentBalanceController.text) ?? 0;
+    final monthly =
+        CurrencyInputFormatter.parse(_besMonthlyController.text) ?? 0;
+    final current =
+        CurrencyInputFormatter.parse(_besCurrentBalanceController.text) ?? 0;
     final years = int.tryParse(_besDurationYearsController.text) ?? 0;
     final rate = (double.tryParse(_besReturnRateController.text) ?? 0) / 100;
 
@@ -154,10 +157,12 @@ class _RetirementCalculatorPageState
           _buildInputSection(
             title: 'BES Birikim Planı',
             children: [
-              _buildTextField(_besMonthlyController, 'Aylık Ödeme',
-                  Icons.payments_outlined),
+              _buildTextField(
+                  _besMonthlyController, 'Aylık Ödeme', Icons.payments_outlined,
+                  currency: true),
               _buildTextField(_besCurrentBalanceController, 'Mevcut Birikim',
-                  Icons.savings_outlined),
+                  Icons.savings_outlined,
+                  currency: true),
               _buildTextField(_besDurationYearsController, 'Kalan Süre (Yıl)',
                   Icons.timer_outlined),
               _buildTextField(_besReturnRateController,
@@ -256,10 +261,15 @@ class _RetirementCalculatorPageState
   }
 
   Widget _buildTextField(
-      TextEditingController controller, String label, IconData icon) {
+    TextEditingController controller,
+    String label,
+    IconData icon, {
+    bool currency = false,
+  }) {
     return TextField(
       controller: controller,
       keyboardType: TextInputType.number,
+      inputFormatters: currency ? const [CurrencyInputFormatter()] : null,
       decoration: InputDecoration(
         labelText: label,
         prefixIcon: Icon(icon, size: 20),

@@ -14,6 +14,7 @@ import '../providers/email_integration_provider.dart';
 import '../services/gmail_sync_service.dart';
 import '../services/ai_processing_service.dart';
 import '../../../../core/services/ai_privacy_consent_service.dart';
+import '../../../../core/utils/currency_input_formatter.dart';
 import '../providers/bank_account_provider.dart';
 import '../models/bank_account.dart';
 
@@ -540,8 +541,12 @@ class _EmailSyncPageState extends ConsumerState<EmailSyncPage>
   }
 
   Future<ProcessedDocument?> _showReviewDialog(ProcessedDocument data) async {
-    final amountController =
-        TextEditingController(text: data.amount.toString());
+    final amountController = TextEditingController(
+      text: CurrencyInputFormatter.formatNumber(
+        data.amount,
+        decimalDigits: 2,
+      ),
+    );
     final descController = TextEditingController(text: data.description);
     var selectedDate = data.date;
     var selectedCatId = data.categoryId;
@@ -571,6 +576,9 @@ class _EmailSyncPageState extends ConsumerState<EmailSyncPage>
                   decoration: InputDecoration(
                       labelText: 'Tutar', suffixText: data.currencyCode),
                   keyboardType: TextInputType.number,
+                  inputFormatters: const [
+                    CurrencyInputFormatter(decimalDigits: 2),
+                  ],
                 ),
                 TextField(
                   controller: descController,
@@ -688,7 +696,8 @@ class _EmailSyncPageState extends ConsumerState<EmailSyncPage>
                 child: const Text('VAZGEÇ')),
             ElevatedButton(
               onPressed: () {
-                final amount = double.tryParse(amountController.text) ?? 0.0;
+                final amount =
+                    CurrencyInputFormatter.parse(amountController.text) ?? 0.0;
                 Navigator.pop(
                     ctx,
                     ProcessedDocument(
@@ -760,10 +769,16 @@ class _EmailSyncPageState extends ConsumerState<EmailSyncPage>
                     labelText: typeValue == 'Kredi Kartı'
                         ? 'Mevcut Borç (Ekstreden)'
                         : 'Mevcut Bakiye',
-                    hintText: typeValue == 'Kredi Kartı' ? '35000' : '10000',
+                    hintText: typeValue == 'Kredi Kartı' ? '35.000' : '10.000',
                   ),
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
+                  inputFormatters: const [
+                    CurrencyInputFormatter(
+                      allowNegative: true,
+                      decimalDigits: 2,
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 16),
                 TextField(
@@ -772,6 +787,9 @@ class _EmailSyncPageState extends ConsumerState<EmailSyncPage>
                       labelText:
                           typeValue == 'Kredi Kartı' ? 'Limit' : 'KMH Limiti'),
                   keyboardType: TextInputType.number,
+                  inputFormatters: const [
+                    CurrencyInputFormatter(decimalDigits: 2),
+                  ],
                 ),
                 TextField(
                   controller: dayController,
@@ -804,11 +822,14 @@ class _EmailSyncPageState extends ConsumerState<EmailSyncPage>
                   name: nameController.text.trim(),
                   accountType: typeValue,
                   currencyCode: currencyCode,
-                  overdraftLimit: double.tryParse(limitController.text) ?? 0,
+                  overdraftLimit:
+                      CurrencyInputFormatter.parse(limitController.text) ?? 0,
                   paymentDay: int.tryParse(dayController.text) ?? 15,
                   dueDay: int.tryParse(dueDayController.text) ?? 25,
-                  initialBalance:
-                      double.tryParse(initialBalanceController.text) ?? 0,
+                  initialBalance: CurrencyInputFormatter.parse(
+                        initialBalanceController.text,
+                      ) ??
+                      0,
                 );
 
                 ref.read(bankAccountProvider.notifier).addAccount(newAccount);

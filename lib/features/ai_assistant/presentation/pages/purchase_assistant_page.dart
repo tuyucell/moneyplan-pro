@@ -5,6 +5,7 @@ import '../../domain/models/purchase_advice.dart';
 import '../widgets/limit_status_card.dart';
 import 'package:moneyplan_pro/features/auth/presentation/providers/auth_providers.dart';
 import 'package:moneyplan_pro/features/auth/data/models/user_model.dart';
+import 'package:moneyplan_pro/core/utils/currency_input_formatter.dart';
 
 class PurchaseAssistantPage extends ConsumerStatefulWidget {
   const PurchaseAssistantPage({super.key});
@@ -100,13 +101,14 @@ class _PurchaseAssistantPageState extends ConsumerState<PurchaseAssistantPage> {
       }
 
       // 2. Perform Analysis
-      final cashPrice = double.parse(_amountController.text);
+      final cashPrice = CurrencyInputFormatter.parse(_amountController.text)!;
       final installments = int.parse(_installmentsController.text);
 
       // If user didn't enter monthly payment, ask for it?
       // Or if they entered Total Installment Price, divide by N.
       // Let's add a field for "Monthly Installment Amount".
-      final monthlyPayment = double.parse(_monthlyPaymentController.text);
+      final monthlyPayment =
+          CurrencyInputFormatter.parse(_monthlyPaymentController.text)!;
 
       final customRate = _customRateController.text.isNotEmpty
           ? double.tryParse(_customRateController.text.replaceAll(',', '.'))
@@ -183,6 +185,7 @@ class _PurchaseAssistantPageState extends ConsumerState<PurchaseAssistantPage> {
                       TextFormField(
                         controller: _amountController,
                         keyboardType: TextInputType.number,
+                        inputFormatters: const [CurrencyInputFormatter()],
                         decoration: const InputDecoration(
                           labelText: 'Nakit Fiyatı (Peşin)',
                           suffixText: 'TL',
@@ -211,6 +214,9 @@ class _PurchaseAssistantPageState extends ConsumerState<PurchaseAssistantPage> {
                             child: TextFormField(
                               controller: _monthlyPaymentController,
                               keyboardType: TextInputType.number,
+                              inputFormatters: const [
+                                CurrencyInputFormatter(),
+                              ],
                               decoration: const InputDecoration(
                                 labelText: 'Aylık Taksit Tutarı',
                                 suffixText: 'TL',

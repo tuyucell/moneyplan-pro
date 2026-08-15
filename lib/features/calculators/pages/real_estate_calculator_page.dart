@@ -7,6 +7,7 @@ import 'package:moneyplan_pro/features/calculators/services/calculator_history_s
 import 'package:moneyplan_pro/core/i18n/app_strings.dart';
 import 'package:moneyplan_pro/core/providers/language_provider.dart';
 import 'package:uuid/uuid.dart';
+import 'package:moneyplan_pro/core/utils/currency_input_formatter.dart';
 
 class RealEstateCalculatorPage extends ConsumerStatefulWidget {
   const RealEstateCalculatorPage({super.key});
@@ -501,13 +502,8 @@ class _RealEstateCalculatorPageState
   }
 
   void _calculate() {
-    final housePrice = double.tryParse(_housePriceController.text
-            .replaceAll('.', '')
-            .replaceAll(',', '')) ??
-        0;
-    final monthlyRent = double.tryParse(
-            _rentController.text.replaceAll('.', '').replaceAll(',', '')) ??
-        0;
+    final housePrice = _currencyValue(_housePriceController);
+    final monthlyRent = _currencyValue(_rentController);
 
     double safeParse(String vol) =>
         double.tryParse(vol.replaceAll(',', '.')) ?? 0;
@@ -516,12 +512,8 @@ class _RealEstateCalculatorPageState
     final realReturnRate = safeParse(_returnRateController.text);
     final analysisYears = int.tryParse(_yearController.text) ?? 10;
 
-    final downPayment = _isMortgage
-        ? (double.tryParse(_downPaymentController.text
-                .replaceAll('.', '')
-                .replaceAll(',', '')) ??
-            0)
-        : housePrice;
+    final downPayment =
+        _isMortgage ? _currencyValue(_downPaymentController) : housePrice;
 
     if (housePrice > 0 && monthlyRent > 0) {
       _rentMultiplier = housePrice / (monthlyRent * 12);
@@ -870,14 +862,8 @@ class _RealEstateCalculatorPageState
                       _buildComparisonRow(
                           context,
                           AppStrings.tr(AppStrings.loanAmountLabel, lc),
-                          (_housePriceController.text.isEmpty
-                                  ? 0
-                                  : double.tryParse(_housePriceController.text
-                                          .replaceAll('.', '')) ??
-                                      0) -
-                              (double.tryParse(_downPaymentController.text
-                                      .replaceAll('.', '')) ??
-                                  0),
+                          _currencyValue(_housePriceController) -
+                              _currencyValue(_downPaymentController),
                           AppColors.textPrimary(context),
                           currencyFormat),
                       const Divider(height: 16),
@@ -897,15 +883,8 @@ class _RealEstateCalculatorPageState
                                   (int.tryParse(_loanTermController.text) ??
                                       10) *
                                   (_isLoanTermMonths ? 1 : 12)) -
-                              ((_housePriceController.text.isEmpty
-                                      ? 0
-                                      : double.tryParse(_housePriceController
-                                              .text
-                                              .replaceAll('.', '')) ??
-                                          0) -
-                                  (double.tryParse(_downPaymentController.text
-                                          .replaceAll('.', '')) ??
-                                      0)),
+                              (_currencyValue(_housePriceController) -
+                                  _currencyValue(_downPaymentController)),
                           AppColors.warning,
                           currencyFormat),
                     ],
@@ -1143,7 +1122,27 @@ class _RealEstateCalculatorPageState
           ],
         ),
         const SizedBox(height: 8),
+        TextField(
+          controller: controller,
+          keyboardType: TextInputType.numberWithOptions(
+            decimal: isPercentage || !isYear,
+          ),
+          inputFormatters: !isPercentage && !isYear
+              ? const [CurrencyInputFormatter(decimalDigits: 2)]
+              : null,
+          decoration: InputDecoration(
+            hintText: hint,
+            prefixText: !isPercentage && !isYear ? '₺ ' : null,
+            suffixIcon: customSuffix,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
       ],
     );
   }
+
+  double _currencyValue(TextEditingController controller) =>
+      CurrencyInputFormatter.parse(controller.text) ?? 0;
 }

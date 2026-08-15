@@ -248,7 +248,7 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage>
           TextFormField(
             controller: _amountController,
             keyboardType: TextInputType.number,
-            inputFormatters: [CurrencyInputFormatter()],
+            inputFormatters: const [CurrencyInputFormatter()],
             style: const TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
@@ -267,9 +267,8 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage>
             ),
             validator: (value) {
               if (value == null || value.isEmpty) return 'Lütfen tutar girin';
-              final cleanValue = value.replaceAll('.', '').replaceAll(',', '');
-              if (int.tryParse(cleanValue) == null ||
-                  int.parse(cleanValue) <= 0) {
+              final amount = CurrencyInputFormatter.parse(value);
+              if (amount == null || amount <= 0) {
                 return 'Geçerli bir tutar girin';
               }
               return null;
@@ -952,14 +951,10 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage>
 
     final finalCategory = _selectedSubCategory ?? _selectedMainCategory!;
 
-    // Temiz tutar değerini al (bindelik ayracı kaldır)
-    final cleanAmount =
-        _amountController.text.replaceAll('.', '').replaceAll(',', '');
-
     final transaction = WalletTransaction(
       id: const Uuid().v4(),
       categoryId: finalCategory.id,
-      amount: double.parse(cleanAmount),
+      amount: CurrencyInputFormatter.parse(_amountController.text)!,
       date: _selectedDate,
       note: _noteController.text.isEmpty ? null : _noteController.text,
       type: _selectedType,

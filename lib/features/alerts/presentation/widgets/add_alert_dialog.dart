@@ -4,6 +4,7 @@ import 'package:moneyplan_pro/core/constants/colors.dart';
 import 'package:moneyplan_pro/features/alerts/providers/alerts_provider.dart';
 import 'package:moneyplan_pro/core/i18n/app_strings.dart';
 import 'package:moneyplan_pro/core/providers/language_provider.dart';
+import 'package:moneyplan_pro/core/utils/currency_input_formatter.dart';
 
 class AddAlertDialog extends ConsumerStatefulWidget {
   final String assetId;
@@ -31,7 +32,12 @@ class _AddAlertDialogState extends ConsumerState<AddAlertDialog> {
   void initState() {
     super.initState();
     _priceController = TextEditingController(
-        text: widget.currentPrice > 0 ? widget.currentPrice.toString() : '');
+        text: widget.currentPrice > 0
+            ? CurrencyInputFormatter.formatNumber(
+                widget.currentPrice,
+                decimalDigits: 8,
+              )
+            : '');
     // Auto-detect isAbove based on current price
     if (widget.currentPrice > 0) {
       _isAbove = true; // Default to above, but we will adjust on change
@@ -78,6 +84,9 @@ class _AddAlertDialogState extends ConsumerState<AddAlertDialog> {
           TextField(
             controller: _priceController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            inputFormatters: const [
+              CurrencyInputFormatter(decimalDigits: 8),
+            ],
             style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
@@ -94,7 +103,7 @@ class _AddAlertDialogState extends ConsumerState<AddAlertDialog> {
             ),
             onChanged: (val) {
               setState(() {
-                final target = double.tryParse(val);
+                final target = CurrencyInputFormatter.parse(val);
                 if (target != null && widget.currentPrice > 0) {
                   _isAbove = target > widget.currentPrice;
                 }
@@ -235,7 +244,7 @@ class _AddAlertDialogState extends ConsumerState<AddAlertDialog> {
         ),
         ElevatedButton(
           onPressed: () {
-            final target = double.tryParse(_priceController.text);
+            final target = CurrencyInputFormatter.parse(_priceController.text);
             if (widget.currentPrice <= 0) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(

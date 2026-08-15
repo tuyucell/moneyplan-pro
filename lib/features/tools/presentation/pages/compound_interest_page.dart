@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:moneyplan_pro/core/constants/colors.dart';
 import 'package:intl/intl.dart';
+import 'package:moneyplan_pro/core/utils/currency_input_formatter.dart';
 
 class CompoundInterestPage extends StatefulWidget {
   const CompoundInterestPage({super.key});
@@ -10,8 +11,8 @@ class CompoundInterestPage extends StatefulWidget {
 }
 
 class _CompoundInterestPageState extends State<CompoundInterestPage> {
-  final _principalController = TextEditingController(text: '10000');
-  final _monthlyController = TextEditingController(text: '1000');
+  final _principalController = TextEditingController(text: '10.000');
+  final _monthlyController = TextEditingController(text: '1.000');
   final _rateController = TextEditingController(text: '10');
   final _yearsController = TextEditingController(text: '5');
   final _monthsController = TextEditingController(text: '0');
@@ -27,8 +28,9 @@ class _CompoundInterestPageState extends State<CompoundInterestPage> {
   }
 
   void _calculate() {
-    final principal = double.tryParse(_principalController.text) ?? 0;
-    final monthly = double.tryParse(_monthlyController.text) ?? 0;
+    final principal =
+        CurrencyInputFormatter.parse(_principalController.text) ?? 0;
+    final monthly = CurrencyInputFormatter.parse(_monthlyController.text) ?? 0;
     final rate = double.tryParse(_rateController.text) ?? 0;
     final years = int.tryParse(_yearsController.text) ?? 0;
     final extraMonths = int.tryParse(_monthsController.text) ?? 0;
@@ -190,6 +192,7 @@ class _CompoundInterestPageState extends State<CompoundInterestPage> {
     return TextField(
       controller: controller,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      inputFormatters: suffix == '₺' ? const [CurrencyInputFormatter()] : null,
       decoration: InputDecoration(
         labelText: label,
         suffixText: suffix,

@@ -19,8 +19,8 @@ class CompoundInterestPage extends ConsumerStatefulWidget {
 }
 
 class _CompoundInterestPageState extends ConsumerState<CompoundInterestPage> {
-  final _initialAmountController = TextEditingController(text: '10000');
-  final _monthlyContributionController = TextEditingController(text: '1000');
+  final _initialAmountController = TextEditingController(text: '10.000');
+  final _monthlyContributionController = TextEditingController(text: '1.000');
   final _interestRateController = TextEditingController(text: '10');
   final _monthsController = TextEditingController(text: '120');
   final _inflationController = TextEditingController(text: '0');
@@ -64,14 +64,10 @@ class _CompoundInterestPageState extends ConsumerState<CompoundInterestPage> {
     double parseRate(String text) =>
         double.tryParse(text.replaceAll(',', '.')) ?? 0;
 
-    final principal = double.tryParse(_initialAmountController.text
-            .replaceAll('.', '')
-            .replaceAll(',', '')) ??
-        0;
-    var monthly = double.tryParse(_monthlyContributionController.text
-            .replaceAll('.', '')
-            .replaceAll(',', '')) ??
-        0;
+    final principal =
+        CurrencyInputFormatter.parse(_initialAmountController.text) ?? 0;
+    var monthly =
+        CurrencyInputFormatter.parse(_monthlyContributionController.text) ?? 0;
     final rate =
         double.tryParse(_interestRateController.text.replaceAll(',', '.')) ?? 0;
     final totalMonthsCount = int.tryParse(_monthsController.text) ?? 0;
@@ -594,7 +590,7 @@ class _CompoundInterestPageState extends ConsumerState<CompoundInterestPage> {
                       ? const TextInputType.numberWithOptions(decimal: true)
                       : TextInputType.number,
                   inputFormatters: [
-                    if (isCurrency) CurrencyInputFormatter(),
+                    if (isCurrency) const CurrencyInputFormatter(),
                     if (isDecimal)
                       FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
                     if (!isCurrency && !isDecimal)

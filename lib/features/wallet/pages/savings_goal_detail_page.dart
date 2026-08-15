@@ -15,6 +15,7 @@ import 'package:moneyplan_pro/features/wallet/models/bank_account.dart';
 import 'package:moneyplan_pro/features/wallet/providers/bank_account_provider.dart';
 import 'package:moneyplan_pro/features/wallet/widgets/savings_plan_editor_dialog.dart';
 import 'package:moneyplan_pro/features/wallet/services/savings_plan_ledger_service.dart';
+import 'package:moneyplan_pro/core/utils/currency_input_formatter.dart';
 
 class SavingsGoalDetailPage extends ConsumerStatefulWidget {
   final SavingsGoal goal;
@@ -495,6 +496,7 @@ class _SavingsGoalDetailPageState extends ConsumerState<SavingsGoalDetailPage> {
               TextField(
                 controller: controller,
                 keyboardType: TextInputType.number,
+                inputFormatters: const [CurrencyInputFormatter()],
                 decoration: InputDecoration(
                     labelText:
                         '${AppStrings.tr(AppStrings.balance, lc)} (${goal.currencyCode})',
@@ -569,7 +571,7 @@ class _SavingsGoalDetailPageState extends ConsumerState<SavingsGoalDetailPage> {
                 child: Text(AppStrings.tr(AppStrings.cancel, lc))),
             ElevatedButton(
               onPressed: () async {
-                final amount = double.tryParse(controller.text);
+                final amount = CurrencyInputFormatter.parse(controller.text);
                 if (amount != null && amount > 0) {
                   final messenger = ScaffoldMessenger.of(context);
                   final navigator = Navigator.of(ctx);
@@ -656,6 +658,7 @@ class _SavingsGoalDetailPageState extends ConsumerState<SavingsGoalDetailPage> {
               TextField(
                 controller: controller,
                 keyboardType: TextInputType.number,
+                inputFormatters: const [CurrencyInputFormatter()],
                 decoration: InputDecoration(
                     labelText:
                         '${AppStrings.tr(AppStrings.balance, lc)} (${goal.currencyCode})',
@@ -693,7 +696,7 @@ class _SavingsGoalDetailPageState extends ConsumerState<SavingsGoalDetailPage> {
                 child: Text(AppStrings.tr(AppStrings.cancel, lc))),
             ElevatedButton(
               onPressed: () async {
-                final amount = double.tryParse(controller.text);
+                final amount = CurrencyInputFormatter.parse(controller.text);
                 if (amount != null && amount > 0) {
                   final messenger = ScaffoldMessenger.of(context);
                   final navigator = Navigator.of(ctx);
@@ -774,6 +777,7 @@ class _SavingsGoalDetailPageState extends ConsumerState<SavingsGoalDetailPage> {
                 autofocus: true,
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
+                inputFormatters: const [CurrencyInputFormatter()],
                 decoration: const InputDecoration(
                   labelText: 'Bu çekimde ödenen tutar',
                   prefixText: '₺ ',
@@ -842,8 +846,7 @@ class _SavingsGoalDetailPageState extends ConsumerState<SavingsGoalDetailPage> {
             ),
             FilledButton(
               onPressed: () async {
-                final amount = double.tryParse(
-                    controller.text.trim().replaceAll(',', '.'));
+                final amount = CurrencyInputFormatter.parse(controller.text);
                 if (amount == null || amount <= 0) return;
                 if (amount > goal.organizationFeeRemaining) {
                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -893,7 +896,7 @@ class _SavingsGoalDetailPageState extends ConsumerState<SavingsGoalDetailPage> {
     SavingsGoal goal,
   ) {
     final controller = TextEditingController(
-      text: goal.targetAmount.toStringAsFixed(0),
+      text: CurrencyInputFormatter.formatNumber(goal.targetAmount),
     );
     final accounts = ref
         .read(bankAccountProvider)
@@ -931,6 +934,7 @@ class _SavingsGoalDetailPageState extends ConsumerState<SavingsGoalDetailPage> {
                 controller: controller,
                 keyboardType:
                     const TextInputType.numberWithOptions(decimal: true),
+                inputFormatters: const [CurrencyInputFormatter()],
                 decoration: const InputDecoration(
                   labelText: 'Teslim alınan finansman',
                   prefixText: '₺ ',
@@ -973,8 +977,7 @@ class _SavingsGoalDetailPageState extends ConsumerState<SavingsGoalDetailPage> {
             ),
             FilledButton(
               onPressed: () async {
-                final amount = double.tryParse(
-                    controller.text.trim().replaceAll(',', '.'));
+                final amount = CurrencyInputFormatter.parse(controller.text);
                 if (amount == null || amount <= 0) return;
                 final now = DateTime.now();
                 await ref.read(walletProvider.notifier).addTransaction(

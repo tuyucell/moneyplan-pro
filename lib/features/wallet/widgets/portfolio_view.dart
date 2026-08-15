@@ -14,6 +14,7 @@ import 'package:moneyplan_pro/features/wallet/providers/bes_provider.dart';
 import 'package:moneyplan_pro/core/services/currency_service.dart';
 import 'package:moneyplan_pro/core/services/remote_config_service.dart';
 import 'package:moneyplan_pro/features/wallet/providers/savings_goal_provider.dart';
+import 'package:moneyplan_pro/core/utils/currency_input_formatter.dart';
 
 class PortfolioView extends ConsumerWidget {
   const PortfolioView({super.key});
@@ -364,9 +365,18 @@ class PortfolioView extends ConsumerWidget {
 
   void _showEditAssetDialog(
       BuildContext context, WidgetRef ref, PortfolioAsset asset, String lc) {
-    final unitsController = TextEditingController(text: asset.units.toString());
-    final costController =
-        TextEditingController(text: asset.averageCost.toString());
+    final unitsController = TextEditingController(
+      text: CurrencyInputFormatter.formatNumber(
+        asset.units,
+        decimalDigits: 8,
+      ),
+    );
+    final costController = TextEditingController(
+      text: CurrencyInputFormatter.formatNumber(
+        asset.averageCost,
+        decimalDigits: 8,
+      ),
+    );
     final currencyService = ref.read(currencyServiceProvider);
     final sign = currencyService.getSymbol(asset.currencyCode);
 
@@ -384,6 +394,9 @@ class PortfolioView extends ConsumerWidget {
                   border: const OutlineInputBorder()),
               keyboardType:
                   const TextInputType.numberWithOptions(decimal: true),
+              inputFormatters: const [
+                CurrencyInputFormatter(decimalDigits: 8),
+              ],
             ),
             const SizedBox(height: 16),
             TextField(
@@ -394,6 +407,9 @@ class PortfolioView extends ConsumerWidget {
                   border: const OutlineInputBorder()),
               keyboardType:
                   const TextInputType.numberWithOptions(decimal: true),
+              inputFormatters: const [
+                CurrencyInputFormatter(decimalDigits: 8),
+              ],
             ),
           ],
         ),
@@ -403,8 +419,10 @@ class PortfolioView extends ConsumerWidget {
               child: Text(AppStrings.tr(AppStrings.cancel, lc))),
           ElevatedButton(
             onPressed: () {
-              final units = double.tryParse(unitsController.text) ?? 0;
-              final cost = double.tryParse(costController.text) ?? 0;
+              final units =
+                  CurrencyInputFormatter.parse(unitsController.text) ?? 0;
+              final cost =
+                  CurrencyInputFormatter.parse(costController.text) ?? 0;
               if (units > 0 && cost >= 0) {
                 ref
                     .read(portfolioProvider.notifier)

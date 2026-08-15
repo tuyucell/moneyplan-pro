@@ -105,7 +105,7 @@ class InvestmentInputField extends StatelessWidget {
         TextField(
           controller: controller,
           keyboardType: TextInputType.number,
-          inputFormatters: [CurrencyInputFormatter()],
+          inputFormatters: const [CurrencyInputFormatter()],
           onChanged: (value) {
             var digitsOnly = value.replaceAll(RegExp(r'[^\d]'), '');
             onChanged(digitsOnly);

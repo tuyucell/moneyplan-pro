@@ -4,6 +4,7 @@ import 'package:moneyplan_pro/core/constants/colors.dart';
 import 'package:moneyplan_pro/core/i18n/app_strings.dart';
 import 'package:moneyplan_pro/core/providers/language_provider.dart';
 import 'package:moneyplan_pro/services/analytics/analytics_service.dart';
+import 'package:moneyplan_pro/core/utils/currency_input_formatter.dart';
 
 class CreditCardAssistantPage extends ConsumerStatefulWidget {
   const CreditCardAssistantPage({super.key});
@@ -15,7 +16,7 @@ class CreditCardAssistantPage extends ConsumerStatefulWidget {
 
 class _CreditCardAssistantPageState
     extends ConsumerState<CreditCardAssistantPage> {
-  final _debtController = TextEditingController(text: '50000');
+  final _debtController = TextEditingController(text: '50.000');
   double _minPayment = 0;
   double _remainingDebt = 0;
   double _interestOnRemaining = 0;
@@ -37,7 +38,7 @@ class _CreditCardAssistantPageState
   }
 
   void _calculate() {
-    final debt = double.tryParse(_debtController.text) ?? 0;
+    final debt = CurrencyInputFormatter.parse(_debtController.text) ?? 0;
     // Minimum payment rule in TR (usually 20% or 40% based on limit)
     // Assuming 20% for simplicity
     _minPayment = debt * 0.20;
@@ -92,6 +93,7 @@ class _CreditCardAssistantPageState
           TextField(
             controller: _debtController,
             keyboardType: TextInputType.number,
+            inputFormatters: const [CurrencyInputFormatter()],
             onChanged: (_) => _calculate(),
             decoration: InputDecoration(
               labelText: 'Dönem Borcu',

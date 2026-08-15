@@ -10,15 +10,17 @@ class InvestmentComparisonPage extends ConsumerStatefulWidget {
   const InvestmentComparisonPage({super.key});
 
   @override
-  ConsumerState<InvestmentComparisonPage> createState() => _InvestmentComparisonPageState();
+  ConsumerState<InvestmentComparisonPage> createState() =>
+      _InvestmentComparisonPageState();
 }
 
-class _InvestmentComparisonPageState extends ConsumerState<InvestmentComparisonPage> {
-  final _amountController = TextEditingController(text: '1000');
+class _InvestmentComparisonPageState
+    extends ConsumerState<InvestmentComparisonPage> {
+  final _amountController = TextEditingController(text: '1.000');
   DateTime? _startDate;
 
   final Map<int, Map<String, double>> _historicalData = {
-    2010: {'gold': 65.0, 'usd': 1.50, 'eur': 2.00, 'bist': 600.0}, 
+    2010: {'gold': 65.0, 'usd': 1.50, 'eur': 2.00, 'bist': 600.0},
     2011: {'gold': 95.0, 'usd': 1.67, 'eur': 2.30, 'bist': 650.0},
     2012: {'gold': 98.0, 'usd': 1.80, 'eur': 2.35, 'bist': 750.0},
     2013: {'gold': 90.0, 'usd': 1.90, 'eur': 2.50, 'bist': 800.0},
@@ -32,8 +34,8 @@ class _InvestmentComparisonPageState extends ConsumerState<InvestmentComparisonP
     2021: {'gold': 780.0, 'usd': 11.50, 'eur': 13.00, 'bist': 1800.0},
     2022: {'gold': 1100.0, 'usd': 18.60, 'eur': 19.80, 'bist': 5500.0},
     2023: {'gold': 1950.0, 'usd': 29.50, 'eur': 32.50, 'bist': 7500.0},
-    2024: {'gold': 2500.0, 'usd': 33.00, 'eur': 36.00, 'bist': 9000.0}, 
-    2025: {'gold': 3200.0, 'usd': 42.00, 'eur': 45.00, 'bist': 12000.0}, 
+    2024: {'gold': 2500.0, 'usd': 33.00, 'eur': 36.00, 'bist': 9000.0},
+    2025: {'gold': 3200.0, 'usd': 42.00, 'eur': 45.00, 'bist': 12000.0},
   };
 
   List<Map<String, dynamic>> _results = [];
@@ -50,17 +52,18 @@ class _InvestmentComparisonPageState extends ConsumerState<InvestmentComparisonP
     final lc = language.code;
     if (_startDate == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(AppStrings.tr(AppStrings.selectStartDatePrompt, lc))),
+        SnackBar(
+            content: Text(AppStrings.tr(AppStrings.selectStartDatePrompt, lc))),
       );
       return;
     }
 
-    final amount = double.tryParse(_amountController.text.replaceAll('.', '').replaceAll(',', '')) ?? 0;
+    final amount = CurrencyInputFormatter.parse(_amountController.text) ?? 0;
     if (amount <= 0) return;
 
     final startYear = _startDate!.year;
     final startPrices = _historicalData[startYear] ?? _historicalData[2010]!;
-    final currentPrices = _historicalData[2024]!; 
+    final currentPrices = _historicalData[2024]!;
 
     _results = [];
 
@@ -68,7 +71,7 @@ class _InvestmentComparisonPageState extends ConsumerState<InvestmentComparisonP
     var goldValue = goldAmount * currentPrices['gold']!;
     _results.add({
       'name': AppStrings.tr(AppStrings.goldGramItemLabel, lc),
-      'initialAmount': goldAmount, 
+      'initialAmount': goldAmount,
       'currentValue': goldValue,
       'color': const Color(0xFFFFD700),
       'icon': Icons.diamond_outlined,
@@ -101,14 +104,15 @@ class _InvestmentComparisonPageState extends ConsumerState<InvestmentComparisonP
     var bistValue = amount * bistRatio;
     _results.add({
       'name': AppStrings.tr(AppStrings.borsaIstanbulLabel, lc),
-      'initialAmount': null, 
+      'initialAmount': null,
       'currentValue': bistValue,
       'color': const Color(0xFF8B5CF6),
       'icon': Icons.trending_up,
       'unit': '',
     });
 
-    _results.sort((a, b) => (b['currentValue'] as double).compareTo(a['currentValue'] as double));
+    _results.sort((a, b) =>
+        (b['currentValue'] as double).compareTo(a['currentValue'] as double));
 
     setState(() {
       _calculated = true;
@@ -120,7 +124,7 @@ class _InvestmentComparisonPageState extends ConsumerState<InvestmentComparisonP
       context: context,
       initialDate: DateTime(2015),
       firstDate: DateTime(2010),
-      lastDate: DateTime(2023, 12, 31), 
+      lastDate: DateTime(2023, 12, 31),
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
@@ -137,7 +141,7 @@ class _InvestmentComparisonPageState extends ConsumerState<InvestmentComparisonP
     if (picked != null && picked != _startDate) {
       setState(() {
         _startDate = picked;
-        _calculated = false; 
+        _calculated = false;
       });
     }
   }
@@ -153,7 +157,8 @@ class _InvestmentComparisonPageState extends ConsumerState<InvestmentComparisonP
         elevation: 0,
         backgroundColor: AppColors.surface(context),
         leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios, color: AppColors.textPrimary(context), size: 20),
+          icon: Icon(Icons.arrow_back_ios,
+              color: AppColors.textPrimary(context), size: 20),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
@@ -182,26 +187,33 @@ class _InvestmentComparisonPageState extends ConsumerState<InvestmentComparisonP
               decoration: BoxDecoration(
                 color: AppColors.primary.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+                border:
+                    Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
               ),
               child: Row(
                 children: [
-                   const Icon(Icons.history_edu, color: AppColors.primary, size: 28),
+                  const Icon(Icons.history_edu,
+                      color: AppColors.primary, size: 28),
                   const SizedBox(width: 12),
-                   Expanded(
+                  Expanded(
                     child: Text(
                       AppStrings.tr(AppStrings.investmentComparisonInfo, lc),
-                      style: TextStyle(fontSize: 14, color: AppColors.textSecondary(context), height: 1.4),
+                      style: TextStyle(
+                          fontSize: 14,
+                          color: AppColors.textSecondary(context),
+                          height: 1.4),
                     ),
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 24),
-
             Text(
               '${AppStrings.tr(AppStrings.investmentAmountLabel, lc)} (${lc == 'tr' ? '₺' : '\$'})',
-               style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary(context)),
+              style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary(context)),
             ),
             const SizedBox(height: 8),
             Container(
@@ -219,13 +231,21 @@ class _InvestmentComparisonPageState extends ConsumerState<InvestmentComparisonP
                     child: TextField(
                       controller: _amountController,
                       keyboardType: TextInputType.number,
-                      inputFormatters: [CurrencyInputFormatter()],
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary(context)),
+                      inputFormatters: const [CurrencyInputFormatter()],
+                      style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimary(context)),
                       decoration: InputDecoration(
                         hintText: '1.000',
-                         hintStyle: TextStyle(color: AppColors.textSecondary(context).withValues(alpha: 0.5)),
+                        hintStyle: TextStyle(
+                            color: AppColors.textSecondary(context)
+                                .withValues(alpha: 0.5)),
                         suffixText: lc == 'tr' ? '₺' : '\$',
-                        suffixStyle: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textSecondary(context)),
+                        suffixStyle: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textSecondary(context)),
                         border: InputBorder.none,
                       ),
                     ),
@@ -234,10 +254,12 @@ class _InvestmentComparisonPageState extends ConsumerState<InvestmentComparisonP
               ),
             ),
             const SizedBox(height: 20),
-
             Text(
               AppStrings.tr(AppStrings.whichDatePrompt, lc),
-               style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary(context)),
+              style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary(context)),
             ),
             const SizedBox(height: 8),
             InkWell(
@@ -247,30 +269,38 @@ class _InvestmentComparisonPageState extends ConsumerState<InvestmentComparisonP
                 decoration: BoxDecoration(
                   color: AppColors.surface(context),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.border(context), width: 1),
+                  border:
+                      Border.all(color: AppColors.border(context), width: 1),
                 ),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                 child: Row(
                   children: [
-                    const Icon(Icons.calendar_month, color: AppColors.primary, size: 24),
+                    const Icon(Icons.calendar_month,
+                        color: AppColors.primary, size: 24),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        _startDate == null ? AppStrings.tr(AppStrings.selectYearPrompt, lc) : DateFormat('yyyy').format(_startDate!),
+                        _startDate == null
+                            ? AppStrings.tr(AppStrings.selectYearPrompt, lc)
+                            : DateFormat('yyyy').format(_startDate!),
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
-                          color: _startDate == null ? AppColors.textSecondary(context).withValues(alpha: 0.5) : AppColors.textPrimary(context),
+                          color: _startDate == null
+                              ? AppColors.textSecondary(context)
+                                  .withValues(alpha: 0.5)
+                              : AppColors.textPrimary(context),
                         ),
                       ),
                     ),
-                    Icon(Icons.arrow_drop_down, color: AppColors.textSecondary(context)),
+                    Icon(Icons.arrow_drop_down,
+                        color: AppColors.textSecondary(context)),
                   ],
                 ),
               ),
             ),
             const SizedBox(height: 32),
-
             SizedBox(
               width: double.infinity,
               height: 56,
@@ -286,11 +316,11 @@ class _InvestmentComparisonPageState extends ConsumerState<InvestmentComparisonP
                 ),
                 child: Text(
                   AppStrings.tr(AppStrings.compareBtn, lc),
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.bold),
                 ),
               ),
             ),
-
             if (_calculated) ...[
               const SizedBox(height: 32),
               Text(
@@ -302,7 +332,6 @@ class _InvestmentComparisonPageState extends ConsumerState<InvestmentComparisonP
                 ),
               ),
               const SizedBox(height: 16),
-
               Column(
                 children: List.generate(_results.length, (index) {
                   final item = _results[index];
@@ -325,14 +354,15 @@ class _InvestmentComparisonPageState extends ConsumerState<InvestmentComparisonP
     );
   }
 
-  Widget _buildComparisonCard(BuildContext context, Map<String, dynamic> item, bool isWinner, String lc) {
+  Widget _buildComparisonCard(BuildContext context, Map<String, dynamic> item,
+      bool isWinner, String lc) {
     final currencyFormat = NumberFormat.currency(
-        locale: lc == 'tr' ? 'tr_TR' : 'en_US', 
-        symbol: lc == 'tr' ? '₺' : '\$', 
-        decimalDigits: 0
-    );
-    final unitFormat = NumberFormat.decimalPattern(lc == 'tr' ? 'tr_TR' : 'en_US');
-    
+        locale: lc == 'tr' ? 'tr_TR' : 'en_US',
+        symbol: lc == 'tr' ? '₺' : '\$',
+        decimalDigits: 0);
+    final unitFormat =
+        NumberFormat.decimalPattern(lc == 'tr' ? 'tr_TR' : 'en_US');
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -342,9 +372,14 @@ class _InvestmentComparisonPageState extends ConsumerState<InvestmentComparisonP
           color: isWinner ? AppColors.success : AppColors.border(context),
           width: isWinner ? 2 : 1,
         ),
-        boxShadow: isWinner ? [
-          BoxShadow(color: AppColors.success.withValues(alpha: 0.2), blurRadius: 12, offset: const Offset(0, 4))
-        ] : AppColors.shadowSm(context),
+        boxShadow: isWinner
+            ? [
+                BoxShadow(
+                    color: AppColors.success.withValues(alpha: 0.2),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4))
+              ]
+            : AppColors.shadowSm(context),
       ),
       child: Row(
         children: [
@@ -354,7 +389,8 @@ class _InvestmentComparisonPageState extends ConsumerState<InvestmentComparisonP
               color: (item['color'] as Color).withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(item['icon'] as IconData, color: item['color'] as Color, size: 28),
+            child: Icon(item['icon'] as IconData,
+                color: item['color'] as Color, size: 28),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -375,17 +411,22 @@ class _InvestmentComparisonPageState extends ConsumerState<InvestmentComparisonP
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
-                    color: isWinner ? AppColors.success : AppColors.textPrimary(context),
+                    color: isWinner
+                        ? AppColors.success
+                        : AppColors.textPrimary(context),
                   ),
                 ),
                 if (item['initialAmount'] != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 2),
-                  child: Text(
-                     '~${unitFormat.format(item['initialAmount'])} ${item['unit']}',
-                     style: TextStyle(fontSize: 12, color: AppColors.textSecondary(context).withValues(alpha: 0.8)),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      '~${unitFormat.format(item['initialAmount'])} ${item['unit']}',
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textSecondary(context)
+                              .withValues(alpha: 0.8)),
+                    ),
                   ),
-                ),
               ],
             ),
           ),
@@ -402,7 +443,10 @@ class _InvestmentComparisonPageState extends ConsumerState<InvestmentComparisonP
                   const SizedBox(width: 4),
                   Text(
                     AppStrings.tr(AppStrings.winnerLabel, lc),
-                    style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold),
                   ),
                 ],
               ),

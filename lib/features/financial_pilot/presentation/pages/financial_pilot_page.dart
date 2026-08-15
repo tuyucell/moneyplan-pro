@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:moneyplan_pro/core/utils/currency_input_formatter.dart';
 import '../../providers/financial_pilot_provider.dart';
 import '../../domain/models/financial_pilot_data.dart';
 
@@ -465,6 +466,7 @@ class _FinancialPilotPageState extends ConsumerState<FinancialPilotPage> {
             TextField(
               controller: amountController,
               keyboardType: TextInputType.number,
+              inputFormatters: const [CurrencyInputFormatter()],
               decoration: const InputDecoration(
                 labelText: 'Harcama Tutarı (TL)',
                 border: OutlineInputBorder(),
@@ -500,7 +502,8 @@ class _FinancialPilotPageState extends ConsumerState<FinancialPilotPage> {
                   child: ElevatedButton(
                     onPressed: () {
                       final amount =
-                          double.tryParse(amountController.text) ?? 0;
+                          CurrencyInputFormatter.parse(amountController.text) ??
+                              0;
                       final installments =
                           int.tryParse(installmentController.text) ?? 1;
 

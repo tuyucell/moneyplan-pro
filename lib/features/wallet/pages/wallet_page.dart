@@ -28,6 +28,7 @@ import 'package:moneyplan_pro/core/i18n/app_strings.dart';
 import 'package:moneyplan_pro/core/providers/language_provider.dart';
 import 'package:moneyplan_pro/core/providers/balance_visibility_provider.dart';
 import 'package:moneyplan_pro/core/services/currency_service.dart';
+import 'package:moneyplan_pro/core/utils/currency_input_formatter.dart';
 
 import '../widgets/wallet_summary_cards.dart';
 import '../widgets/available_balance_card.dart';
@@ -493,6 +494,9 @@ class _WalletPageState extends ConsumerState<WalletPage>
                   controller: unitsController,
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
+                  inputFormatters: const [
+                    CurrencyInputFormatter(decimalDigits: 8),
+                  ],
                   decoration: InputDecoration(
                     labelText: lc == 'tr' ? 'Miktar' : 'Quantity',
                     border: const OutlineInputBorder(),
@@ -503,6 +507,9 @@ class _WalletPageState extends ConsumerState<WalletPage>
                   controller: costController,
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
+                  inputFormatters: const [
+                    CurrencyInputFormatter(decimalDigits: 8),
+                  ],
                   decoration: InputDecoration(
                     labelText: lc == 'tr' ? 'Ortalama maliyet' : 'Average cost',
                     border: const OutlineInputBorder(),
@@ -536,10 +543,10 @@ class _WalletPageState extends ConsumerState<WalletPage>
             FilledButton(
               onPressed: () async {
                 final symbol = symbolController.text.trim().toUpperCase();
-                final units = double.tryParse(
-                    unitsController.text.trim().replaceAll(',', '.'));
-                final averageCost = double.tryParse(
-                    costController.text.trim().replaceAll(',', '.'));
+                final units =
+                    CurrencyInputFormatter.parse(unitsController.text);
+                final averageCost =
+                    CurrencyInputFormatter.parse(costController.text);
                 if (symbol.isEmpty ||
                     units == null ||
                     units <= 0 ||
@@ -1928,8 +1935,14 @@ class _WalletPageState extends ConsumerState<WalletPage>
         .read(budgetProvider.notifier)
         .getBudget(categoryId, _selectedDate.year, _selectedDate.month)
         ?.limit;
-    final controller =
-        TextEditingController(text: currentLimit?.toStringAsFixed(0));
+    final controller = TextEditingController(
+      text: currentLimit == null
+          ? ''
+          : CurrencyInputFormatter.formatNumber(
+              currentLimit,
+              decimalDigits: 2,
+            ),
+    );
 
     showDialog(
       context: context,
@@ -1942,6 +1955,9 @@ class _WalletPageState extends ConsumerState<WalletPage>
             suffixText: '₺',
           ),
           keyboardType: TextInputType.number,
+          inputFormatters: const [
+            CurrencyInputFormatter(decimalDigits: 2),
+          ],
           autofocus: true,
         ),
         actions: [
@@ -1951,7 +1967,7 @@ class _WalletPageState extends ConsumerState<WalletPage>
           ),
           ElevatedButton(
             onPressed: () async {
-              final limit = double.tryParse(controller.text) ?? 0;
+              final limit = CurrencyInputFormatter.parse(controller.text) ?? 0;
               if (limit > 0) {
                 await ref.read(budgetProvider.notifier).setBudget(BudgetLimit(
                       categoryId: categoryId,

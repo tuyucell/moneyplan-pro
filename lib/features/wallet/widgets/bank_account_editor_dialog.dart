@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/services/currency_service.dart';
+import '../../../core/utils/currency_input_formatter.dart';
 import '../models/bank_account.dart';
 import '../providers/bank_account_provider.dart';
 import '../providers/wallet_provider.dart';
@@ -65,7 +66,10 @@ class _BankAccountEditorDialogState
     super.initState();
     _nameController = TextEditingController(text: _bank?.name ?? '');
     _limitController = TextEditingController(
-      text: _bank?.overdraftLimit.toStringAsFixed(0) ?? '0',
+      text: CurrencyInputFormatter.formatNumber(
+        _bank?.overdraftLimit ?? 0,
+        decimalDigits: 2,
+      ),
     );
     _statementDayController = TextEditingController(
       text: _bank?.paymentDay.toString() ?? '1',
@@ -74,7 +78,10 @@ class _BankAccountEditorDialogState
       text: _bank?.dueDaysAfterStatement.toString() ?? '10',
     );
     _initialBalanceController = TextEditingController(
-      text: _formatNumber(_bank?.initialBalance ?? 0),
+      text: CurrencyInputFormatter.formatNumber(
+        _bank?.initialBalance ?? 0,
+        decimalDigits: 2,
+      ),
     );
     _interestRateController = TextEditingController(
       text: _formatNumber(_bank?.overdraftInterestRate ?? 4.5),
@@ -112,8 +119,7 @@ class _BankAccountEditorDialogState
   }
 
   double _parseAmount(String value) {
-    final normalized = value.trim().replaceAll(' ', '').replaceAll(',', '.');
-    return double.tryParse(normalized) ?? 0;
+    return CurrencyInputFormatter.parse(value) ?? 0;
   }
 
   String _formatNumber(double value) => value == value.roundToDouble()
@@ -402,6 +408,9 @@ class _BankAccountEditorDialogState
                   ),
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
+                  inputFormatters: const [
+                    CurrencyInputFormatter(decimalDigits: 2),
+                  ],
                 ),
                 const SizedBox(height: 16),
                 TextFormField(
@@ -513,6 +522,12 @@ class _BankAccountEditorDialogState
                     signed: true,
                     decimal: true,
                   ),
+                  inputFormatters: const [
+                    CurrencyInputFormatter(
+                      allowNegative: true,
+                      decimalDigits: 2,
+                    ),
+                  ],
                 ),
                 if (_isCreditCard) ...[
                   const SizedBox(height: 12),
@@ -583,6 +598,9 @@ class _BankAccountEditorDialogState
                                     keyboardType:
                                         const TextInputType.numberWithOptions(
                                             decimal: true),
+                                    inputFormatters: const [
+                                      CurrencyInputFormatter(decimalDigits: 2),
+                                    ],
                                     onChanged: (_) => setState(() {}),
                                     validator: (value) {
                                       if (_parseAmount(value ?? '') <= 0) {
@@ -624,7 +642,7 @@ class _BankAccountEditorDialogState
                           Align(
                             alignment: Alignment.centerRight,
                             child: Text(
-                              'Gelecek: ${_formatNumber(_futureInstallmentTotal)} $currencySymbol',
+                              'Gelecek: ${CurrencyInputFormatter.formatNumber(_futureInstallmentTotal, decimalDigits: 2)} $currencySymbol',
                               style: const TextStyle(
                                 fontWeight: FontWeight.bold,
                               ),
@@ -697,9 +715,10 @@ class _InstallmentDraft {
         noteController = TextEditingController(text: note);
 
   factory _InstallmentDraft.fromEntry(CreditCardInstallmentEntry entry) {
-    final amount = entry.amount == entry.amount.roundToDouble()
-        ? entry.amount.toStringAsFixed(0)
-        : entry.amount.toString();
+    final amount = CurrencyInputFormatter.formatNumber(
+      entry.amount,
+      decimalDigits: 2,
+    );
     return _InstallmentDraft(
       id: entry.id,
       statementMonth: entry.statementMonth,

@@ -16,6 +16,7 @@ import 'package:moneyplan_pro/features/auth/presentation/providers/auth_provider
 import 'package:moneyplan_pro/features/auth/data/models/user_model.dart';
 import 'package:moneyplan_pro/features/auth/presentation/widgets/auth_prompt_dialog.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:moneyplan_pro/core/utils/currency_input_formatter.dart';
 
 class AssetDetailPage extends ConsumerStatefulWidget {
   final String assetId;
@@ -1009,9 +1010,15 @@ class _AssetDetailPageState extends ConsumerState<AssetDetailPage> {
     final language = ref.watch(languageProvider);
     final lc = language.code;
     final amountController = TextEditingController();
+    final rawPrice = _assetDetails?['price'] ?? widget.currentPrice ?? 0.0;
+    final initialCost =
+        rawPrice is num ? rawPrice : double.tryParse(rawPrice.toString()) ?? 0;
     final costController = TextEditingController(
-        text:
-            (_assetDetails?['price'] ?? widget.currentPrice ?? 0.0).toString());
+      text: CurrencyInputFormatter.formatNumber(
+        initialCost,
+        decimalDigits: 8,
+      ),
+    );
     final currency =
         _assetDetails?['currency']?.toString().toUpperCase() ?? 'USD';
     final sign =
@@ -1034,6 +1041,9 @@ class _AssetDetailPageState extends ConsumerState<AssetDetailPage> {
               ),
               keyboardType:
                   const TextInputType.numberWithOptions(decimal: true),
+              inputFormatters: const [
+                CurrencyInputFormatter(decimalDigits: 8),
+              ],
             ),
             const SizedBox(height: 16),
             TextField(
@@ -1045,6 +1055,9 @@ class _AssetDetailPageState extends ConsumerState<AssetDetailPage> {
               ),
               keyboardType:
                   const TextInputType.numberWithOptions(decimal: true),
+              inputFormatters: const [
+                CurrencyInputFormatter(decimalDigits: 8),
+              ],
             ),
           ],
         ),
@@ -1054,8 +1067,10 @@ class _AssetDetailPageState extends ConsumerState<AssetDetailPage> {
               child: Text(AppStrings.tr(AppStrings.cancel, lc))),
           ElevatedButton(
             onPressed: () {
-              final amount = double.tryParse(amountController.text) ?? 0;
-              final cost = double.tryParse(costController.text) ?? 0;
+              final amount =
+                  CurrencyInputFormatter.parse(amountController.text) ?? 0;
+              final cost =
+                  CurrencyInputFormatter.parse(costController.text) ?? 0;
               if (amount > 0 && cost > 0) {
                 ref
                     .read(portfolioProvider.notifier)

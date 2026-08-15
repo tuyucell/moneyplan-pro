@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:moneyplan_pro/core/constants/colors.dart';
 import 'package:moneyplan_pro/core/services/currency_service.dart';
+import 'package:moneyplan_pro/core/utils/currency_input_formatter.dart';
 import 'package:moneyplan_pro/features/wallet/models/bank_account.dart';
 import 'package:moneyplan_pro/features/wallet/models/savings_goal.dart';
 import 'package:moneyplan_pro/features/wallet/providers/bank_account_provider.dart';
@@ -89,10 +90,10 @@ class _SavingsPlanEditorDialogState
     _maturityDate = plan?.maturityDate;
     _plannedDeliveryDate = plan?.plannedDeliveryDate;
     _name = TextEditingController(text: plan?.name ?? '');
-    _balance = TextEditingController(text: _number(plan?.currentAmount));
-    _target = TextEditingController(text: _number(plan?.targetAmount));
+    _balance = TextEditingController(text: _amount(plan?.currentAmount));
+    _target = TextEditingController(text: _amount(plan?.targetAmount));
     _periodic =
-        TextEditingController(text: _number(plan?.periodicContribution));
+        TextEditingController(text: _amount(plan?.periodicContribution));
     _interest = TextEditingController(text: _number(plan?.interestRate));
     _years = TextEditingController(
       text: plan?.contractYears?.toString() ??
@@ -124,7 +125,7 @@ class _SavingsPlanEditorDialogState
       text: _number(plan?.organizationFeeRate ?? 7),
     );
     _organizationFeePaid = TextEditingController(
-      text: _number(plan?.organizationFeePaid),
+      text: _amount(plan?.organizationFeePaid),
     );
   }
 
@@ -135,8 +136,12 @@ class _SavingsPlanEditorDialogState
         : value.toString();
   }
 
+  static String _amount(double? value) => value == null || value == 0
+      ? ''
+      : CurrencyInputFormatter.formatNumber(value, decimalDigits: 2);
+
   double _parse(TextEditingController controller) =>
-      double.tryParse(controller.text.trim().replaceAll(',', '.')) ?? 0;
+      CurrencyInputFormatter.parse(controller.text) ?? 0;
 
   @override
   void dispose() {
@@ -270,6 +275,7 @@ class _SavingsPlanEditorDialogState
                           : (_isContract
                               ? 'Bugünkü fon değeri'
                               : 'Güncel bakiye'),
+                      currency: true,
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -305,7 +311,8 @@ class _SavingsPlanEditorDialogState
               ],
               const SizedBox(height: 12),
               if (!_isContract) ...[
-                _numberField(_target, 'Hedef tutar (isteğe bağlı)'),
+                _numberField(_target, 'Hedef tutar (isteğe bağlı)',
+                    currency: true),
                 const SizedBox(height: 12),
                 Row(
                   children: [
@@ -318,12 +325,18 @@ class _SavingsPlanEditorDialogState
                 ),
               ] else ...[
                 if (_type == SavingsPlanType.savingsFinance) ...[
-                  _numberField(_target, 'Finansman tutarı'),
+                  _numberField(_target, 'Finansman tutarı', currency: true),
                   const SizedBox(height: 12),
                 ],
                 Row(
                   children: [
-                    Expanded(child: _numberField(_periodic, 'Dönemlik ödeme')),
+                    Expanded(
+                      child: _numberField(
+                        _periodic,
+                        'Dönemlik ödeme',
+                        currency: true,
+                      ),
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: DropdownButtonFormField<ContributionPeriod>(
@@ -413,7 +426,10 @@ class _SavingsPlanEditorDialogState
                       const SizedBox(width: 8),
                       Expanded(
                         child: _numberField(
-                            _organizationFeePaid, 'Ödenen organizasyon bedeli'),
+                          _organizationFeePaid,
+                          'Ödenen organizasyon bedeli',
+                          currency: true,
+                        ),
                       ),
                     ],
                   ),
@@ -559,13 +575,16 @@ class _SavingsPlanEditorDialogState
     TextEditingController controller,
     String label, {
     bool integer = false,
+    bool currency = false,
   }) {
     return TextField(
       controller: controller,
       keyboardType: TextInputType.numberWithOptions(decimal: !integer),
-      inputFormatters: integer
-          ? [FilteringTextInputFormatter.digitsOnly]
-          : [FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))],
+      inputFormatters: currency
+          ? const [CurrencyInputFormatter(decimalDigits: 2)]
+          : integer
+              ? [FilteringTextInputFormatter.digitsOnly]
+              : [FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]'))],
       decoration: InputDecoration(
         labelText: label,
         border: const OutlineInputBorder(),

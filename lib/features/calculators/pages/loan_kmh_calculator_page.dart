@@ -5,6 +5,7 @@ import 'package:moneyplan_pro/core/i18n/app_strings.dart';
 import 'package:moneyplan_pro/core/providers/language_provider.dart';
 import 'package:intl/intl.dart';
 import 'package:moneyplan_pro/services/analytics/analytics_service.dart';
+import 'package:moneyplan_pro/core/utils/currency_input_formatter.dart';
 
 class LoanKmhCalculatorPage extends ConsumerStatefulWidget {
   const LoanKmhCalculatorPage({super.key});
@@ -17,7 +18,7 @@ class LoanKmhCalculatorPage extends ConsumerStatefulWidget {
 class _LoanKmhCalculatorPageState extends ConsumerState<LoanKmhCalculatorPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  final _amountController = TextEditingController(text: '100000');
+  final _amountController = TextEditingController(text: '100.000');
   final _rateController = TextEditingController(text: '4.25');
   final _maturityController = TextEditingController(text: '32');
 
@@ -44,7 +45,7 @@ class _LoanKmhCalculatorPageState extends ConsumerState<LoanKmhCalculatorPage>
   }
 
   void _calculate() {
-    final amount = double.tryParse(_amountController.text) ?? 0;
+    final amount = CurrencyInputFormatter.parse(_amountController.text) ?? 0;
     final monthlyRate = double.tryParse(_rateController.text) ?? 0;
     final days = int.tryParse(_maturityController.text) ?? 0;
 
@@ -293,6 +294,7 @@ class _LoanKmhCalculatorPageState extends ConsumerState<LoanKmhCalculatorPage>
     return TextField(
       controller: controller,
       keyboardType: TextInputType.number,
+      inputFormatters: suffix == 'TL' ? const [CurrencyInputFormatter()] : null,
       decoration: InputDecoration(
         labelText: label,
         suffixText: suffix,

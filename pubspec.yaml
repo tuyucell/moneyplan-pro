@@ -1,7 +1,7 @@
 name: moneyplan_pro
 description: MoneyPlan Pro - Elite Financial Intelligence
 publish_to: 'none'
-version: 1.0.0+19
+version: 1.0.0+20
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -35,6 +35,9 @@ dependencies:
   csv: ^6.0.0
   syncfusion_flutter_pdf: ^32.1.22
   path_provider: ^2.1.5
+  # path_provider_foundation uses this transitively. 9.4.1 fixes the iOS
+  # native-assets build hook and framework/dSYM packaging.
+  objective_c: 9.4.1
   flutter_local_notifications: ^18.0.1
   share_plus: ^12.0.1
   open_filex: ^4.7.0
