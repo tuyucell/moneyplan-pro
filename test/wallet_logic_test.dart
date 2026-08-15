@@ -2,6 +2,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:moneyplan_pro/features/wallet/models/wallet_transaction.dart';
 import 'package:moneyplan_pro/features/wallet/models/transaction_category.dart';
 import 'package:moneyplan_pro/features/wallet/models/monthly_summary.dart';
+import 'package:moneyplan_pro/features/wallet/models/yearly_summary.dart';
+import 'package:moneyplan_pro/features/wallet/models/bank_account.dart';
 import 'package:moneyplan_pro/features/wallet/providers/wallet_provider.dart';
 
 void main() {
@@ -139,6 +141,66 @@ void main() {
       expect(summary.totalPendingExpense, 250);
       expect(summary.cashExpense, 0);
       expect(summary.pendingPayments, 250);
+    });
+
+    test('KMH snapshot starts in its entry month and rolls forward once', () {
+      final kmh = BankAccount(
+        id: 'kmh',
+        name: 'Ek Hesap',
+        accountType: 'Vadesiz Hesap',
+        initialBalance: -64000,
+        overdraftLimit: 100000,
+        balanceEffectiveDate: DateTime(2026, 8, 15),
+      );
+
+      final july = MonthlySummary.fromTransactions(
+        const [],
+        2026,
+        7,
+        bankAccountList: [kmh],
+      );
+      final august = MonthlySummary.fromTransactions(
+        const [],
+        2026,
+        8,
+        bankAccountList: [kmh],
+      );
+      final september = MonthlySummary.fromTransactions(
+        const [],
+        2026,
+        9,
+        bankAccountList: [kmh],
+      );
+
+      expect(july.remainingBalance, 0);
+      expect(july.totalOverdraftLimit, 0);
+      expect(august.remainingBalance, -64000);
+      expect(august.totalOverdraftLimit, 100000);
+      expect(september.remainingBalance, -64000);
+    });
+
+    test('yearly net status uses closing balance instead of summing it', () {
+      final kmh = BankAccount(
+        id: 'kmh',
+        name: 'Ek Hesap',
+        accountType: 'Vadesiz Hesap',
+        initialBalance: -64000,
+        balanceEffectiveDate: DateTime(2026, 8, 15),
+      );
+      final months = List.generate(
+        12,
+        (index) => MonthlySummary.fromTransactions(
+          const [],
+          2026,
+          index + 1,
+          bankAccountList: [kmh],
+        ),
+      );
+
+      expect(
+        YearlySummary(year: 2026, monthlySummaries: months).remainingBalance,
+        -64000,
+      );
     });
   });
 }

@@ -109,22 +109,35 @@ class MonthlySummary {
     final monthStart = DateTime(year, month);
 
     final cashAccountIds = <String>{};
+    final cashAccountsById = <String, BankAccount>{};
     if (bankAccountList != null) {
       // debugPrint('🏦 MonthlySummary: Analyzing ${bankAccountList.length} accounts for CASH flow');
       for (final acc in bankAccountList) {
         if (acc.accountType != 'Kredi Kartı') {
           cashAccountIds.add(acc.id);
+          cashAccountsById[acc.id] = acc;
 
-          final amount = acc.initialBalance;
-          final normalized =
-              converter != null ? converter(amount, acc.currencyCode) : amount;
-          initialBalance += normalized;
-          debugPrint(
-              '   + [CASH ID ADDED] ${acc.name} (${acc.id}) Start: $normalized');
-
-          final limit = acc.overdraftLimit;
-          totalOverdraftLimit +=
-              converter != null ? converter(limit, acc.currencyCode) : limit;
+          final effectiveDate = acc.balanceEffectiveDate ?? acc.createdAt;
+          final effectiveMonth = effectiveDate == null
+              ? null
+              : DateTime(effectiveDate.year, effectiveDate.month);
+          final snapshotApplies =
+              effectiveMonth == null || !monthStart.isBefore(effectiveMonth);
+          if (snapshotApplies) {
+            final amount = acc.initialBalance;
+            final normalized = converter != null
+                ? converter(amount, acc.currencyCode)
+                : amount;
+            initialBalance += normalized;
+            final limit = acc.overdraftLimit;
+            totalOverdraftLimit +=
+                converter != null ? converter(limit, acc.currencyCode) : limit;
+            debugPrint(
+                '   + [CASH ID ADDED] ${acc.name} (${acc.id}) Start: $normalized');
+          } else {
+            debugPrint(
+                '   - [SKIP FUTURE CASH SNAPSHOT] ${acc.name} (${acc.id}) Effective: $effectiveDate');
+          }
         } else {
           debugPrint('   - [SKIP CC ID] ${acc.name} (${acc.id})');
         }
@@ -143,6 +156,11 @@ class MonthlySummary {
       final isCashAccount =
           tx.bankAccountId == null || cashAccountIds.contains(tx.bankAccountId);
       if (!isCashAccount) continue;
+
+      final account =
+          tx.bankAccountId == null ? null : cashAccountsById[tx.bankAccountId];
+      final effectiveDate = account?.balanceEffectiveDate ?? account?.createdAt;
+      if (effectiveDate != null && tx.date.isBefore(effectiveDate)) continue;
 
       final normalizedAmount =
           converter != null ? converter(tx.amount, tx.currencyCode) : tx.amount;
@@ -201,11 +219,18 @@ class MonthlySummary {
       // Identify if this affects CASH balance
       final isCashAccount = transaction.bankAccountId == null ||
           cashAccountIds.contains(transaction.bankAccountId);
+      final account = transaction.bankAccountId == null
+          ? null
+          : cashAccountsById[transaction.bankAccountId];
+      final effectiveDate = account?.balanceEffectiveDate ?? account?.createdAt;
+      final isOnOrAfterBalanceSnapshot =
+          effectiveDate == null || !transaction.date.isBefore(effectiveDate);
 
       // Some recurring/card entries are excluded from the cash balance, but
       // they must remain visible in expense analytics and yearly reports.
-      final affectsCashBalance =
-          !transaction.excludeFromBalance && isCashAccount;
+      final affectsCashBalance = !transaction.excludeFromBalance &&
+          isCashAccount &&
+          isOnOrAfterBalanceSnapshot;
 
       if (transaction.excludeFromBalance && !transaction.isPaid) {
         pendingPayments += normalizedAmount;

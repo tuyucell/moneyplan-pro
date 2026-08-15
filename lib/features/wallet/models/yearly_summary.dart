@@ -16,8 +16,12 @@ class YearlySummary {
   double get totalPendingExpense =>
       monthlySummaries.fold(0, (sum, m) => sum + m.totalPendingExpense);
   double get totalOutflow => totalExpense + totalPendingExpense;
+
+  /// Closing balance for the year. Monthly balances already carry prior cash
+  /// and debt forward, so summing all twelve would count the same balance
+  /// repeatedly (for example, one unpaid KMH debt twelve times).
   double get remainingBalance =>
-      monthlySummaries.fold(0, (sum, m) => sum + m.remainingBalance);
+      monthlySummaries.isEmpty ? 0 : monthlySummaries.last.remainingBalance;
   double get totalBES => monthlySummaries.fold(0, (sum, m) => sum + m.totalBES);
   double get totalSavings =>
       monthlySummaries.fold(0, (sum, m) => sum + m.totalSavings);
