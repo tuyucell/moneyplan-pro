@@ -76,5 +76,7 @@
 	</array>
 	<key>NSFaceIDUsageDescription</key>
 	<string>MoneyPlan Pro uses Face ID to provide you with quick and secure access to your financial data.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>MoneyPlan Pro, ekstre ve finansal belge dosyalarını seçebilmeniz için fotoğraf arşivinize erişim ister.</string>
 </dict>
 </plist>

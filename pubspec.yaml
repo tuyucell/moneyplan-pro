@@ -1,7 +1,7 @@
 name: moneyplan_pro
 description: MoneyPlan Pro - Elite Financial Intelligence
 publish_to: 'none'
-version: 1.0.0+9
+version: 1.0.0+12
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
