@@ -9,6 +9,7 @@ import 'package:moneyplan_pro/features/wallet/models/transaction_category.dart';
 import 'package:moneyplan_pro/core/services/currency_service.dart';
 import 'package:moneyplan_pro/features/wallet/models/bank_account.dart';
 import 'package:moneyplan_pro/features/wallet/providers/bank_account_provider.dart';
+import 'package:moneyplan_pro/features/wallet/services/installment_schedule_service.dart';
 import 'package:moneyplan_pro/features/wallet/services/statement_charge_service.dart';
 import 'package:moneyplan_pro/features/auth/presentation/providers/auth_providers.dart';
 import 'package:moneyplan_pro/features/auth/data/models/user_model.dart';
@@ -72,6 +73,16 @@ class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
             recurrenceEndDate: json['recurrence_end_date'] != null
                 ? DateTime.parse(json['recurrence_end_date'] as String)
                 : null,
+            dueDate: json['due_date'] != null
+                ? DateTime.parse(json['due_date'] as String)
+                : null,
+            isPaid: json['is_paid'] as bool? ?? false,
+            paymentMethod: PaymentMethod.values.firstWhere(
+              (method) => method.name == json['payment_method'],
+              orElse: () => PaymentMethod.cash,
+            ),
+            excludeFromBalance: json['exclude_from_balance'] as bool? ?? false,
+            linkedTransactionId: json['linked_transaction_id'] as String?,
           );
         }).toList();
 
@@ -123,6 +134,20 @@ class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
   Future<void> _syncStatementCharges() async {
     final pendingCharges = <WalletTransaction>[];
     for (final account in _accounts) {
+      final openingDebtId =
+          InstallmentScheduleService.openingDebtTransactionId(account.id);
+      if (account.accountType == 'Kredi Kartı' &&
+          account.initialBalance >= 0 &&
+          state.any((transaction) => transaction.id == openingDebtId)) {
+        await deleteTransaction(openingDebtId);
+      }
+      pendingCharges.addAll(
+        InstallmentScheduleService.createDueTransactions(
+          account: account,
+          transactions: [...state, ...pendingCharges],
+          asOf: DateTime.now(),
+        ),
+      );
       pendingCharges.addAll(
         StatementChargeService.createDueCharges(
           account: account,
@@ -198,6 +223,11 @@ class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
                   'is_recurring': t.recurrence != RecurrenceType.none,
                   'recurrence_type': t.recurrence.name,
                   'recurrence_end_date': t.recurrenceEndDate?.toIso8601String(),
+                  'due_date': t.dueDate?.toIso8601String(),
+                  'is_paid': t.isPaid,
+                  'payment_method': t.paymentMethod.name,
+                  'exclude_from_balance': t.excludeFromBalance,
+                  'linked_transaction_id': t.linkedTransactionId,
                 })
             .toList();
 
@@ -249,6 +279,11 @@ class WalletNotifier extends StateNotifier<List<WalletTransaction>> {
           'recurrence_type': transaction.recurrence.name,
           'recurrence_end_date':
               transaction.recurrenceEndDate?.toIso8601String(),
+          'due_date': transaction.dueDate?.toIso8601String(),
+          'is_paid': transaction.isPaid,
+          'payment_method': transaction.paymentMethod.name,
+          'exclude_from_balance': transaction.excludeFromBalance,
+          'linked_transaction_id': transaction.linkedTransactionId,
         });
       }
     } catch (e, stackTrace) {
@@ -636,7 +671,7 @@ final accountStatsProvider = Provider<Map<String, AccountStats>>((ref) {
 
   // Apply all transactions
   for (final tx in transactions) {
-    if (tx.bankAccountId == null) continue;
+    if (tx.bankAccountId == null || tx.excludeFromBalance) continue;
 
     final bankId = tx.bankAccountId!;
     if (!stats.containsKey(bankId)) {

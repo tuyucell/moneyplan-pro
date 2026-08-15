@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/services/currency_service.dart';
@@ -14,6 +15,7 @@ Future<BankAccount?> showBankAccountEditorDialog(
   return showDialog<BankAccount>(
     context: context,
     useSafeArea: true,
+    barrierDismissible: false,
     builder: (_) => BankAccountEditorDialog(
       bank: bank,
       defaultType: defaultType,
@@ -47,7 +49,9 @@ class _BankAccountEditorDialogState
   late final TextEditingController _interestRateController;
   late final TextEditingController _bsmvRateController;
   late final TextEditingController _kkdfRateController;
+  final List<_InstallmentDraft> _installmentDrafts = [];
   late String _selectedCurrency;
+  bool _hasFutureInstallments = false;
   bool _isSaving = false;
   String? _errorMessage;
 
@@ -80,6 +84,13 @@ class _BankAccountEditorDialogState
     _kkdfRateController = TextEditingController(
       text: _formatNumber(_bank?.kkdfRate ?? 15),
     );
+    for (final entry in _bank?.installmentPlan ?? const []) {
+      _installmentDrafts.add(_InstallmentDraft.fromEntry(entry));
+    }
+    _installmentDrafts.sort(
+      (a, b) => a.statementMonth.compareTo(b.statementMonth),
+    );
+    _hasFutureInstallments = _installmentDrafts.isNotEmpty;
     _selectedCurrency = _bank?.currencyCode ?? 'TRY';
   }
 
@@ -93,6 +104,9 @@ class _BankAccountEditorDialogState
     _interestRateController.dispose();
     _bsmvRateController.dispose();
     _kkdfRateController.dispose();
+    for (final draft in _installmentDrafts) {
+      draft.dispose();
+    }
     super.dispose();
   }
 
@@ -119,6 +133,50 @@ class _BankAccountEditorDialogState
     return null;
   }
 
+  void _addInstallment() {
+    var nextMonth = DateTime(DateTime.now().year, DateTime.now().month + 1);
+    if (_installmentDrafts.isNotEmpty) {
+      final latest = _installmentDrafts
+          .map((draft) => draft.statementMonth)
+          .reduce((a, b) => a.isAfter(b) ? a : b);
+      if (!latest.isBefore(nextMonth)) {
+        nextMonth = DateTime(latest.year, latest.month + 1);
+      }
+    }
+    setState(() {
+      _installmentDrafts.add(
+        _InstallmentDraft(
+          id: const Uuid().v4(),
+          statementMonth: nextMonth,
+        ),
+      );
+    });
+  }
+
+  Future<void> _pickInstallmentMonth(_InstallmentDraft draft) async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: draft.statementMonth,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(DateTime.now().year + 20),
+      helpText: 'TAKSİDİN EKSTREYE YANSIYACAĞI AY',
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      draft.statementMonth = DateTime(picked.year, picked.month);
+    });
+  }
+
+  void _removeInstallment(_InstallmentDraft draft) {
+    setState(() => _installmentDrafts.remove(draft));
+    draft.dispose();
+  }
+
+  double get _futureInstallmentTotal => _installmentDrafts.fold<double>(
+        0,
+        (total, draft) => total + _parseAmount(draft.amountController.text),
+      );
+
   Future<void> _save() async {
     if (_isSaving || !_formKey.currentState!.validate()) return;
 
@@ -141,6 +199,23 @@ class _BankAccountEditorDialogState
       currencyCode: _selectedCurrency,
       initialBalance: _parseAmount(_initialBalanceController.text),
       createdAt: _bank?.createdAt ?? DateTime.now(),
+      installmentPlan: _hasFutureInstallments
+          ? (_installmentDrafts
+              .map(
+                (draft) => CreditCardInstallmentEntry(
+                  id: draft.id,
+                  statementMonth: draft.statementMonth,
+                  amount: _parseAmount(draft.amountController.text),
+                  note: draft.noteController.text.trim().isEmpty
+                      ? null
+                      : draft.noteController.text.trim(),
+                ),
+              )
+              .toList()
+            ..sort(
+              (a, b) => a.statementMonth.compareTo(b.statementMonth),
+            ))
+          : const [],
     );
 
     try {
@@ -346,9 +421,11 @@ class _BankAccountEditorDialogState
                   key: const ValueKey('bank_account_initial_balance'),
                   controller: _initialBalanceController,
                   decoration: InputDecoration(
-                    labelText: 'Başlangıç Bakiyesi',
+                    labelText: _isCreditCard
+                        ? 'Güncel Ekstre / Başlangıç Borcu'
+                        : 'Başlangıç Bakiyesi',
                     helperText: _isCreditCard
-                        ? 'Mevcut borcu eksi girin. Örn: -12500'
+                        ? 'Yalnız şu an ödenecek borcu eksi girin. Örn: -10000'
                         : 'Eksi hesap borcunu negatif girin. Örn: -5000',
                     suffixText: currencySymbol,
                   ),
@@ -357,6 +434,135 @@ class _BankAccountEditorDialogState
                     decimal: true,
                   ),
                 ),
+                if (_isCreditCard) ...[
+                  const SizedBox(height: 12),
+                  SwitchListTile.adaptive(
+                    key: const ValueKey('credit_card_has_installments'),
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Gelecek aylara yayılan borç var'),
+                    subtitle: const Text(
+                      'Henüz güncel ekstreye yansımayan taksitleri aylara göre girin.',
+                    ),
+                    value: _hasFutureInstallments,
+                    onChanged: _isSaving
+                        ? null
+                        : (value) {
+                            setState(() => _hasFutureInstallments = value);
+                            if (value && _installmentDrafts.isEmpty) {
+                              _addInstallment();
+                            }
+                          },
+                  ),
+                  if (_hasFutureInstallments) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .primaryContainer
+                            .withValues(alpha: 0.35),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        children: [
+                          for (final draft in _installmentDrafts) ...[
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    key: ValueKey(
+                                      'installment_month_${draft.id}',
+                                    ),
+                                    onPressed: _isSaving
+                                        ? null
+                                        : () => _pickInstallmentMonth(draft),
+                                    icon: const Icon(
+                                      Icons.calendar_month_outlined,
+                                      size: 18,
+                                    ),
+                                    label: Text(
+                                      DateFormat('MM/yyyy')
+                                          .format(draft.statementMonth),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: TextFormField(
+                                    key: ValueKey(
+                                      'installment_amount_${draft.id}',
+                                    ),
+                                    controller: draft.amountController,
+                                    decoration: InputDecoration(
+                                      labelText: 'Aylık Tutar',
+                                      suffixText: currencySymbol,
+                                      isDense: true,
+                                    ),
+                                    keyboardType:
+                                        const TextInputType.numberWithOptions(
+                                            decimal: true),
+                                    onChanged: (_) => setState(() {}),
+                                    validator: (value) {
+                                      if (_parseAmount(value ?? '') <= 0) {
+                                        return 'Tutar girin';
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                ),
+                                IconButton(
+                                  tooltip: 'Taksidi kaldır',
+                                  onPressed: _isSaving
+                                      ? null
+                                      : () => _removeInstallment(draft),
+                                  icon: const Icon(Icons.delete_outline),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            TextFormField(
+                              controller: draft.noteController,
+                              decoration: const InputDecoration(
+                                labelText: 'Not (isteğe bağlı)',
+                                hintText: 'Örn: Telefon 3/5',
+                                isDense: true,
+                              ),
+                            ),
+                            const Divider(height: 24),
+                          ],
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: TextButton.icon(
+                              key: const ValueKey('add_installment_month'),
+                              onPressed: _isSaving ? null : _addInstallment,
+                              icon: const Icon(Icons.add),
+                              label: const Text('AYLIK BORÇ EKLE'),
+                            ),
+                          ),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: Text(
+                              'Gelecek: ${_formatNumber(_futureInstallmentTotal)} $currencySymbol',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Her tutar seçilen ayın hesap kesim gününde kart borcuna eklenir.',
+                        style: TextStyle(fontSize: 11, color: Colors.grey),
+                      ),
+                    ),
+                  ],
+                ],
                 if (_errorMessage != null) ...[
                   const SizedBox(height: 12),
                   Text(
@@ -393,5 +599,37 @@ class _BankAccountEditorDialogState
         ),
       ],
     );
+  }
+}
+
+class _InstallmentDraft {
+  final String id;
+  DateTime statementMonth;
+  final TextEditingController amountController;
+  final TextEditingController noteController;
+
+  _InstallmentDraft({
+    required this.id,
+    required this.statementMonth,
+    String amount = '',
+    String note = '',
+  })  : amountController = TextEditingController(text: amount),
+        noteController = TextEditingController(text: note);
+
+  factory _InstallmentDraft.fromEntry(CreditCardInstallmentEntry entry) {
+    final amount = entry.amount == entry.amount.roundToDouble()
+        ? entry.amount.toStringAsFixed(0)
+        : entry.amount.toString();
+    return _InstallmentDraft(
+      id: entry.id,
+      statementMonth: entry.statementMonth,
+      amount: amount,
+      note: entry.note ?? '',
+    );
+  }
+
+  void dispose() {
+    amountController.dispose();
+    noteController.dispose();
   }
 }

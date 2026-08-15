@@ -1,3 +1,42 @@
+class CreditCardInstallmentEntry {
+  final String id;
+  final DateTime statementMonth;
+  final double amount;
+  final String? note;
+
+  const CreditCardInstallmentEntry({
+    required this.id,
+    required this.statementMonth,
+    required this.amount,
+    this.note,
+  });
+
+  String ledgerTransactionId(String accountId) =>
+      'card_installment_${accountId}_$id';
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'statementMonth':
+          DateTime(statementMonth.year, statementMonth.month).toIso8601String(),
+      'amount': amount,
+      'note': note,
+    };
+  }
+
+  factory CreditCardInstallmentEntry.fromJson(Map<String, dynamic> json) {
+    final parsedMonth =
+        DateTime.tryParse(json['statementMonth'] as String? ?? '');
+    final month = parsedMonth ?? DateTime.now();
+    return CreditCardInstallmentEntry(
+      id: json['id'] as String,
+      statementMonth: DateTime(month.year, month.month),
+      amount: (json['amount'] as num?)?.toDouble() ?? 0,
+      note: json['note'] as String?,
+    );
+  }
+}
+
 class BankAccount {
   final String id;
   final String name; // Örn: "İş Bankası", "Akbank"
@@ -13,6 +52,7 @@ class BankAccount {
   final String currencyCode; // Para birimi (TRY, USD, EUR vb.)
   final double initialBalance; // Başlangıç bakiyesi
   final DateTime? createdAt; // İlk faiz dönemini belirlemek için
+  final List<CreditCardInstallmentEntry> installmentPlan;
 
   const BankAccount({
     required this.id,
@@ -28,7 +68,13 @@ class BankAccount {
     this.currencyCode = 'TRY',
     this.initialBalance = 0,
     this.createdAt,
+    this.installmentPlan = const [],
   });
+
+  double get installmentPlanTotal => installmentPlan.fold<double>(
+        0,
+        (total, installment) => total + installment.amount,
+      );
 
   Map<String, dynamic> toJson() {
     return {
@@ -45,6 +91,8 @@ class BankAccount {
       'currencyCode': currencyCode,
       'initialBalance': initialBalance,
       'createdAt': createdAt?.toIso8601String(),
+      'installmentPlan':
+          installmentPlan.map((entry) => entry.toJson()).toList(),
     };
   }
 
@@ -66,6 +114,14 @@ class BankAccount {
       createdAt: json['createdAt'] != null
           ? DateTime.tryParse(json['createdAt'] as String)
           : null,
+      installmentPlan: (json['installmentPlan'] as List<dynamic>? ?? const [])
+          .whereType<Map>()
+          .map(
+            (entry) => CreditCardInstallmentEntry.fromJson(
+              Map<String, dynamic>.from(entry),
+            ),
+          )
+          .toList(),
     );
   }
 
@@ -83,6 +139,7 @@ class BankAccount {
     String? currencyCode,
     double? initialBalance,
     DateTime? createdAt,
+    List<CreditCardInstallmentEntry>? installmentPlan,
   }) {
     return BankAccount(
       id: id ?? this.id,
@@ -99,6 +156,7 @@ class BankAccount {
       currencyCode: currencyCode ?? this.currencyCode,
       initialBalance: initialBalance ?? this.initialBalance,
       createdAt: createdAt ?? this.createdAt,
+      installmentPlan: installmentPlan ?? this.installmentPlan,
     );
   }
 

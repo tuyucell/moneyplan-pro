@@ -7,6 +7,7 @@ import '../providers/wallet_provider.dart';
 import '../providers/bank_account_provider.dart';
 import '../../../../core/providers/balance_visibility_provider.dart';
 import '../../../../core/services/currency_service.dart';
+import '../services/installment_schedule_service.dart';
 import '../services/payment_service.dart';
 import 'bank_account_editor_dialog.dart';
 
@@ -600,6 +601,21 @@ class BankAccountsCard extends ConsumerWidget {
     final tax = stats.tax;
 
     final isCC = bank.accountType == 'Kredi Kartı';
+    final pendingInstallmentDebt = isCC
+        ? InstallmentScheduleService.pendingTotal(
+            account: bank,
+            transactions: ref.watch(walletProvider),
+          )
+        : 0.0;
+    final currentBalanceInMainCurrency = _totalBalanceInMainCurrency(
+      balances,
+      bank.currencyCode,
+      currencyService,
+    );
+    final currentCardDebt = isCC && currentBalanceInMainCurrency < 0
+        ? -currentBalanceInMainCurrency
+        : 0.0;
+    final totalCardDebt = currentCardDebt + pendingInstallmentDebt;
     final mainCurrencyFormat = NumberFormat.currency(
         locale: bank.currencyCode == 'TRY' ? 'tr_TR' : 'en_US',
         symbol: currencyService.getSymbol(bank.currencyCode),
@@ -704,6 +720,30 @@ class BankAccountsCard extends ConsumerWidget {
                   ),
                 );
               }),
+              if (isCC && bank.installmentPlan.isNotEmpty) ...[
+                const Divider(height: 20),
+                _buildDebtSummaryRow(
+                  'Güncel kart borcu',
+                  currentCardDebt,
+                  mainCurrencyFormat,
+                  isVisible,
+                ),
+                const SizedBox(height: 5),
+                _buildDebtSummaryRow(
+                  'Gelecek taksitler',
+                  pendingInstallmentDebt,
+                  mainCurrencyFormat,
+                  isVisible,
+                ),
+                const SizedBox(height: 5),
+                _buildDebtSummaryRow(
+                  'Toplam kart borcu',
+                  totalCardDebt,
+                  mainCurrencyFormat,
+                  isVisible,
+                  isTotal: true,
+                ),
+              ],
               if (bank.overdraftLimit > 0) ...[
                 const SizedBox(height: 12),
                 Row(
@@ -714,38 +754,9 @@ class BankAccountsCard extends ConsumerWidget {
                       style: const TextStyle(fontSize: 10, color: Colors.grey),
                     ),
                     Builder(builder: (context) {
-                      // Total balance converted to account's main currency
-                      var totalBalanceInMainCurrency = 0.0;
-                      debugPrint(
-                          '📊 --- Calculating Total Limit for ${bank.name} ---');
-
-                      balances.forEach((currency, amount) {
-                        double amountInMain;
-                        if (currency == bank.currencyCode) {
-                          amountInMain = amount;
-                        } else {
-                          // Convert to TRY first, then to main currency if main is not TRY
-                          final amountInTRY =
-                              currencyService.convertToTRY(amount, currency);
-                          if (bank.currencyCode == 'TRY') {
-                            amountInMain = amountInTRY;
-                          } else {
-                            // Card is USD, amount is TRY/EUR etc.
-                            amountInMain = currencyService.convertFromTRY(
-                                amountInTRY, bank.currencyCode);
-                          }
-                        }
-                        totalBalanceInMainCurrency += amountInMain;
-                        if (amount != 0) {
-                          debugPrint(
-                              '   - $amount $currency -> $amountInMain ${bank.currencyCode}');
-                        }
-                      });
-
-                      final remaining =
-                          bank.overdraftLimit + totalBalanceInMainCurrency;
-                      debugPrint(
-                          '   = Result: Limit ${bank.overdraftLimit} + TotalBal $totalBalanceInMainCurrency = $remaining ${bank.currencyCode}');
+                      final remaining = bank.overdraftLimit +
+                          currentBalanceInMainCurrency -
+                          pendingInstallmentDebt;
 
                       return Text(
                         'Kalan: ${isVisible ? mainCurrencyFormat.format(remaining) : '••••'}',
@@ -757,34 +768,19 @@ class BankAccountsCard extends ConsumerWidget {
                 ),
                 const SizedBox(height: 4),
                 Builder(builder: (context) {
-                  // Re-calculate total balance for progress indicator
-                  var totalBalanceInMainCurrency = 0.0;
-                  balances.forEach((currency, amount) {
-                    if (currency == bank.currencyCode) {
-                      totalBalanceInMainCurrency += amount;
-                    } else {
-                      final amountInTRY =
-                          currencyService.convertToTRY(amount, currency);
-                      if (bank.currencyCode == 'TRY') {
-                        totalBalanceInMainCurrency += amountInTRY;
-                      } else {
-                        totalBalanceInMainCurrency += currencyService
-                            .convertFromTRY(amountInTRY, bank.currencyCode);
-                      }
-                    }
-                  });
+                  final utilizedAmount = isCC
+                      ? totalCardDebt
+                      : (currentBalanceInMainCurrency < 0
+                          ? -currentBalanceInMainCurrency
+                          : 0.0);
 
                   return ClipRRect(
                     borderRadius: BorderRadius.circular(4),
                     child: LinearProgressIndicator(
-                      value: totalBalanceInMainCurrency < 0
-                          ? (totalBalanceInMainCurrency.abs() /
-                                  bank.overdraftLimit)
-                              .clamp(0, 1)
-                          : 0,
+                      value: (utilizedAmount / bank.overdraftLimit).clamp(0, 1),
                       backgroundColor: Colors.grey.withValues(alpha: 0.1),
                       valueColor: AlwaysStoppedAnimation<Color>(
-                        totalBalanceInMainCurrency < 0
+                        utilizedAmount > 0
                             ? (isCC ? Colors.indigo : Colors.orange)
                             : Colors.green,
                       ),
@@ -812,6 +808,56 @@ class BankAccountsCard extends ConsumerWidget {
           ),
         ),
       ),
+    );
+  }
+
+  double _totalBalanceInMainCurrency(
+    Map<String, double> balances,
+    String mainCurrency,
+    CurrencyService currencyService,
+  ) {
+    var total = 0.0;
+    balances.forEach((currency, amount) {
+      if (currency == mainCurrency) {
+        total += amount;
+        return;
+      }
+
+      final amountInTry = currencyService.convertToTRY(amount, currency);
+      total += mainCurrency == 'TRY'
+          ? amountInTry
+          : currencyService.convertFromTRY(amountInTry, mainCurrency);
+    });
+    return total;
+  }
+
+  Widget _buildDebtSummaryRow(
+    String label,
+    double amount,
+    NumberFormat format,
+    bool isVisible, {
+    bool isTotal = false,
+  }) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: isTotal ? 12 : 11,
+            fontWeight: isTotal ? FontWeight.bold : FontWeight.w500,
+            color: isTotal ? null : Colors.grey,
+          ),
+        ),
+        Text(
+          isVisible ? format.format(amount) : '••••••',
+          style: TextStyle(
+            fontSize: isTotal ? 14 : 12,
+            fontWeight: isTotal ? FontWeight.bold : FontWeight.w600,
+            color: amount > 0 ? Colors.red.shade700 : null,
+          ),
+        ),
+      ],
     );
   }
 

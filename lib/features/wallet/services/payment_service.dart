@@ -81,7 +81,7 @@ class PaymentService {
     var balance = account.initialBalance;
 
     for (final tx in transactions) {
-      if (tx.bankAccountId != account.id) {
+      if (tx.bankAccountId != account.id || tx.excludeFromBalance) {
         continue;
       }
 

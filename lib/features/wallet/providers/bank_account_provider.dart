@@ -48,6 +48,7 @@ class BankAccountNotifier extends StateNotifier<List<BankAccount>> {
         };
         final remoteAccounts = response.map((json) {
           final local = localAccounts[json['id'] as String];
+          final remoteInstallmentPlan = json['installment_plan'];
           return BankAccount(
             id: json['id'] as String,
             name: json['account_name'] as String,
@@ -73,6 +74,16 @@ class BankAccountNotifier extends StateNotifier<List<BankAccount>> {
             createdAt: json['created_at'] != null
                 ? DateTime.tryParse(json['created_at'] as String)
                 : local?.createdAt,
+            installmentPlan: remoteInstallmentPlan is List
+                ? remoteInstallmentPlan
+                    .whereType<Map>()
+                    .map(
+                      (entry) => CreditCardInstallmentEntry.fromJson(
+                        Map<String, dynamic>.from(entry),
+                      ),
+                    )
+                    .toList()
+                : local?.installmentPlan ?? const [],
           );
         }).toList();
 
@@ -158,6 +169,8 @@ class BankAccountNotifier extends StateNotifier<List<BankAccount>> {
         'payment_day': account.paymentDay,
         'due_day': account.dueDay,
         'is_active': account.isActive,
+        'installment_plan':
+            account.installmentPlan.map((entry) => entry.toJson()).toList(),
       });
     } catch (_) {
       // Older deployments may not have the finance columns yet. Keep account

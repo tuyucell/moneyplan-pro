@@ -67,6 +67,15 @@ class DataSyncService {
         'balance': acc
             .initialBalance, // Using initialBalance as current balance is not stored in model
         'currency': acc.currencyCode,
+        'monthly_interest_rate': acc.overdraftInterestRate,
+        'bsmv_rate': acc.bsmvRate,
+        'kkdf_rate': acc.kkdfRate,
+        'overdraft_limit': acc.overdraftLimit,
+        'payment_day': acc.paymentDay,
+        'due_day': acc.dueDay,
+        'is_active': acc.isActive,
+        'installment_plan':
+            acc.installmentPlan.map((entry) => entry.toJson()).toList(),
         'updated_at': DateTime.now().toIso8601String(),
       };
     }).toList();
@@ -91,6 +100,12 @@ class DataSyncService {
         'currency': tx.currencyCode,
         'is_recurring': tx.recurrence.index > 0,
         'recurrence_type': tx.recurrence.name,
+        'recurrence_end_date': tx.recurrenceEndDate?.toIso8601String(),
+        'due_date': tx.dueDate?.toIso8601String(),
+        'is_paid': tx.isPaid,
+        'payment_method': tx.paymentMethod.name,
+        'exclude_from_balance': tx.excludeFromBalance,
+        'linked_transaction_id': tx.linkedTransactionId,
         'updated_at': DateTime.now().toIso8601String(),
       };
     }).toList();

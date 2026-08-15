@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:moneyplan_pro/features/wallet/models/bank_account.dart';
+import 'package:moneyplan_pro/features/wallet/models/monthly_summary.dart';
 import 'package:moneyplan_pro/features/wallet/models/transaction_category.dart';
 import 'package:moneyplan_pro/features/wallet/models/wallet_transaction.dart';
+import 'package:moneyplan_pro/features/wallet/services/installment_schedule_service.dart';
 import 'package:moneyplan_pro/features/wallet/services/statement_charge_service.dart';
 import 'package:moneyplan_pro/features/wallet/widgets/bank_account_editor_dialog.dart';
 
@@ -135,6 +137,116 @@ void main() {
     });
   });
 
+  group('Credit card installment schedule', () {
+    final account = BankAccount(
+      id: 'installment-card',
+      name: 'Taksit Kartı',
+      accountType: 'Kredi Kartı',
+      initialBalance: -10000,
+      overdraftLimit: 75000,
+      overdraftInterestRate: 4,
+      paymentDay: 10,
+      dueDay: 20,
+      createdAt: DateTime(2026, 8, 10),
+      installmentPlan: [
+        for (var month = 9; month <= 12; month++)
+          CreditCardInstallmentEntry(
+            id: 'installment-$month',
+            statementMonth: DateTime(2026, month),
+            amount: 10000,
+          ),
+      ],
+    );
+
+    test('stores current debt separately from future installment commitment',
+        () {
+      final restored = BankAccount.fromJson(account.toJson());
+
+      expect(restored.initialBalance, -10000);
+      expect(restored.installmentPlan, hasLength(4));
+      expect(restored.installmentPlanTotal, 40000);
+      expect(-restored.initialBalance + restored.installmentPlanTotal, 50000);
+    });
+
+    test('opening debt is an expense in its opening month without double count',
+        () {
+      final transactions = InstallmentScheduleService.createDueTransactions(
+        account: account,
+        transactions: const [],
+        asOf: DateTime(2026, 8, 15),
+      );
+
+      expect(transactions, hasLength(1));
+      expect(transactions.single.amount, 10000);
+      expect(transactions.single.excludeFromBalance, isTrue);
+      expect(transactions.single.isPaid, isTrue);
+
+      final summary = MonthlySummary.fromTransactions(
+        transactions,
+        2026,
+        8,
+        bankAccountList: [account],
+      );
+      expect(summary.totalExpense, 10000);
+      expect(summary.cashExpense, 0);
+    });
+
+    test('each installment becomes debt only in its own statement month', () {
+      final augustTransactions =
+          InstallmentScheduleService.createDueTransactions(
+        account: account,
+        transactions: const [],
+        asOf: DateTime(2026, 8, 31),
+      );
+      expect(augustTransactions, hasLength(1));
+      expect(
+        InstallmentScheduleService.pendingTotal(
+          account: account,
+          transactions: augustTransactions,
+        ),
+        40000,
+      );
+
+      final septemberTransactions =
+          InstallmentScheduleService.createDueTransactions(
+        account: account,
+        transactions: augustTransactions,
+        asOf: DateTime(2026, 9, 10),
+      );
+      expect(septemberTransactions, hasLength(1));
+      expect(septemberTransactions.single.amount, 10000);
+      expect(septemberTransactions.single.date, DateTime(2026, 9, 10));
+      expect(septemberTransactions.single.dueDate, DateTime(2026, 9, 20));
+      expect(septemberTransactions.single.isPaid, isFalse);
+      expect(
+        InstallmentScheduleService.pendingTotal(
+          account: account,
+          transactions: [
+            ...augustTransactions,
+            ...septemberTransactions,
+          ],
+        ),
+        30000,
+      );
+    });
+
+    test('statement interest includes the installment that became due', () {
+      final scheduled = InstallmentScheduleService.createDueTransactions(
+        account: account,
+        transactions: const [],
+        asOf: DateTime(2026, 9, 10),
+      );
+      final charges = StatementChargeService.createDueCharges(
+        account: account,
+        transactions: scheduled,
+        asOf: DateTime(2026, 9, 10),
+      );
+
+      expect(charges, hasLength(2));
+      expect(charges.first.amount, 800); // 20.000 x %4
+    });
+  });
+
   testWidgets('card editor accepts a signed negative starting balance',
       (tester) async {
     await tester.pumpWidget(
@@ -162,5 +274,43 @@ void main() {
       find.descendant(of: balanceFinder, matching: find.byType(EditableText)),
     );
     expect(editable.keyboardType.signed, isTrue);
+  });
+
+  testWidgets('card editor exposes future installments and ignores barrier tap',
+      (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => FilledButton(
+                onPressed: () => showBankAccountEditorDialog(
+                  context,
+                  defaultType: 'Kredi Kartı',
+                ),
+                child: const Text('AÇ'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('AÇ'));
+    await tester.pumpAndSettle();
+    expect(find.text('Yeni Kart Ekle'), findsOneWidget);
+
+    await tester.tapAt(const Offset(2, 2));
+    await tester.pumpAndSettle();
+    expect(find.text('Yeni Kart Ekle'), findsOneWidget);
+
+    final toggle = find.byKey(
+      const ValueKey('credit_card_has_installments'),
+    );
+    await tester.ensureVisible(toggle);
+    await tester.tap(toggle);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('add_installment_month')), findsOneWidget);
+    expect(find.text('Gelecek: 0 ₺'), findsOneWidget);
   });
 }
